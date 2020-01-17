@@ -1,9 +1,16 @@
 ---
-title: "aoi_analyses_DL_v9"
+title: "Clean data frame"
 author: "Robin"
 date: "02/06/2019"
 output: html_document
 ---
+
+# Where do you want to save data?
+```{r}
+out_dir = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/'
+file_name = 'cleaned_multilevel_data'
+```
+
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 library(readxl)
@@ -16,84 +23,77 @@ library(AICcmodavg)
 library(bbmle)
 library(glmmTMB)
 library(lmerTest)
+library(gtools)
+library(tuple)
 ```
 
+Read in data
 ```{r}
-#Reads in MFDFA file from MFDFA_dancing_ladies_all.m
-# Master <- read_excel("/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/Master_MFDFA_DL_old.xlsx") #5265
+#########################
+#import MFDFA output
+#########################
 Master=read_excel("/Users/sifre002/Box/Dancing Ladies share/IndividualData/Script outputs/Master_MFDFA_DL.xlsx")
 Master=as.data.frame(Master) 
-#Renames columns to make predict() happy
+# Fix header for easier programming 
 colnames(Master)[colnames(Master)=="Longest Fix Duration"] <- "LongestFixDuration"
 colnames(Master)[colnames(Master)=="Prop Interp"] <- "PropInterp"
 colnames(Master)[colnames(Master)=="Prop Missing"] <- "PropMissing"
 colnames(Master)[colnames(Master)=="Movie Name"] <- "MovieName"
 colnames(Master)[colnames(Master)=="Segment Num"] <- "Seg"
-
-Master_NAage=Master%>%
+# Filter out participants who are outside of age range & keep track of who we are missing Age for 
+Master_NAage=Master%>% 
   filter(is.na(Age))
-
-#filters out old outliers
 Master_old=Master%>%
   filter(Age>40)
-a=unique(Master_old$ID)
 Master=Master%>%
   filter(Age<40)
-
-a=as.data.frame(unique(Master$ID))
-
-#Reads in information about calibration precision from calibration-v13.py via CalVerPrecision.m
-# CalVer <- read_excel("/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/Master_PrecisionInfo_DL_all.xlsx")
+#########################
+# import calibration precision
+#########################
 CalVer <- read_excel("/Users/sifre002/Box/Dancing Ladies share/Formatted_CalVerData_2018_12_12/allCalVers.xlsx") #6127
-precisionInfo=as.data.frame(CalVer) # 6127
-
-#Reads in master linking file to get sex info
+precisionInfo=as.data.frame(CalVer) 
+#########################
+# Import demographic info
+#########################
+#Read in information on participant's sex, and combine 
 info1=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'JE NUMBERS')
 info2=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'MNBCP NUMBERS')
 info3=read_excel('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Pheno Screening Master Linking File.xlsx');
-
-# pull sex 
 sexList = rbind(info1 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
                 info2 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
                 info3 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex) )
 sexList = sexList %>% mutate( Participant = 
                                 paste( sapply(strsplit(sexList$ID, '_'), '[', 1), sapply(strsplit(sexList$ID, '_'), '[', 2), sep = '_') )
-
-
-# cohort info
+# Read in lo
 cohort_info=read.csv('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Mullens_DL_lorisMatch_20190103.csv', stringsAsFactors = FALSE)
 cohort_info=cohort_info%>%
   dplyr::select(ID,cohort_LORIS) %>%
   mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') ) %>%
   arrange(Participant)
 
-
-
-
-# Read aoi data
+#########################
+# Import AOI-based analyses output 
+#########################
 aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
 #
 aoi_data = aoi_data %>% filter(longestFix_Dur != -9999)
-
 ```
 
-
-
+# Formatting 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
+# Create variable for Participant ID (currently combined with session #)
 Master=Master%>%
   mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') )
-
 Master$Age=as.numeric(Master$Age)
 ```
 
-Ad in cohort info 
+Merge cohort information & remove Babarr (they were recruited differently)
 ```{r}
 cohort=merge(Master, cohort_info, by="Participant", all=FALSE,sort=FALSE)
 cohort= unique( cohort[ , c("Participant","cohort_LORIS") ] )
 Master2=merge(Master, cohort, by="Participant", all.x=TRUE)
 Master2$cohort=Master2$cohort_LORIS
-
-# collapse cohort info
+# Combine sub-cohorts to create broader ones 
 Master2$cohort_collapsed = Master2$cohort
 Master2$cohort_dummy = NA
 Master2[grepl('A', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
@@ -101,23 +101,19 @@ Master2[grepl('B', Master2$cohort), 'cohort_collapsed'] = 'BCP'
 Master2[grepl('C', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
 Master2[grepl('D', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
 Master2[grepl('E', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-
-Master2[grepl('BABARR', Master2$cohort), 'cohort_collapsed'] = 'Babarr' # kick these kids out 
+Master2[grepl('BABARR', Master2$cohort), 'cohort_collapsed'] = 'Babarr' # Remove Babarr, bc they were recruited differently 
 Master2[grepl('BSLERP', Master2$cohort), 'cohort_collapsed'] = 'Bslerp' 
 Master2[grepl('DevSocAtt', Master2$cohort), 'cohort_collapsed'] = 'DSA_CS'  
-
-
+# Create numeric versions of variables 
 Master2[grepl('BCP', Master2$cohort_collapsed), 'cohort_dummy'] = 1
 Master2[grepl('Bslerp', Master2$cohort_collapsed), 'cohort_dummy'] = 2
 Master2[grepl('DSA_CS', Master2$cohort_collapsed), 'cohort_dummy'] = 3
 Master2[grepl('Babarr', Master2$cohort_collapsed), 'cohort_dummy'] = 4
-
-Master2 = Master2 %>% filter(cohort_dummy !=4)
+Master2 = Master2 %>% filter(cohort_dummy !=4) # Remove Babarr, bc they were recruited differently 
 ```
 
-
+Clean AOI data
 ```{r}
-# clean aoi data
 aoi_data2 = aoi_data %>%
   dplyr::select(ID = id, 
                 MovieName = movie,
@@ -126,26 +122,22 @@ aoi_data2 = aoi_data %>%
 ```
 
 
-Adding sex to MFDFA dataframe from Elab master linking file  
+Merge Sex information 
 ```{r}
 # Merge sex list and Master 
 sexList = sexList %>% dplyr::select(Participant, Sex)
 sexList[sexList$Participant == 'JE000211_04', 'Participant'] ='JE000211_03' # error in master linkning file
 sexList[sexList$Participant == 'MNBCP000139_04', 'Participant'] ='MNBCP000139_05' # error in master linkning file
-
 sex=merge(Master2, sexList, by="Participant", all=FALSE,sort=FALSE)
-#
 sex= unique( sex[ , c("ID","Sex") ] )
 
 Master2=merge(Master2, sex[ , c("ID","Sex")], by="ID", all.x=TRUE)
-
 Master2$female = NA
-Master2[Master2$Sex == 'F' & !is.na(Master2$Sex), 'female'] = 1
+Master2[Master2$Sex == 'F' & !is.na(Master2$Sex), 'female'] = 1 # Female as reference group for modelling
 Master2[Master2$Sex == 'M' & !is.na(Master2$Sex), 'female'] = 0
-
 ```
 
-Adding DL stimulus type (i.e., CalVer, Pixelated, NonPixelated) to MFDFA dataframe  
+Add stimulus type (i.e., CalVer, Pixelated, NonPixelated) to MFDFA dataframe  
 ```{r}
 Master2$Calver = ifelse(grepl('Center|Left|Right', Master2$MovieName), 1, 0)
 Master2$Pixelated = ifelse(grepl('S', Master2$MovieName), 1, 0)
@@ -158,11 +150,9 @@ Creates a FinalCalVer dataframe of average calibration XY precision information 
 CalVerMaster=precisionInfo 
 CalVerMaster$`Precision_RMS_X`=as.numeric(CalVerMaster$`Precision_RMS_X`)
 CalVerMaster$`Precision_RMS_Y`=as.numeric(CalVerMaster$`Precision_RMS_Y`)
-
-#Finds average XY precision for each calibration point
+#Find average XY precision for each calibration point
 CalVerMaster=CalVerMaster%>%
   mutate(Precision_RMS_X_Y=(`Precision_RMS_X` + `Precision_RMS_Y`)/2)
-
 #Establishes 2 SD cutoffs for acceptable precision values
 PrecSD=sd(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)
 cutoff=mean(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)+2*PrecSD
@@ -178,6 +168,7 @@ PtsExcluded=sum(CalVerMaster$exclude, na.rm=TRUE)
 CalVerMaster=as.data.frame(CalVerMaster)
 
 #Adds in ID to every calibration point (Kirsten's script has ID every 5 lines only)
+# Note: can clean this up in the future 
 for (x in 1:nrow(CalVerMaster)){
   if (grepl("JE", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
     id=CalVerMaster$Stimulus[x]
@@ -207,74 +198,57 @@ for (x in 1:nrow(CalVerMaster)){
 
 CalVerMaster = CalVerMaster %>%
   filter(Type != 'NA' )
-
-#CalVerMaster = CalVerMaster[2:nrow(CalVerMaster) , ]
-#CalVerMaster$TypeNum = as.numeric(CalVerMaster$TypeNum)
-#CalVerMaster$TypeNum = 9999
-
+# Type keeps track of when the calibration verification procedure took place 
 CalVerMaster[CalVerMaster$Type == 'Beg', 'TypeNum'] = 1
 CalVerMaster[CalVerMaster$Type == 'Mid', 'TypeNum'] = 2
 CalVerMaster[CalVerMaster$Type == 'End', 'TypeNum'] = 3
 CalVerMaster[CalVerMaster$Type == 'Unknown', 'TypeNum'] = 4
 
-#Excludes both points above precision cutoff and those without any precision info
-FinalCalVer=CalVerMaster%>% #4136
+#Excludes points above precision cutoff AND those without any precision info
+FinalCalVer=CalVerMaster%>% 
   filter(include==1) #only includes pts with good precision
 
-# FinalCalVerSumm=FinalCalVer%>%
-#   group_by(ID)%>%
-#   summarise(n()) #calculates number of good calib pts per participant
-
 #Finds number of participants remaining
-N=unique(FinalCalVer$ID)
+#N=unique(FinalCalVer$ID)
 
 #Groups by ID to get average precision info for each remaining participant
 FinalCalVer=FinalCalVer%>%
   group_by(ID)%>%
   summarise(AvgPrecision=mean(Precision_RMS_X_Y))%>%
   filter((!is.na(ID)))
-
 ```
 
-Formatting of master file  
-```{r message=FALSE, warning=FALSE}
-library(gtools)
-
-#Finds time pts per kid
-library(tuple)
-Master_sum=Master2%>%
-  group_by(Participant, ID)%>% 
-  summarise(n())%>%
-  mutate(dummy = 1)%>%
-  group_by(Participant)%>%
-  summarise(sessions=sum(dummy))
-
-a=unique(Master$ID)
+```{r}
+# Commented out code - useful for reporting purposes
+# Master_sum=Master2%>%
+#   group_by(Participant, ID)%>% 
+#   summarise(n())%>%
+#   mutate(dummy = 1)%>%
+#   group_by(Participant)%>%
+#   summarise(sessions=sum(dummy))
 ```
 
-Adds individual precision info to MFDFA segments & includes only those w/ precision data in FinalCalvr  
+
+Add individual precision info FROM FINALCALVER to MFDFA & includes only those w/ precision data in FinalCalvr  
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 colnames(FinalCalVer)[colnames(FinalCalVer)=="AvgPrecision"] <- "PrecisionRMS_X_Y"
 FinalCalVer$precisionInfo = 1
-
 Master3 = merge(Master2,FinalCalVer, by="ID", all.x=TRUE)
-
 Master_precInf=Master3%>%
   filter(precisionInfo==1)
-a=unique(Master_precInf$ID)
-a=unique(as.character(Master_precInf$Participant))
+# Useful for reporting purposes 
+#a=unique(Master_precInf$ID)
+#a=unique(as.character(Master_precInf$Participant))
 
 #Filters out those without precision info (i.e., did not make it through CalVer/did not have any points above quality thresholds from previous code)
 Master3=Master3%>%
   filter(precisionInfo==1)
-a=unique(Master$ID) #131
+#a=unique(Master$ID) #131
 
-#Centers precision on grand mean for interpretation
+#Center precision on grand mean (will use this for modelling)
 avePrec=mean(Master3$PrecisionRMS_X_Y)
 Master3=Master3%>%
   mutate(PrecisionRMS_X_Y_centered=PrecisionRMS_X_Y-avePrec)
-
-#max(Master$PropMissing)
 ```
 
 Establishes cutoff levels for acceptable amount missing/interpolated for each segment
@@ -289,8 +263,6 @@ Master_too_much_interp=Master3%>%
 #   filter(PropMissing>MasterMissingC)
 #Master_combo=rbind(Master_too_much_interp,Master_too_much_missing)
 #a=as.data.frame(unique(Master_combo$ID))#251
-
-
 #Selects only segments with acceptable missing/interp levels
 Master3=Master3%>%
   filter(PropInterp<MasterInterpC)
@@ -301,14 +273,13 @@ Examines and removes missing H's
 #Identifies segments too short to calculate H
 Master_too_short=Master3%>% 
   filter(H=="Too Short")
-a=as.data.frame(unique(Master_too_short$ID))
+#a=as.data.frame(unique(Master_too_short$ID))
 
 #Identifies segments for which H could not be calculated for unknown reasons (e.g., dividing by 0 in matlab code)
 Master_NA=Master3%>% #628
   filter(is.na(H))
-a=unique(Master_NA$ID)
-
-Master_no_H=rbind(Master_too_short, Master_NA)
+#a=unique(Master_NA$ID)
+#Master_no_H=rbind(Master_too_short, Master_NA)
 
 #Makes all non-numeric values Na, selecting only segments w/ valid H's
 Master3$H=as.numeric(Master3$H)
@@ -331,10 +302,6 @@ Merge aoi data with master_longit
 ```{r}
 Master_longit = Master3 %>%
   dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, SpectWidth, Age, MovieName, Seg, Stimulus, Version, Pixelated, NonPixelated, Calver, Stimulus,Sex, female, cohort_dummy)
-
-#Master_longit[Master_longit$Seg == 'NA', 'Seg'] = '9999'
-#Master_longit$Seg = as.numeric(Master_longit$Seg)
-
 temp1 = Master_longit %>% filter(Stimulus=='DL') # only movie trials
 temp2 = Master_longit %>% filter(Stimulus=='C') # only CalVer trials
 
@@ -350,7 +317,7 @@ Master_longit2 = rbind(test, temp2)
 ```
 
 
-Creates/formats longitudinal data 
+# Create person-, visit-, and movie-centered variables. These are used to parse variance for modelling.
 ```{r}
 # Get grand mean for average age
 AveAge = Master_longit2 %>%
@@ -371,11 +338,6 @@ AveAge = mean(AveAge$age)
 Master_longit2=Master_longit2%>%
   mutate(Age_centeredGrandmean=as.numeric(Age-AveAge),
          longestFix_seg_centeredGrandmean = as.numeric(LongestFixDuration - aveLongFix))
-
-# #Creating average age variable to account for age at which participants contribute data
-# Master_longit=Master_longit%>%
-#   mutate(AvgAge=NA)
-
 
 # Creating level 3 (person) variables:
 # Average age: Participant's average age, centered on grand mean
@@ -415,14 +377,10 @@ movieLevel_var = Master_longit2 %>%
 
 # Merge person-level
 Master_longit3 = merge(Master_longit2, personLevel_var, by = 'Participant')
-
 # Merge visit-level
 Master_longit4 = merge(Master_longit3, sessionLevel_var, by = 'ID')
-
 # Merge movie-level
 Master_longit5 = merge(Master_longit4, movieLevel_var, by = c('Participant', 'ID', 'MovieName'))
-
-
 # Create SEGMENT-LEVEL VARIABLES centered at MOVIE LEVEL
 Master_longit5$propInterp_segment_groupmeancentered = Master_longit5$PropInterp - Master_longit5$AveInterp_movie
 Master_longit5$longestFix_segment_groupmeancentered = Master_longit5$longestFix_seg_centeredGrandmean - Master_longit5$AveLongestFix_movie
@@ -446,25 +404,20 @@ Master_longit5$propFace_person_grandmeancentered  = Master_longit5$AvePropFace_p
 Master_longit5$precision_person_grandmeancentered  = Master_longit5$AvePrecision_person - mean(Master_longit5$PrecisionRMS_X_Y, na.rm=TRUE)
 
 ############################################################################
-
-# adds person-centered age 
-# age_sess = Master_longit %>%
-#   dplyr::select(Participant,ID, Age) %>% 
-#   group_by(Participant) %>%
-#   summarize(mean_age = mean(unique(Age)))
+#Commented out code - could be useful or reporting 
 
 #Finds participant info
-Master_longit_sample=Master_longit4%>%
-  group_by(Participant, ID)%>%
-  summarise(n=n(),
-            female=mean(as.numeric(female, na.rm=TRUE)))
-Master_longit_female=Master_longit4%>%
-  filter(female==1)%>%
-  group_by(Participant)%>%
-  summarise(n=n())
+# Master_longit_sample=Master_longit4%>%
+#   group_by(Participant, ID)%>%
+#   summarise(n=n(),
+#             female=mean(as.numeric(female, na.rm=TRUE)))
+# Master_longit_female=Master_longit4%>%
+#   filter(female==1)%>%
+#   group_by(Participant)%>%
+#   summarise(n=n())
 
-N_female=unique(Master_longit_female$Participant)
-mean(Master_longit$PropMissing, na.rm=TRUE)
+# N_female=unique(Master_longit_female$Participant)
+# mean(Master_longit$PropMissing, na.rm=TRUE)
 
 # #Finds time pts per kid
 # library(tuple)
@@ -477,25 +430,24 @@ mean(Master_longit$PropMissing, na.rm=TRUE)
 #   group_by(Participant)%>%
 #   summarize(sessions=sum(dummy))
 
-
 ```
 
-Sanity checking 
-```{r}
-model_data = Master_longit5 %>% filter(Stimulus == 'DL')
+<!-- Sanity checking  -->
+<!-- ```{r} -->
+<!-- model_data = Master_longit5 %>% filter(Stimulus == 'DL') -->
 
-ggplot(data = model_data, aes(x = Age, y = H) ) +
-  stat_smooth(method = 'lm', se = FALSE,  formula = y~x, show.legend = FALSE, aes(group = MovieName, color = MovieName)) +
-  stat_smooth(method ='lm', formula = y~x, color = 'black')
+<!-- ggplot(data = model_data, aes(x = Age, y = H) ) + -->
+<!--   stat_smooth(method = 'lm', se = FALSE,  formula = y~x, show.legend = FALSE, aes(group = MovieName, color = MovieName)) + -->
+<!--   stat_smooth(method ='lm', formula = y~x, color = 'black') -->
 
-library(psychometric)
-ICC1.lme(H, MovieName, model_data)  
+<!-- library(psychometric) -->
+<!-- ICC1.lme(H, MovieName, model_data)   -->
 
-```
+<!-- ``` -->
 
 Save data 
 ```{r}
-write.csv(file = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/cleanDLdat.csv', Master_longit5)
+write.csv(file = paste(out_dir, file_name, '.csv', sep= ''), Master_longit5)
 ```
 
 

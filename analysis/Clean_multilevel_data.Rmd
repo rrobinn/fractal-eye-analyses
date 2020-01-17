@@ -1,0 +1,502 @@
+---
+title: "aoi_analyses_DL_v9"
+author: "Robin"
+date: "02/06/2019"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(readxl)
+library(dplyr)
+library(sm)
+library(lme4)
+library(ggplot2)
+library(MuMIn)
+library(AICcmodavg)
+library(bbmle)
+library(glmmTMB)
+library(lmerTest)
+```
+
+```{r}
+#Reads in MFDFA file from MFDFA_dancing_ladies_all.m
+# Master <- read_excel("/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/Master_MFDFA_DL_old.xlsx") #5265
+Master=read_excel("/Users/sifre002/Box/Dancing Ladies share/IndividualData/Script outputs/Master_MFDFA_DL.xlsx")
+Master=as.data.frame(Master) 
+#Renames columns to make predict() happy
+colnames(Master)[colnames(Master)=="Longest Fix Duration"] <- "LongestFixDuration"
+colnames(Master)[colnames(Master)=="Prop Interp"] <- "PropInterp"
+colnames(Master)[colnames(Master)=="Prop Missing"] <- "PropMissing"
+colnames(Master)[colnames(Master)=="Movie Name"] <- "MovieName"
+colnames(Master)[colnames(Master)=="Segment Num"] <- "Seg"
+
+Master_NAage=Master%>%
+  filter(is.na(Age))
+
+#filters out old outliers
+Master_old=Master%>%
+  filter(Age>40)
+a=unique(Master_old$ID)
+Master=Master%>%
+  filter(Age<40)
+
+a=as.data.frame(unique(Master$ID))
+
+#Reads in information about calibration precision from calibration-v13.py via CalVerPrecision.m
+# CalVer <- read_excel("/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/Master_PrecisionInfo_DL_all.xlsx")
+CalVer <- read_excel("/Users/sifre002/Box/Dancing Ladies share/Formatted_CalVerData_2018_12_12/allCalVers.xlsx") #6127
+precisionInfo=as.data.frame(CalVer) # 6127
+
+#Reads in master linking file to get sex info
+info1=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'JE NUMBERS')
+info2=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'MNBCP NUMBERS')
+info3=read_excel('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Pheno Screening Master Linking File.xlsx');
+
+# pull sex 
+sexList = rbind(info1 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
+                info2 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
+                info3 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex) )
+sexList = sexList %>% mutate( Participant = 
+                                paste( sapply(strsplit(sexList$ID, '_'), '[', 1), sapply(strsplit(sexList$ID, '_'), '[', 2), sep = '_') )
+
+
+# cohort info
+cohort_info=read.csv('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Mullens_DL_lorisMatch_20190103.csv', stringsAsFactors = FALSE)
+cohort_info=cohort_info%>%
+  dplyr::select(ID,cohort_LORIS) %>%
+  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') ) %>%
+  arrange(Participant)
+
+
+
+
+# Read aoi data
+aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
+#
+aoi_data = aoi_data %>% filter(longestFix_Dur != -9999)
+
+```
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+Master=Master%>%
+  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') )
+
+Master$Age=as.numeric(Master$Age)
+```
+
+Ad in cohort info 
+```{r}
+cohort=merge(Master, cohort_info, by="Participant", all=FALSE,sort=FALSE)
+cohort= unique( cohort[ , c("Participant","cohort_LORIS") ] )
+Master2=merge(Master, cohort, by="Participant", all.x=TRUE)
+Master2$cohort=Master2$cohort_LORIS
+
+# collapse cohort info
+Master2$cohort_collapsed = Master2$cohort
+Master2$cohort_dummy = NA
+Master2[grepl('A', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
+Master2[grepl('B', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
+Master2[grepl('C', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
+Master2[grepl('D', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
+Master2[grepl('E', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
+
+Master2[grepl('BABARR', Master2$cohort), 'cohort_collapsed'] = 'Babarr' # kick these kids out 
+Master2[grepl('BSLERP', Master2$cohort), 'cohort_collapsed'] = 'Bslerp' 
+Master2[grepl('DevSocAtt', Master2$cohort), 'cohort_collapsed'] = 'DSA_CS'  
+
+
+Master2[grepl('BCP', Master2$cohort_collapsed), 'cohort_dummy'] = 1
+Master2[grepl('Bslerp', Master2$cohort_collapsed), 'cohort_dummy'] = 2
+Master2[grepl('DSA_CS', Master2$cohort_collapsed), 'cohort_dummy'] = 3
+Master2[grepl('Babarr', Master2$cohort_collapsed), 'cohort_dummy'] = 4
+
+Master2 = Master2 %>% filter(cohort_dummy !=4)
+```
+
+
+```{r}
+# clean aoi data
+aoi_data2 = aoi_data %>%
+  dplyr::select(ID = id, 
+                MovieName = movie,
+                Seg = seg, 
+                longestFix_aoi = longestFix_Dur, faceCount, otherCount)
+```
+
+
+Adding sex to MFDFA dataframe from Elab master linking file  
+```{r}
+# Merge sex list and Master 
+sexList = sexList %>% dplyr::select(Participant, Sex)
+sexList[sexList$Participant == 'JE000211_04', 'Participant'] ='JE000211_03' # error in master linkning file
+sexList[sexList$Participant == 'MNBCP000139_04', 'Participant'] ='MNBCP000139_05' # error in master linkning file
+
+sex=merge(Master2, sexList, by="Participant", all=FALSE,sort=FALSE)
+#
+sex= unique( sex[ , c("ID","Sex") ] )
+
+Master2=merge(Master2, sex[ , c("ID","Sex")], by="ID", all.x=TRUE)
+
+Master2$female = NA
+Master2[Master2$Sex == 'F' & !is.na(Master2$Sex), 'female'] = 1
+Master2[Master2$Sex == 'M' & !is.na(Master2$Sex), 'female'] = 0
+
+```
+
+Adding DL stimulus type (i.e., CalVer, Pixelated, NonPixelated) to MFDFA dataframe  
+```{r}
+Master2$Calver = ifelse(grepl('Center|Left|Right', Master2$MovieName), 1, 0)
+Master2$Pixelated = ifelse(grepl('S', Master2$MovieName), 1, 0)
+Master2$NonPixelated = ifelse(Master2$Pixelated == 0 & Master2$Calver == 0, 1, 0)
+```
+
+Creates a FinalCalVer dataframe of average calibration XY precision information for each kid who made it through CalVer processing
+```{r}
+#Formatting
+CalVerMaster=precisionInfo 
+CalVerMaster$`Precision_RMS_X`=as.numeric(CalVerMaster$`Precision_RMS_X`)
+CalVerMaster$`Precision_RMS_Y`=as.numeric(CalVerMaster$`Precision_RMS_Y`)
+
+#Finds average XY precision for each calibration point
+CalVerMaster=CalVerMaster%>%
+  mutate(Precision_RMS_X_Y=(`Precision_RMS_X` + `Precision_RMS_Y`)/2)
+
+#Establishes 2 SD cutoffs for acceptable precision values
+PrecSD=sd(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)
+cutoff=mean(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)+2*PrecSD
+
+#Creates exclude/include dummies based on cutoff
+CalVerMaster=CalVerMaster%>%
+  mutate(exclude=if_else(Precision_RMS_X_Y>cutoff, 1, 0),
+         include=if_else(Precision_RMS_X_Y<cutoff,1,0),
+         ID=NA,
+         TypeNum=NA)
+
+PtsExcluded=sum(CalVerMaster$exclude, na.rm=TRUE)
+CalVerMaster=as.data.frame(CalVerMaster)
+
+#Adds in ID to every calibration point (Kirsten's script has ID every 5 lines only)
+for (x in 1:nrow(CalVerMaster)){
+  if (grepl("JE", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
+    id=CalVerMaster$Stimulus[x]
+    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
+    end=x+5
+    for (y in x:end){
+      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
+    }
+  }
+  else if (grepl("MNBCP", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
+    id=CalVerMaster$Stimulus[x]
+    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
+    end=x+5
+    for (y in x:end){
+      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
+    }
+  }
+  else if (grepl("Bab", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
+    id=CalVerMaster$Stimulus[x]
+    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
+    end=x+5
+    for (y in x:end){
+      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
+    }
+  }
+}
+
+CalVerMaster = CalVerMaster %>%
+  filter(Type != 'NA' )
+
+#CalVerMaster = CalVerMaster[2:nrow(CalVerMaster) , ]
+#CalVerMaster$TypeNum = as.numeric(CalVerMaster$TypeNum)
+#CalVerMaster$TypeNum = 9999
+
+CalVerMaster[CalVerMaster$Type == 'Beg', 'TypeNum'] = 1
+CalVerMaster[CalVerMaster$Type == 'Mid', 'TypeNum'] = 2
+CalVerMaster[CalVerMaster$Type == 'End', 'TypeNum'] = 3
+CalVerMaster[CalVerMaster$Type == 'Unknown', 'TypeNum'] = 4
+
+#Excludes both points above precision cutoff and those without any precision info
+FinalCalVer=CalVerMaster%>% #4136
+  filter(include==1) #only includes pts with good precision
+
+# FinalCalVerSumm=FinalCalVer%>%
+#   group_by(ID)%>%
+#   summarise(n()) #calculates number of good calib pts per participant
+
+#Finds number of participants remaining
+N=unique(FinalCalVer$ID)
+
+#Groups by ID to get average precision info for each remaining participant
+FinalCalVer=FinalCalVer%>%
+  group_by(ID)%>%
+  summarise(AvgPrecision=mean(Precision_RMS_X_Y))%>%
+  filter((!is.na(ID)))
+
+```
+
+Formatting of master file  
+```{r message=FALSE, warning=FALSE}
+library(gtools)
+
+#Finds time pts per kid
+library(tuple)
+Master_sum=Master2%>%
+  group_by(Participant, ID)%>% 
+  summarise(n())%>%
+  mutate(dummy = 1)%>%
+  group_by(Participant)%>%
+  summarise(sessions=sum(dummy))
+
+a=unique(Master$ID)
+```
+
+Adds individual precision info to MFDFA segments & includes only those w/ precision data in FinalCalvr  
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+colnames(FinalCalVer)[colnames(FinalCalVer)=="AvgPrecision"] <- "PrecisionRMS_X_Y"
+FinalCalVer$precisionInfo = 1
+
+Master3 = merge(Master2,FinalCalVer, by="ID", all.x=TRUE)
+
+Master_precInf=Master3%>%
+  filter(precisionInfo==1)
+a=unique(Master_precInf$ID)
+a=unique(as.character(Master_precInf$Participant))
+
+#Filters out those without precision info (i.e., did not make it through CalVer/did not have any points above quality thresholds from previous code)
+Master3=Master3%>%
+  filter(precisionInfo==1)
+a=unique(Master$ID) #131
+
+#Centers precision on grand mean for interpretation
+avePrec=mean(Master3$PrecisionRMS_X_Y)
+Master3=Master3%>%
+  mutate(PrecisionRMS_X_Y_centered=PrecisionRMS_X_Y-avePrec)
+
+#max(Master$PropMissing)
+```
+
+Establishes cutoff levels for acceptable amount missing/interpolated for each segment
+```{r}
+#Finds 80th quantile for amount interpoloated and missing levels based on entire sample
+MasterInterpC=quantile(Master3$PropInterp, .80)
+# MasterMissingC=quantile(Master3$PropMissing %>% select(), .80) got rid of this bc we have longest fix as a covariate 
+
+Master_too_much_interp=Master3%>%
+  filter(PropInterp>MasterInterpC)
+# Master_too_much_missing=Master3%>%
+#   filter(PropMissing>MasterMissingC)
+#Master_combo=rbind(Master_too_much_interp,Master_too_much_missing)
+#a=as.data.frame(unique(Master_combo$ID))#251
+
+
+#Selects only segments with acceptable missing/interp levels
+Master3=Master3%>%
+  filter(PropInterp<MasterInterpC)
+```
+
+Examines and removes missing H's
+```{r}
+#Identifies segments too short to calculate H
+Master_too_short=Master3%>% 
+  filter(H=="Too Short")
+a=as.data.frame(unique(Master_too_short$ID))
+
+#Identifies segments for which H could not be calculated for unknown reasons (e.g., dividing by 0 in matlab code)
+Master_NA=Master3%>% #628
+  filter(is.na(H))
+a=unique(Master_NA$ID)
+
+Master_no_H=rbind(Master_too_short, Master_NA)
+
+#Makes all non-numeric values Na, selecting only segments w/ valid H's
+Master3$H=as.numeric(Master3$H)
+Master3=subset(Master3, !is.na(H))
+a=unique(Master3$Participant) #184 --loss of 11 infants
+a=as.data.frame(unique(Master3$ID)) #376 --loss of 45 visits
+
+#Extracts pertinent info for modeling
+# MasterSum=Master3%>%
+#   group_by(ID)%>%
+#   dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, Age, MovieName,Stimulus, Version, Pixelated, NonPixelated, CalVer, Stimulus,Sex, female, cohort)
+# 
+# MasterSum=as.data.frame(MasterSum)
+# 
+# MasterSum$Stimulus=as.factor(MasterSum$Stimulus)
+# MasterSum$Age=as.numeric(MasterSum$Age)
+```
+
+Merge aoi data with master_longit
+```{r}
+Master_longit = Master3 %>%
+  dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, SpectWidth, Age, MovieName, Seg, Stimulus, Version, Pixelated, NonPixelated, Calver, Stimulus,Sex, female, cohort_dummy)
+
+#Master_longit[Master_longit$Seg == 'NA', 'Seg'] = '9999'
+#Master_longit$Seg = as.numeric(Master_longit$Seg)
+
+temp1 = Master_longit %>% filter(Stimulus=='DL') # only movie trials
+temp2 = Master_longit %>% filter(Stimulus=='C') # only CalVer trials
+
+test =merge(temp1, aoi_data2, by = c('ID', 'MovieName', 'Seg'))
+test$propFace_seg = test$faceCount / (test$faceCount + test$otherCount)
+
+temp2$longestFix_aoi = NA
+temp2$faceCount = NA
+temp2$otherCount = NA
+temp2$propFace_seg = NA
+
+Master_longit2 = rbind(test, temp2)
+```
+
+
+Creates/formats longitudinal data 
+```{r}
+# Get grand mean for average age
+AveAge = Master_longit2 %>%
+  group_by(ID)%>%
+  summarise(Age = unique(Age)) %>%
+  summarise(Age = mean(Age) )
+
+# Get grand mean for average longest fix
+aveLongFix=mean(Master_longit2$LongestFixDuration)
+AveAge = Master_longit2 %>%
+  group_by(ID) %>%
+  summarise(age = mean(Age))
+AveAge = mean(AveAge$age)
+#avePrec=mean(Master_longit2$PrecisionRMS_X_Y)
+#avePropFace = mean(Master_longit2$propFace_seg, na.rm = TRUE)
+
+#
+Master_longit2=Master_longit2%>%
+  mutate(Age_centeredGrandmean=as.numeric(Age-AveAge),
+         longestFix_seg_centeredGrandmean = as.numeric(LongestFixDuration - aveLongFix))
+
+# #Creating average age variable to account for age at which participants contribute data
+# Master_longit=Master_longit%>%
+#   mutate(AvgAge=NA)
+
+
+# Creating level 3 (person) variables:
+# Average age: Participant's average age, centered on grand mean
+# Average Interpolated: mean prop interp
+# Average precision: mean precision (weight each visit once)
+# Average longest fix: mean longest fix, centered on grand mean 
+# Average face looking: NEED TO ADD THIS 
+personLevel_var=Master_longit2%>%
+  group_by(Participant)%>%
+  summarise(AveAge_person=mean(unique(Age_centeredGrandmean)), 
+            AveInterp_person=mean(PropInterp),
+            AveMissing_person=mean(PropMissing),
+            AvePrecision_person = mean(PrecisionRMS_X_Y),
+            AveLongestFix_person=mean(longestFix_seg_centeredGrandmean),
+            AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
+            n_person=n())
+
+# Session age = Age_centeredGrandmean (no within-session variability)
+# Average interpolated: Mean prop interp, for the session
+# Average Missing: Mean prop Missing
+# Average longest fix: mean longest fix, centered on grand mean
+# Average face looking: mean face looking for the session 
+sessionLevel_var = Master_longit2 %>%
+  group_by(ID) %>%
+  summarise(AveInterp_session = mean(PropInterp),
+            AveMissing_session = mean(PropMissing), 
+            AveLongestFix_session = mean(longestFix_seg_centeredGrandmean),
+            AvePropFace_session = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ))
+
+
+movieLevel_var = Master_longit2 %>%
+  group_by(Participant, ID, MovieName) %>%
+  summarise(AveInterp_movie = mean(PropInterp),
+            AveMissing_movie = mean(PropMissing), 
+            AveLongestFix_movie = mean(longestFix_seg_centeredGrandmean),
+            AvePropFace_movie = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ))
+
+# Merge person-level
+Master_longit3 = merge(Master_longit2, personLevel_var, by = 'Participant')
+
+# Merge visit-level
+Master_longit4 = merge(Master_longit3, sessionLevel_var, by = 'ID')
+
+# Merge movie-level
+Master_longit5 = merge(Master_longit4, movieLevel_var, by = c('Participant', 'ID', 'MovieName'))
+
+
+# Create SEGMENT-LEVEL VARIABLES centered at MOVIE LEVEL
+Master_longit5$propInterp_segment_groupmeancentered = Master_longit5$PropInterp - Master_longit5$AveInterp_movie
+Master_longit5$longestFix_segment_groupmeancentered = Master_longit5$longestFix_seg_centeredGrandmean - Master_longit5$AveLongestFix_movie
+Master_longit5$propFace_segment_groupmeancentered = Master_longit5$propFace_seg - Master_longit5$AvePropFace_movie
+
+# Create MOVIE-LEVEL VARIABLES centered at VISIT-LEVEL
+Master_longit5$propInterp_movie_groupmeancentered = Master_longit5$AveInterp_movie - Master_longit5$AveInterp_session
+Master_longit5$longestFix_movie_groupmeancentered = Master_longit5$AveLongestFix_movie - Master_longit5$AveLongestFix_session
+Master_longit5$propFace_movie_groupmeancentered = Master_longit5$AvePropFace_movie - Master_longit5$AvePropFace_session
+
+# Create VISIT-LEVEL variables centered at PERSON-LEVEL
+Master_longit5$propInterp_session_groupmeancentered = Master_longit5$AveInterp_session - Master_longit5$AveInterp_person
+Master_longit5$longestFix_session_groupmeancentered = Master_longit5$AveLongestFix_session - Master_longit5$AveLongestFix_person
+Master_longit5$propFace_session_groupmeancentered = Master_longit5$AvePropFace_session - Master_longit5$AvePropFace_person
+Master_longit5$precision_session_groupmeancentered = Master_longit5$PrecisionRMS_X_Y - Master_longit5$AvePrecision_person
+
+# Create PERSON_LEVEL variables centered at GRAND MEAN
+Master_longit5$propInterp_person_grandmeancentered = Master_longit5$AveInterp_person - mean(Master_longit5$PropInterp)
+Master_longit5$longestFix_person_grandmeancentered  = Master_longit5$AveLongestFix_person - mean(Master_longit5$AveLongestFix_person)
+Master_longit5$propFace_person_grandmeancentered  = Master_longit5$AvePropFace_person - mean(Master_longit5$propFace_seg, na.rm = TRUE)
+Master_longit5$precision_person_grandmeancentered  = Master_longit5$AvePrecision_person - mean(Master_longit5$PrecisionRMS_X_Y, na.rm=TRUE)
+
+############################################################################
+
+# adds person-centered age 
+# age_sess = Master_longit %>%
+#   dplyr::select(Participant,ID, Age) %>% 
+#   group_by(Participant) %>%
+#   summarize(mean_age = mean(unique(Age)))
+
+#Finds participant info
+Master_longit_sample=Master_longit4%>%
+  group_by(Participant, ID)%>%
+  summarise(n=n(),
+            female=mean(as.numeric(female, na.rm=TRUE)))
+Master_longit_female=Master_longit4%>%
+  filter(female==1)%>%
+  group_by(Participant)%>%
+  summarise(n=n())
+
+N_female=unique(Master_longit_female$Participant)
+mean(Master_longit$PropMissing, na.rm=TRUE)
+
+# #Finds time pts per kid
+# library(tuple)
+# Master_longit_sum=Master_longit%>%
+#   group_by(Participant, ID)%>%
+#   summarize(n())%>%
+#   mutate(dummy=1)%>%
+#          # dup=duplicated(Participant),
+#          # trip=triplicated(Participant))%>%
+#   group_by(Participant)%>%
+#   summarize(sessions=sum(dummy))
+
+
+```
+
+Sanity checking 
+```{r}
+model_data = Master_longit5 %>% filter(Stimulus == 'DL')
+
+ggplot(data = model_data, aes(x = Age, y = H) ) +
+  stat_smooth(method = 'lm', se = FALSE,  formula = y~x, show.legend = FALSE, aes(group = MovieName, color = MovieName)) +
+  stat_smooth(method ='lm', formula = y~x, color = 'black')
+
+library(psychometric)
+ICC1.lme(H, MovieName, model_data)  
+
+```
+
+Save data 
+```{r}
+write.csv(file = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/cleanDLdat.csv', Master_longit5)
+```
+
+
+

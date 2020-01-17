@@ -1,0 +1,746 @@
+---
+title: "Model relationship between face-looking and H"
+author: "Robin"
+date: "02/06/2019"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(readxl)
+library(dplyr)
+library(sm)
+library(lme4)
+library(ggplot2)
+library(MuMIn)
+library(AICcmodavg)
+library(bbmle)
+library(glmmTMB)
+library(lmerTest)
+library(psychometric)
+library(texreg)
+```
+
+Import clean data 
+```{r}
+data = read.csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/cleaned_multilevel_data.csv')
+model_data = data %>% filter(Stimulus == 'DL')
+```
+
+# Visualizations
+Visualize if looking at faces predicts H 
+```{r}
+# Segment-level face looking vs H
+ggplot(data=model_data, aes(x=propFace_seg, y=H) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Complexity (h)') +
+  xlab('Proportion looking at face, segment level') +
+  facet_wrap(~Pixelated)
+# Movie-level face looking vs H
+ggplot(data=model_data, aes(x=model_data$AvePropFace_movie, y=H) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Complexity (h)') +
+  xlab('% Face looking @ Visit level, relative to H') +
+  facet_wrap(~Pixelated)
+# Session-level face looking vs H
+ggplot(data=model_data, aes(x=model_data$AvePropFace_session, y=H) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Complexity (h)') +
+  xlab('% Face looking @ Visit level, relative to H') +
+  facet_wrap(~Pixelated)
+# Person-level face looking vs H 
+ggplot(data=model_data, aes(x=AvePropFace_person, y=H) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Complexity (h)') +
+  xlab('% Face looking @ Person level, for all of their visits')+
+  facet_wrap(~Pixelated)
+```
+
+Visualize age-related change in prop-looking
+```{r}
+ggplot(data=model_data, aes(x = Age, y=propFace_seg) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  xlab('Age') +
+  facet_wrap(~Pixelated)
+```
+
+# Modelling 
+Establishing functional form - Best fitting model inclues Linear effect of age
+```{r}
+#Establishing functional form 
+# Intercept: FE, and RE for Person and Visit
+lmer.0=lmer(H~1+(1|Participant)+(1|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+# 
+lmer.1=lmer(H~1+Age_centeredGrandmean+(1|Participant)+(1|ID)+(1|MovieName), data=model_data, REML=FALSE) #linear age,  
+
+lmer.2=lmer(H~1+Age_centeredGrandmean+(1+Age_centeredGrandmean|Participant)+(1|ID)+(1|MovieName), data=model_data, REML=FALSE) #linear age, FE and RE
+
+mynames <- as.character (c("lmer.1", "lmer.2")) # model numbers as characters
+
+myaicc  <- ICtab(logLik(lmer.1),
+		     logLik(lmer.2),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc #dAICc over 2 means significantly better
+
+anova(lmer.2, lmer.1) # Model with FE and RE for age fits the data better 
+
+# Add quadratic FE for age 
+lmer.3=lmer(H ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2)+
+              (1+Age_centeredGrandmean|Participant) + (1|ID) +(1|MovieName),
+            data=model_data, REML=FALSE) #quad age
+anova(lmer.3, lmer.2) # Does not improve our model 
+# Commented out code for looking at variance
+# total_var = 1.821e-03 +1.273e-03+3.880e-06+7.475e-03
+# l1_within_resid = 7.475e-03
+# l2_int_visit =1.821e-03
+# l3_int_partic = 1.273e-03
+# l3_age = 3.880e-06
+# 
+# l1_within_resid / total_var # Within-person 70% of variance explained
+```
+We adopt a linear FE and RE of age. 
+
+Adding in QC covariates
+```{r}
+# Add in all covariates
+lmer.3a = lmer(H~1+Age_centeredGrandmean + AveAge_person +
+                # QC - prop interp   
+                propInterp_segment_groupmeancentered + propInterp_movie_groupmeancentered + 
+                 propInterp_session_groupmeancentered +  propInterp_person_grandmeancentered +
+                 # QC - longest fix 
+                 longestFix_seg_centeredGrandmean + longestFix_movie_groupmeancentered + 
+                 longestFix_session_groupmeancentered + longestFix_person_grandmeancentered + 
+                 # QC - precision 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                 # cohort dummy
+                 as.factor(cohort_dummy) + Sex + 
+                (1+Age_centeredGrandmean|Participant) + (1|ID)+(1|MovieName), data=model_data, REML=FALSE)
+
+# We drop: All prop interp variables, all longest fix variables, dummy & cohort
+# Node- we keep Average age for substantive reasons.
+lmer.3b = lmer(H~1+Age_centeredGrandmean + AveAge_person +
+                # QC 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                (1+Age_centeredGrandmean|Participant) + (1|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+anova(lmer.3a, lmer.3b) # dropping n.s. covariates does not hurt model fit. We adopt the simpler model (lmer.3b)
+```
+QC variables retained: AveAge_person + propInterp_session_groupmeancentered + precision_session_groupmeancentered + precision_person_grandmeancentered + as.factor(cohort_dummy)
+
+Effect of Pix
+```{r}
+# Add Pixelated FE
+lmer.4 =  lmer(H~1+Age_centeredGrandmean + AveAge_person +
+                # QC 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                (1+Age_centeredGrandmean|Participant) + (1|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+
+# Add pixelated RE at person level. does not converge 
+lmer.4b =  lmer(H~1+Age_centeredGrandmean + 
+                AveAge_person +
+                # QC 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                (1+Age_centeredGrandmean + Pixelated|Participant) + (1|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+# Add pixelated RE at visit level
+lmer.4c =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                # Variables we care about
+                Pixelated + 
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+
+# Add pixelated RE at visit and person level 
+lmer.4d =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                (1+Age_centeredGrandmean+Pixelated|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+mynames <- as.character (c("lmer.4", "lmer.4b", "lmer.4c", "lmer.4d")) # model numbers as characters
+
+myaicc  <- ICtab(logLik(lmer.4),
+		     logLik(lmer.4b), logLik(lmer.4c), logLik(lmer.4d),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc #dAICc over 2 means significantly better
+# Random effect of Pix is better mdoel fit  
+```
+We adopt the model with FE, and RE for Pix at visit-level
+
+Effect of prop face
+```{r}
+# Add prop face 
+lmer.5 =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+anova(lmer.4c, lmer.5)
+```
+Face looking alone does not predict H. The between-person effect of face-looking is trending (p=.06)
+
+Face x Pixelated interaction
+```{r}
+# Face:Pixelated interaction
+
+lmer.6 =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                # face: pix
+                propFace_segment_groupmeancentered:Pixelated + propFace_movie_groupmeancentered:Pixelated + 
+                 propFace_session_groupmeancentered:Pixelated + propFace_person_grandmeancentered:Pixelated +  
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+```
+There is a significant effect of movie-level face-looking looking on H (why does adding the interaction terms make this effect significant?). There is also an interaction between Pixelated and movie-level face-looking (marginally)
+
+
+Does age interact with Pixelated, or face-looking? 
+```{r}
+# Pix:Age interactoin  - n.s.
+lmer.7 = lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Pix
+                Pixelated + 
+                # Face-looking
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                # face: pix
+                propFace_segment_groupmeancentered:Pixelated + propFace_movie_groupmeancentered:Pixelated + 
+                 propFace_session_groupmeancentered:Pixelated + propFace_person_grandmeancentered:Pixelated + 
+                # Age x Pix
+                Age_centeredGrandmean:Pixelated  + 
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+# Age x face:looking - n.s. 
+lmer.8 = lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person +  
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Pix
+                Pixelated + 
+                # Face-looking
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                # face: pix
+                propFace_segment_groupmeancentered:Pixelated + propFace_movie_groupmeancentered:Pixelated + 
+                 propFace_session_groupmeancentered:Pixelated + propFace_person_grandmeancentered:Pixelated + 
+                # Age x face
+                Age_centeredGrandmean:propFace_segment_groupmeancentered+ Age_centeredGrandmean:propFace_movie_groupmeancentered  + 
+                Age_centeredGrandmean:propFace_session_groupmeancentered+ Age_centeredGrandmean:propFace_person_grandmeancentered +
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+
+```
+No significant 2-way interactions between Face-looking:Age, or Pixelated:Age
+
+
+```{r}
+lmer.6 =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                # face: pix
+                propFace_segment_groupmeancentered:Pixelated + propFace_movie_groupmeancentered:Pixelated + 
+                 propFace_session_groupmeancentered:Pixelated + propFace_person_grandmeancentered:Pixelated +  
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+# Removing the interactions at the main-effect of face-looking that was n.s.
+lmer.6b =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + 
+                  propFace_segment_groupmeancentered+ propFace_movie_groupmeancentered + propFace_session_groupmeancentered + propFace_person_grandmeancentered +
+                # face: pix
+                 propFace_movie_groupmeancentered:Pixelated + 
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
+
+
+anova(lmer.6, lmer.6b)
+mynames <- as.character (c("lmer.5", "lmer.6", "lmer.6b")) # model numbers as characters
+
+myaicc  <- ICtab(logLik(lmer.5), logLik(lmer.6),
+		     logLik(lmer.6b),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc #dAICc over 2 means significantly better
+# Random effect of Pix is better mdoel fit  
+
+model_data$yhat1 = predict(lmer.6b, newdata = model_data, re.form = NA) 
+#Effect size=18.4% var explained --goes down by 2% w/out miss/interp cutoffs
+	R = cor(x = model_data$H, 
+              y =(model_data$yhat1), use = "complete.obs")
+	
+	R^2 #19.5% of var accounted for by the model
+```
+
+Make the html table
+```{r}
+
+htmlreg(list(lmer.0, lmer.2, lmer.3b, lmer.4c, lmer.6b), 
+        digits=3, bold=0.05,include.psuedors=TRUE, doctype = TRUE, 
+        caption='Table of Model Evidence for Predicting Longitudinal H Using Likelihood Ratio Tests: NonPix as Reference', 
+        caption.above = TRUE, stars = c(0.001, 0.01, 0.05, 0.1))
+```
+
+Interpreting beta weights
+Standardizing the coefficients
+Take mean H at each time point.
+Fit Random-intercept model (two-level). within-person variance there is what we use to standardize.
+Sqrt(L1 variance) <-- within-person SD aka standardized Y 
+Standardized B = .003 / (standardized y).. .. now represents number of SD associated with a month of age-change.
+
+```{r}
+5.809e-02*sd(model_data$H)
+
+```
+
+
+
+# Examine 2-way interaction
+```{r}
+model_data$yhat1 = predict(lmer.6b, newdata = model_data, re.form = NA) 
+model_data$Pixelated2 = ifelse(model_data$Pixelated==0, 'Social', 'Pixelated')
+
+# Plot effect of face-looking, facet_wrapped on Pix 
+ggplot(data = model_data, aes(x = propFace_movie_groupmeancentered, y=yhat1)) + # group_by(age_bin), color = age_bin)
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking movie, Centered on person-mean')  + 
+  
+
+ggplot(data = model_data, aes(x = propFace_movie_groupmeancentered, y=yhat1)) + 
+  geom_point(alpha = .3, aes(y = H)) + 
+  geom_smooth(method = 'glm') +
+  scale_x_continuous(breaks = seq(-0.4, 0.6, .2), limits = c(-.4,.4)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking movie, Centered on person-mean')
+
+# ggplot(data = model_data, aes(x = AvePropFace_movie, y=yhat1) ) + # group_by(age_bin), color = age_bin)
+#   geom_point(aes(y = H), alpha = .2, color = 'IndianRed') + 
+#   geom_smooth(aes(y = yhat1), method = 'lm', color = 'black', se = TRUE) +
+#   scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+#   scale_y_continuous(breaks = seq(0, 1.3, 0.1), limits = c(0, 1.3)) +
+#   ylab('Complexity (h)') +
+#   xlab('Face Looking (%)') +
+#   facet_wrap(~Pixelated2)
+
+# Option 1 
+pp1 = model_data %>% select(propFace_movie_groupmeancentered, H, Condition = Pixelated2, yhat1) %>%
+  ggplot(data = ., aes(x = propFace_movie_groupmeancentered, y=H, group_by(Condition), color = Condition) ) + # group_by(age_bin), color = age_bin)
+  geom_point(alpha = .3) + 
+  stat_smooth(aes(y = yhat1), method = 'glm', se = TRUE) +
+  geom_vline(xintercept = 0, linetype="dotted") + 
+  scale_x_continuous(breaks = seq(-0.4, 0.4, .2)) +
+  ylab(expression(alpha)) +
+  xlab('Face-Looking (%), Visit-centered') +
+  theme_bw()
+
+ggsave(filename = '/Users/sifre002/Box/sifre002/11_Writing/05_DancingLadies_Complexity/figs/2019_06_13_pp1.pdf', 
+       plot = pp1, width = 7, height = 5)
+
+# Option 2 
+# ggplot(data = model_data, aes(x = propFace_movie_groupmeancentered, y=H, color = Pixelated2, group_by(Pixelated2))) + # group_by(age_bin), color = age_bin)
+#   #facet_wrap(~Pixelated2, ncol=1, nrow = 2) +
+#   geom_point(alpha = .3) + 
+#   geom_vline(xintercept = 0, linetype="dotted") + 
+#   geom_smooth(aes(data = model_data, y = yhat1, x = propFace_movie_groupmeancentered, group_by(Pixelated2)),
+#               method = 'glm', color = Pixelated2, stat= 'smooth', se = T) +
+#   scale_x_continuous(breaks = seq(-0.4, 0.6, .2), limits = c(-.4,.4)) +
+#   ylab('Y-hat, Complexity (h)') +
+#   xlab('Prop face looking movie, Centered on person-mean') 
+
+
+ggplot(data = model_data, aes(x = propFace_movie_groupmeancentered, y=H, group_by(Pixelated2))) + 
+  geom_point(alpha = .3, aes(color = Pixelated2)) + 
+  geom_smooth(inherit.aes = FALSE, aes(x = propFace_movie_groupmeancentered, y = yhat1, group_by(Pixelated2)),
+              method = 'glm', color = Pixelated2, stat= 'smooth', se = T) +
+    geom_vline(xintercept = 0, linetype="dotted") + 
+  scale_x_continuous(breaks = seq(-0.4, 0.6, .2), limits = c(-.4,.4)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking movie, Centered on person-mean')
+
+ggsave(filename = '/Users/sifre002/Box/sifre002/11_Writing/05_DancingLadies_Complexity/figs/Opt1.pdf', 
+       plot = p1, width = 7, height = 5)
+
+ggsave(filename = '/Users/sifre002/Box/sifre002/11_Writing/05_DancingLadies_Complexity/figs/Opt2.pdf', 
+       plot = p2, width = 7, height = 5)
+
+```
+
+Simple slopes analysis
+```{r}
+library (jtools)
+library(ggstance)
+library(cowplot)
+# need to remove cohort var 
+
+
+
+ss = sim_slopes(lmer.6b, data=model_data, pred = propFace_movie_groupmeancentered, 
+                modx = Pixelated, johnson_neyman = FALSE)
+plot(ss)
+
+ss2 = sim_slopes(lmer.6b, pred = propFace_movie_groupmeancentered, 
+                modx = Pixelated, 
+                johnson_neyman = TRUE, jnplot = TRUE)
+
+plot(ss2)
+
+johnson_neyman(lmer.temp, pred = propFace_movie_groupmeancentered, modx = Pixelated, alpha = 0.05)
+
+ss3 = probe_interaction(lmer.6b, pred = propFace_movie_groupmeancentered, modx = Pixelated, 
+                  alpha = .05)
+
+
+
+
+```
+
+
+Examine model assumptions
+```{r}
+require(psych)
+
+# 1.The random effects have a multivariate normal distribution
+# RE for Visit-level
+RE=as.data.frame(ranef(lmer.6b)[1])
+sm.density(RE$`ID..Intercept.`, xlab="Random intercepts, visit-level", model="normal")
+sm.density(RE$ID.Pixelated1, xlab="RE Pix, visit-level", model="normal")
+
+# RE for Participant 
+RE=as.data.frame(ranef(lmer.6b)[2])
+sm.density(RE$Participant..Intercept., xlab="Random intercepts, person-level", model="normal")
+sm.density(RE$Participant.Age_centeredGrandmean, xlab="RE Pix, person-level", model="normal")
+
+# RE for Movie (there is basically none )
+RE=as.data.frame(ranef(lmer.6b)[3])
+sm.density(RE$X.Intercept., xlab="Random intercepts", model="normal")
+
+# 2.The errors are normally distributed with a mean of zero
+res <- resid(lmer.6b) 
+
+sm.density(res, xlab="Individual residuals", model="normal")
+# qqnorm(resid(mixed.lmer))
+# qqline(resid(mixed.lmer))
+
+#3.Errors should be independent of each other 
+library(broom)
+out=augment(lmer.6b)
+plot(out$Age,out$.res,xlab="Age",ylab="Residual", xaxt='n')
+plot(out$propFace_session_groupmeancentered,
+     out$.res,xlab="Prop Face",ylab="Residual", xaxt='n')
+
+options(na.action="na.exclude")
+model_data$yhat1 = predict(lmer.6b, newdata = model_data, re.form = NA) 
+#Effect size=18.4% var explained --goes down by 2% w/out miss/interp cutoffs
+	R = cor(x = model_data$H, 
+              y =(model_data$yhat), use = "complete.obs")
+	
+	R^2 #20.8% of var accounted for by the model
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD STUFF 
+Explore 3-way interaction
+Facet-wrap with age and 
+```{r}
+# lmer.10
+
+# Some variables need to be factors 
+model_data$Pixelated2 = ifelse(model_data$Pixelated == 0, 'Social', 'Pixelated')
+model_data$age_bin = as.factor(model_data$age_bin)
+
+model_data$AvePropFace_session_med  = ifelse(model_data$AvePropFace_session < median(model_data$AvePropFace_session), 
+                                              'Low face-looker', 'High face-looker')
+#
+model_data$propFace_groups = 0
+high = mean(model_data$propFace_session_groupmeancentered) + sd(model_data$propFace_session_groupmeancentered)
+low = mean(model_data$propFace_session_groupmeancentered) - sd(model_data$propFace_session_groupmeancentered)
+
+model_data[model_data$propFace_session_groupmeancentered >= high, 'propFace_groups'] = 'C. +1 SD'
+model_data[model_data$propFace_session_groupmeancentered <= low, 'propFace_groups'] = 'A. -1 SD'
+model_data[model_data$propFace_groups == 0, 'propFace_groups'] = 'B. Average'
+
+# Create variables for Session-face looking, divided by pix and non-pix
+# pix_summary = model_data %>% 
+#   filter(Pixelated == 1) %>%
+#   group_by(Participant, ID) %>%
+#   summarize(propFace_pix = mean(propFace_seg))
+# 
+# nonpix_summary = model_data %>% 
+#   filter(Pixelated == 0) %>%
+#   group_by(Participant, ID) %>%
+#   summarize(propFace_nonpix = mean(propFace_seg)) 
+# faceSum = merge(pix_summary, nonpix_summary, by = c('Participant', 'ID'))
+
+# model_data2 = merge(model_data, faceSum, by=c('Participant', 'ID'), all.x = TRUE )
+# model_data2$propFace_pix = as.numeric(model_data2$propFace_pix)
+# model_data2$propFace_nonpix = as.numeric(model_data2$propFace_nonpix)
+# 
+# model_data2$highFace_pix = ifelse(model_data2$propFace_pix >= median(model_data2$propFace_pix, na.rm = TRUE), 1, 0)
+# model_data2$highFace_nonpix = ifelse(model_data2$propFace_nonpix >= median(model_data2$propFace_nonpix, na.rm = TRUE), 1, 0)
+```
+
+How does age interact with pix? 
+```{r}
+ggplot(data = model_data, aes(x = Age, y=yhat1, grop_by(Pixelated2), color = Pixelated2) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Age') 
+```
+
+How does face looking interact with age? 
+```{r}
+ggplot(data = model_data, aes(x = propFace_session_groupmeancentered, y=yhat1, group_by(age_bin), color = age_bin) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking, Within-person, between-visit') 
+
+ggplot(data = model_data, aes(x = AvePropFace_session, y=yhat1, group_by(age_bin), color = age_bin) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking, between-visit') 
+
+ggplot(data = model_data, aes(x = AvePropFace_session, y=yhat1, group_by(age_bin), color = age_bin) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking, between-visit') +
+  facet_wrap(~age_bin)
+
+```
+
+3-way interaction
+```{r}
+ggplot(data = model_data, aes(x = propFace_session_groupmeancentered, y=yhat1, group_by(age_bin), color = age_bin) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking, Within-person, between-visit') +
+  facet_wrap(~Pixelated2)
+
+model_data2$age_bin = as.factor(model_data$age_bin)
+ggplot(data = model_data, aes(x = AvePropFace_session, y=yhat1, group_by(age_bin), color = age_bin) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Prop face looking, Visit Average') +
+  facet_wrap(~Pixelated2)
+
+```
+
+Facet-wrap on age-bin and Pixelated 
+```{r}
+library(gridExtra)
+library(grid)
+
+f1 = model_data %>% filter(Pixelated == 0) %>% 
+ggplot(data = ., aes(x = AvePropFace_session, y=yhat1) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6)) +
+  scale_y_continuous(breaks = c(.7, .8, .9, 1.0),limits = c(.65, 1) ) + 
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Face looking (%), Visit-level, Social') +
+  facet_grid(~age_bin)
+
+f2 = model_data %>% filter(Pixelated == 1) %>% 
+ggplot(data = ., aes(x = AvePropFace_session, y=yhat1) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6), limits = c(0,.6)) +
+  scale_y_continuous(breaks = c(.7, .8, .9, 1.0), limits = c(.65, 1) ) + 
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Face looking (%), Visit-level, Pixelated') +
+  facet_grid(~age_bin)
+
+grid.arrange(f1, f2, nrow = 2)
+
+```
+
+
+
+```{r}
+model_data %>% 
+ggplot(data=., aes(x=Age, y=yhat1, color = Pixelated2)) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Age')  +
+  facet_wrap(~as.factor(AvePropFace_session_med))
+
+
+ggplot(data=model_data, aes(x=Age, y=yhat1, color = Pixelated2)) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Age')  +
+  facet_wrap(~as.factor(propFace_groups))
+
+```
+
+
+
+```{r}
+model_data$propFace_seg_split = ifelse(model_data$propFace_segment_groupmeancentered<=0, 0, 1) # Indicates if segment is higher/lower movie average
+
+model_data %>% filter(Pixelated == 0) %>% 
+ggplot(data=., aes(x=propFace_seg, y=yhat1) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Proportion looking at face, segment level') +
+  facet_wrap(~propFace_seg_split)
+# In the pixelated condition, reagrdless of whether  an individual spends more time looking at faces RELATIVE TO THEIR AVERAGE FOR A GIVEN MOVIE, their complexity is associated with H. 
+
+model_data %>% 
+ggplot(data=., aes(x=propFace_segment_groupmeancentered, y=yhat1) ) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Proportion looking at face, VISIT level, centered at movie') +
+  facet_wrap(~Pixelated)
+# When they are below their average for a movie, they are higher complexity. As they move closer to their average, their complexity decreases. 
+
+temp_med = median(model_data$AvePropFace_session)
+
+
+model_data$propFace_MedSplit = ifelse(model_data$propFace_session_groupmeancentered<0, 0, 1) 
+#
+
+
+#test2 = merge(model_data, test, by = c('Participant', 'ID'))
+#test2$propFace_Visit_face_med = ifelse(test2$propFace_Visit_face<0, 0, 1)
+
+model_data %>% 
+ggplot(data=., aes(x=Age, y=yhat1, group_by(propFace_MedSplit), color = as.factor(propFace_MedSplit))) +
+  geom_point(alpha = .3) + 
+  geom_smooth(method = 'lm') +
+  scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+  ylab('Y-hat, Complexity (h)') +
+  xlab('Age')  +
+  facet_wrap(~Pixelated2)
+
+
+#ggsave(p, '/Users/sifre002/Box/Elab General/People/Robin/11_Writing/05_DancingLadies_Complexity/3-way.pdf')
+```
+
+
+
+
+```{r}
+# model_data$propFace_seg_centeredAtSess = model_data$propFace_seg - model_data$AvePropFace_session
+# model_data$propFace_seg_centeredAtSess_med = ifelse(model_data$propFace_seg_centeredAtSess <0, 0, 1)
+# 
+# test2 %>% 
+# ggplot(data=., aes(x=Age, y=yhat1, color = as.factor(Pixelated))) +
+#   geom_point(alpha = .3) + 
+#   geom_smooth(method = 'lm') +
+#   scale_x_continuous(breaks = c(0, .2, .4, .6, .8, 1)) +
+#   ylab('Y-hat, Complexity (h)') +
+#   xlab('Age')  +
+#   facet_wrap(~propFace_Visit_face_med)
+
+
+```
+
+
+
+
+
+Simple slopes analysis
+```{r}
+library (jtools)
+library(ggstance)
+library(cowplot)
+ss = sim_slopes(lmer.11b, pred = Age_centeredGrandmean, 
+                modx = propFace_session_groupmeancentered, 
+                mod2 = Pixelated, johnson_neyman = FALSE)
+plot(ss)
+
+ss2 = sim_slopes(lmer.11b, pred = Age_centeredGrandmean, 
+                modx = Pixelated, 
+                mod2 = propFace_session_groupmeancentered, 
+                johnson_neyman = TRUE, jnplot = TRUE)
+
+plot(ss2)
+
+johnson_neyman(lmer.11b, pred = Age_centeredGrandmean, modx = propFace_session_groupmeancentered, alpha = 0.05)
+
+ss3 = probe_interaction(lmer.11b, pred = Age_centeredGrandmean, modx = propFace_session_groupmeancentered, mod2 = Pixelated,
+                  alpha = .05)
+
+ss4 = probe_interaction(lmer.11b, pred = Age_centeredGrandmean, modx = Pixelated , mod2 = propFace_session_groupmeancentered,
+                  alpha = .05)
+
+
+
+```
+

@@ -1,4 +1,4 @@
-% BatchParseV3
+% batch_process
 %addpath(genpath('/Users/sifre002/Box/Elab General/People/Robin/8_MatScripts/'));
 %addpath(genpath('/Users/elab/Desktop/Robin/01_Complexity/'));
 %addpath(genpath('/Users/elab/Desktop/Robin/03_ETprocessing/'));
@@ -103,11 +103,7 @@ for p = 1:length(particList) % length(particlist) = 176. need to re-run with the
     disp('Make calver time series');
     [segmentedData_calVer, calVerCol] = makeCalVerTimeSeries(PrefBin, ParticData, dataCol);
     disp('Saving CalVer time series');
-    save([outFilePath id '/' id '_calVerTimeSeries'],'segmentedData_calVer', 'calVerCol');
-%% get info
-    %disp('Get validity info'); 
-    %[out] = getValidityInfo(segmentedData, segSummaryCol);
-    %group_validity_info = vertcat(group_validity_info, out); 
+    save([outFilePath id '/' id '_calVerTimeSeries'],'segmentedData_calVer', 'calVerCol'); 
     %%
     disp([id ' finished!']);
     toc;

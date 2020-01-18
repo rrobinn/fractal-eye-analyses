@@ -118,8 +118,6 @@ for c = 1:size(ParticData.Data,1) % for each trial
         
         suptitle([partic '-' clip]);
     end
-    
-    
 end
 
 

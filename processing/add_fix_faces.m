@@ -1,7 +1,7 @@
 % inputs = PrefBin, ParticData
 function [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin, master_AOI, aoi_headers)
 % master_AOI - .mat file that contains information on bounding boxes for
-% each movie frame.
+% each movie frame. (AOI = area of interest; in this case faces)
 %% Hard-coded variables
 trialList = {'01_converted.avi', '01S_converted.avi', ...
     '03_converted.avi', '03S_converted.avi', ...
@@ -69,19 +69,20 @@ for t = 1:length(PrefBin.MovieListAsPresented)
          currTime = double(currTime - currTime(1,1));
          
          %% find closest AOI index for each sampled ET frame
+         % (time stamps might be off by +/- 1ms)
          aoiTime = aoiStruct.timeStamps{movie,1};
          A = repmat(aoiTime,[1 length(currTime)]);
          A = double(A);
          [minValue, closestIndex] = min(abs(A-currTime'));
          closestIndex = closestIndex';
          %%
-         aoi_hit = zeros(size(currData,1),3);  % for each lady
+         aoi_hit = zeros(size(currData,1),3);  % 3 potential faces in each frame
          for a = 1:size(currData,1) % for each row of data
             if currData(a,1) == -9999
                 aoi_hit(a, 1:3) = -9999;
             else
                 aoiIdxToCheck = closestIndex(a);
-                for l = 1:3 % for each lady
+                for l = 1:3 % for each of the three potential faces 
                     % pull the AOI for this frame
                     xv_temp = aoiStruct.xvertices{movie, l}(aoiIdxToCheck, :);
                     yv_temp = aoiStruct.yvertices{movie, l}(aoiIdxToCheck, :);
@@ -97,7 +98,6 @@ for t = 1:length(PrefBin.MovieListAsPresented)
          aoi_str(aoi_hit(:,3) == 1) = 3;
          aoi_str(aoi_hit(:,1) == -9999) = -9999;
          
-         %ParticData.Data{t,1}(:, colNumbers.AOI) = num2cell(aoi_str); 
          ParticData.Data{t,3} = aoi_str;
     end % end trial 
     

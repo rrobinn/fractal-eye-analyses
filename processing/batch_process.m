@@ -84,19 +84,19 @@ for p = 1:length(particList)
     cd(wdir);
     [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin,aoiStruct);
 
-%   Save  data 
+    % Save  data 
     disp('Save data & interpolated data & aoi data'); 
     save([outFilePath id '/' id '_Parsed'], 'ParticData', 'PrefBin');    
- %% Segment the data
-    disp('Segmenting data'); 
-    cd(wd); 
-    [segmentedData,segSummaryCol]  = breakTrialIntoSegments_v2(ParticData, PrefBin, dataCol);
+    %% Segment the data
+    disp('Create time series'); 
+    cd(wdir); 
+    [segmentedData,segSummaryCol]  = generate_timeseries(ParticData, PrefBin, dataCol);
     disp('Saving segmented data');
     save([outFilePath id '/' id '_segmentedTimeSeries'],'segmentedData', 'segSummaryCol');
     
-%% calver time series
+    %% calver time series
     disp('Make calver time series');
-    [segmentedData_calVer, calVerCol] = makeCalVerTimeSeries(PrefBin, ParticData, dataCol);
+    [segmentedData_calVer, calVerCol] = generate_timeseries_calver(PrefBin, ParticData, dataCol);
     disp('Saving CalVer time series');
     save([outFilePath id '/' id '_calVerTimeSeries'],'segmentedData_calVer', 'calVerCol'); 
     %%
@@ -104,5 +104,4 @@ for p = 1:length(particList)
    
 end
 %%
-save('/Users/elab/Box/Dancing Ladies share/IndividualData/2018_12_11/ProblemFiles/problem_id.mat', 'problem_id');  
-save('/Users/elab/Box/Dancing Ladies share/IndividualData/2018_12_11/ProblemFiles/validity_info.mat', 'group_validity_info');  
+save([outFilePath '/ProblemFiles/problem_id.mat'], 'problem_id');   % save list of problem files 

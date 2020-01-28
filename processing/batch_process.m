@@ -41,7 +41,7 @@ for p = 1:length(particList)
     end
     %% Read raw eye-tracking data  
     disp('Reading .tsv file (this may take a moment)');
-    cd(wd); 
+    cd(wdir); 
     [data, dataCol] = read_et_data(id, inFilePath);
  
     if isempty(data)

@@ -1,31 +1,30 @@
-% batch_process
-%addpath(genpath('/Users/sifre002/Box/Elab General/People/Robin/8_MatScripts/'));
-%addpath(genpath('/Users/elab/Desktop/Robin/01_Complexity/'));
-%addpath(genpath('/Users/elab/Desktop/Robin/03_ETprocessing/'));
+%% batch_process
+% Script processes data for all folders listed in participantList.csv (must
+% be located in same folder as data (inFilePath).
+
 clc 
 clear
-wd = '/Users/sifre002/Box/Elab General/People/Robin/8_MatScripts/01_Complexity/';
-
+wdir = cd;
+addpath(genpath(wdir));
 %% set paths 
-outFilePath = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/premies/premie_DL2/';
-inFilePath = '/Users/sifre002/Box/Dancing Ladies share/premies/premie_DL2/';
-
-if ~exist([outFilePath 'ProblemFiles/'])
+outFilePath = '/Users/sifre002/Box/sifre002/18-Organized-Code/out/';
+inFilePath = '/Users/sifre002/Box/sifre002/18-Organized-Code/data/';
+aoiPath = '/Users/sifre002/Box/sifre002/18-Organized-Code/data/dynamic_aoi/';
+%%
+if ~exist([outFilePath 'ProblemFiles/']) % Make directory for problem files
     mkdir([outFilePath 'ProblemFiles/']);
 end
 
 cd(inFilePath); 
-fileName = '/Users/sifre002/Box/Dancing Ladies share/premies/premie_DL2_participantList.csv';
+fileName = 'participantList.csv';
 fileID = fopen(fileName);
 
 particList = textscan(fileID, '%s', 'Delimiter',',','EmptyValue',-Inf);
 particList = particList{1,1};
-% fix the first one
-particList{1,1} = particList{1,1}(4:end);
+particList{1,1} = particList{1,1}(4:end); % fix the first id
 
-% read in AOI data
-cd([wd 'DL_AOI/']);
-[master_AOI, aoi_headers] = read_AOI('/Users/sifre002/Box/Elab General/People/Robin/9_ExcelSpreadsheets/Dancing_Ladies/dynamic_aoi_DL/');
+% read in bounding boxes
+[master_AOI, aoi_headers] = read_AOI(aoiPath);
 
 problem_id = {};
 group_validity_info = {}; 

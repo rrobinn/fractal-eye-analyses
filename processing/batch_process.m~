@@ -24,9 +24,8 @@ particList = textscan(fileID, '%s', 'Delimiter',',','EmptyValue',-Inf);
 particList = particList{1,1};
 particList{1,1} = particList{1,1}(4:end); % fix the first id
 
-% read in bounding boxes & make data structure of bounding boxes
+% read in bounding boxes
 [master_AOI, aoi_headers] = read_AOI(aoiPath);
-[aoiStruct] = make_aoi_struct(master_AOI, aoi_headers);
 
 problem_id = {};
 group_validity_info = {}; 
@@ -39,7 +38,7 @@ for p = 1:length(particList)
     if ~exist([outFilePath '/' id '/'])
         mkdir([outFilePath '/' id '/']);
     end
-    %% Read raw eye-tracking data  
+    %% Read complexity data  
     disp('Reading .tsv file (this may take a moment)');
     cd(wd); 
     [data, dataCol] = read_et_data(id, inFilePath);
@@ -53,7 +52,8 @@ for p = 1:length(particList)
     disp('Saving raw data');
     save([outFilePath id '/' id '_RawData'], 'data', 'dataCol');
 
-    %% %% Flag Blinks
+    %% %% Blink data
+
     disp(' ');
     disp(['----------------------------------------']);
     disp('Identify Blinks');
@@ -61,6 +61,8 @@ for p = 1:length(particList)
     pup(pup==-9999) = NaN;
     pup = mean(pup, 2, 'omitnan');
     pup(isnan(pup)) = 0;
+    
+    cd('/Users/sifre002/Box/Elab General/People/Robin/8_MatScripts/03_ETprocessing/');
     blinksPositions = blinkDetection(pup,300);
 
     % Fill BlinkBool Column with 1 for blinks
@@ -68,21 +70,23 @@ for p = 1:length(particList)
     for i = 1:size(blinksPositions,1)
         data(blinksPositions(i,1):blinksPositions(i,2), size(data,2) ) = {1};
     end
-    % update dataCol field
+    
+    % append dataCol
     dataCol.blink = size(data, 2); 
-
-    %% Parse data into trials
+    
+% 
+%% Parse data
     disp('Parse trials');
-    cd(wdir); 
-    [PrefBin, ParticData] = parse_et_totrials(id, data, dataCol);
-    %% Interpolate data     
+    cd(wd); 
+    [PrefBin, ParticData] = parseComplexityData_V3(id, data, dataCol);
+%% Interpolate data     
     disp('Interpolate missing data');
     plotFlag = 0; 
-    [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol);
+    [propInterpolated, ParticData, PrefBin] = dataInterpolation_V2(ParticData, PrefBin, plotFlag, dataCol);
   
-    %% Get Aois (based on interpolated data)
-    cd(wdir);
-    [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin,aoiStruct);
+%% Get Aois (based on interpolated data)
+    cd([wd 'DL_AOI/']);
+    [ParticData, PrefBin] = DL_Add_AOIs_V2(ParticData, PrefBin, master_AOI, aoi_headers);
 
 %   Save  data 
     disp('Save data & interpolated data & aoi data'); 

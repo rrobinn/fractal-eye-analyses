@@ -433,11 +433,7 @@ johnson_neyman(lmer.temp, pred = propFace_movie_groupmeancentered, modx = Pixela
 ss3 = probe_interaction(lmer.6b, pred = propFace_movie_groupmeancentered, modx = Pixelated, 
                   alpha = .05)
 
-
-
-
 ```
-
 
 Examine model assumptions
 ```{r}
@@ -493,4 +489,30 @@ model_data$yhat1 = predict(lmer.6b, newdata = model_data, re.form = NA)
 
 
 
+# Age vs H (pulling final model from paper)
+```{r}
+lmer.final =  lmer(H~1+Age_centeredGrandmean +
+                # QC 
+                AveAge_person + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered + 
+                # Variables we care about
+                Pixelated + Calver +
+                  Age_centeredGrandmean*Pixelated +Age_centeredGrandmean*Calver + 
+                (1+Age_centeredGrandmean|Participant) + (1+Pixelated+Calver|ID)+(1|MovieName), data=data, REML=FALSE) 
+
+data$yhat = predict(lmer.final, data)
+data$Pixelated = as.factor(data$Pixelated)
+
+# Plot model
+p1 = ggplot(data = data %>% filter(Calver == 0), aes(x = Age, y = yhat, group_by(Pixelated), color = Pixelated)) + 
+  geom_smooth(method = 'lm', se=FALSE) + 
+  theme_bw() + 
+  scale_x_continuous(breaks = c(3, 6, 9, 12, 15, 18, 24, 30, 36)) + 
+  scale_y_continuous(breaks = c(.6,.7,.8,.9, 1.0), limits = c(0.7, 1.05)) +
+  xlab("Age (months)") + 
+  ylab("H") + 
+  theme(text = element_text(size = 14))
+#ggsave(plot = p1, filename = '/Users/sifre002/Box/sifre002/4_Fellowships/2020_DDF/PixEffect.jpg', width=5.0,height=2.5)
+
+```
 

@@ -1,15 +1,12 @@
-%% 3. Script to calculate monofractal H & Spectrum width
-% Assumes specific data structure
-% for debugging
+
+%%  Script to calculate monofractal H & Spectrum width
+%  Code from Ihlen et al (2012), adapted for eye-tracking data. 
+%  Assumes specific data structure
+
 data = load('/Users/sifre002/Box/sifre002/18-Organized-Code/data/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat');
 session = 'JE000084_04_04';
 
 %% User input:
-% data_dir='/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/IndividualData/';
-% output_dir='/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/';
-% calver_dir='/Users/isabella/Desktop/BSL Lab/Dynamic complexity project/All DL Analyses/AllCalVers/';
-% mkdir(output_dir);
-
 %Polynomial order for detrending, to be looped through
 % M=[2:3]; %m=1(linear); 2(quadratic); 3(cubic)
 m=2;
@@ -38,7 +35,7 @@ for s = 1:length(tsdata) %loops through time series
     segment=tsdata{s};
     if ~isempty(segment)
       
-   % TO DELETEE      
+   % TO DELETE   
         %determines start and stop of time-series based on longest fix
 %         for f=1:length(segment)
 %             if f==1 && cell2mat(segment(f,9))==1
@@ -62,21 +59,9 @@ for s = 1:length(tsdata) %loops through time series
         % 
 
         %creates time-series based on longest fix, for each type
-        %                     tsTypes=2;
         longestFix = cell2mat(segment(:, col.longestFixBool));
         amp=cell2mat(segment(longestFix, col.amp));
-        % permAmp=amp(randperm(length(amp)));
-        % arc=cell2mat(segment(fixStart:fixEnd,6));
-        
-        
-        %%%% Plot the time-series %%%%
-        %                     f=figure('visible', 'off');
-        %                     plot(timeSeries, 'b')
-        %                     hold on
-        %                     xlabel('Time');
-        %                     ylabel(label);
-        %                     saveas(f, strcat(MFDFA1_dir, session, '_',cell2mat(segment(1,12)),'_', num2str(cell2mat(segment(1,13))), '_time-series_m=', num2str(m), '.jpg'))
-        %
+
         %% Pull relevant variables 
         id=segment{1, col.id}; %ID
         movie=segment{1,col.trial}; %movie name
@@ -109,12 +94,7 @@ for s = 1:length(tsdata) %loops through time series
         %% % STEP 2: Run monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
         timeSeries=amp;
         %creates scale w/ equal spacing between scales (do before MFDFA1)
-        %Matlab code 15------------------------------------------
-        %scmin=16; %should be larger than 10
-        %scmax=86; %should be 1/10 of time-series sample size
-        %scres=19;
-        %scres=9; %total # of segment sizes; must be small for small samples!
-        
+        %Matlab code 15------------------------------------------        
         %calculates minimum and maximum segement sizes/scale
         scmin=4; %from prev lit
         scmax=(length(timeSeries)/4);

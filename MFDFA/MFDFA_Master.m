@@ -6,6 +6,8 @@ et_data_struct = load('/Users/sifre002/Box/sifre002/18-Organized-Code/fractal-ey
 % 1. Make time series for DFA 
 [ts_out, specs_out] = makeTimeSeriesForFractalAnalysis(et_data_struct, 'minLength', 1000);
 
+H = calculate_H_monofractal(ts, 'settings', settings)
+
 % for dev
 ts = ts_out{1}
 

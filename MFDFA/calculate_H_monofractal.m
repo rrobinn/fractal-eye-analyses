@@ -1,12 +1,33 @@
-function H = calculate_H_monofractal(ts, settings)
+function H = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
+
+%% option to edit setting here
+scmin = 4;
+scmax = length(ts)/4;
+scres = 4;
+m = 2;
+
+if length(varargin)>1
+    for v = 1:2:length(varargin)
+        if strcmpi(varargin{1}, 'settings')
+            settings = varargin{v+1};
+        end
+    end
+else % make settings from options above
+    settings = struct();
+    settings.scmin = scmin;
+    settings.scmax = scmax;
+    settings.scres = scres;
+    settings.m = m;
+end
 
 %% Create scale (segment sizes)
 %Matlab code 15------------------------------------------
+
 scmin = settings.scmin; % minimum segment size
 scmax=(length(ts)/4); % maximum segment size
 scres = settings.scres;
-
+m = settings.m;
 %creates equal spacing of scale
 exponents=linspace(log2(scmin),log2(scmax),scres);
 scale=round(2.^exponents); %segment sizes

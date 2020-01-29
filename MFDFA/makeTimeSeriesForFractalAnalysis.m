@@ -1,7 +1,7 @@
 function [ts_out, specs_out] = makeTimeSeriesForFractalAnalysis(et_data_struct, varargin)
 
 % temporarily hard-corded for debugging
-et_data_struct = load('/Users/sifre002/Box/sifre002/18-Organized-Code/fractal-eye-analyses/data/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat');
+% et_data_struct = load('/Users/sifre002/Box/sifre002/18-Organized-Code/fractal-eye-analyses/data/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat');
 %%
 minTsLength = 1000;
 for v=1:2:length(varargin)

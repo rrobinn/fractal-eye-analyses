@@ -32,21 +32,7 @@ for s = 1:length(tsdata) % for each time series
     segment=tsdata{s};
     if ~isempty(segment)
     %% Pull the longest continuous fixation from time series 
-   % TO DELETE   
-        %determines start and stop of time-series based on longest fix
-%         for f=1:length(segment)
-%             if f==1 && cell2mat(segment(f,9))==1
-%                 fixStart=f;
-%             elseif f~=1 && cell2mat(segment(f,9))==1 && cell2mat(segment(f-1,9))==0
-%                 fixStart=f;
-%             end
-%             if f~=1 && f~=length(segment) && cell2mat(segment(f,9))==0 && cell2mat(segment(f-1, 9))==1
-%                 fixEnd=f;
-%             elseif f==length(segment)==1 && cell2mat(segment(f-1,9))==1
-%                 fixEnd=f;
-%                 fixEnd=fixEnd-2; %accommodates NaNs at end of data
-%             end
-%         end
+
 
 
         % Robin added this 

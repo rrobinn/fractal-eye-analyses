@@ -1,4 +1,4 @@
-function H = calculate_H_monofractal(ts, settings)
+function calculate_H_monofractal(ts, settings)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
 %% Create scale (segment sizes)
@@ -10,6 +10,7 @@ scres = settings.scres;
 %creates equal spacing of scale
 exponents=linspace(log2(scmin),log2(scmax),scres);
 scale=round(2.^exponents); %segment sizes
+
 
 %first, integration--summing area under curve after mean centering
 %RMS{ns}, local fluctuation, is a set of vectors each w/ length equal to number of segments
@@ -32,14 +33,5 @@ for ns=1:length(scale) %looping through length of scale
     end
     F(ns)=sqrt(mean(RMS{ns}.^2)); %overall RMS
 end
-
-%Monofractal structure= power law relation btw overall RMS computed for multiple scales
-%Power law relation btw overalll RMS= slope (H) of regression line, H=Hurst exponent
-%H= how fast overall RMS of local fluctuations grows w/ increasing segment size
-%Uses F (overall RMS)
-%Matlab code 6-------------------------------------------
-C=polyfit(log2(scale),log2(F),1);
-H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
-%RegLine=polyval(C,log2(scale));
 
 end

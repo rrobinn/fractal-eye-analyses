@@ -2,8 +2,10 @@
 %%  Script to calculate monofractal H & Spectrum width
 %  Code from Ihlen et al (2012), adapted for eye-tracking data. 
 %  Assumes specific data structure
-
-data = load('/Users/sifre002/Box/sifre002/18-Organized-Code/data/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat');
+wdir = cd;
+dataDir = [wdir '/data/'];
+% temporarily hard-corded for debugging
+data = load([dataDir '/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat']); 
 session = 'JE000084_04_04';
 
 %% User input:
@@ -19,22 +21,26 @@ q=[-5,-3,-1,0,1,3,5]; % weighting values, btw -5 and 5
 Fig=0;
 
 %% Runs MFDFA code
-H = [];
+
 calVer =0;
 % Pull time series data
 fields = fieldnames(data);
 if regexp(fields{1}, 'calVer')
     tsdata = getfield(data, 'segmentedData_calVer');
     col = getfield(data, 'calVerCol');
+    calVer = 1;
 else
     tsdata = getfield(data, 'segmentedData');
     col = getfield(data, 'col');
 end
+% Remove empty cells from cell-array of time series
+tsdata = tsdata(~cellfun(@isempty, tsdata));
+H_out = zeros(length(tsdata), 1); 
 
-for s = 1:length(tsdata) %loops through time series 
+for s = 1:length(tsdata) % for each time series
     segment=tsdata{s};
     if ~isempty(segment)
-      
+    %% Pull the longest continuous fixation from time series 
    % TO DELETE   
         %determines start and stop of time-series based on longest fix
 %         for f=1:length(segment)
@@ -91,7 +97,7 @@ for s = 1:length(tsdata) %loops through time series
         %             end
         
         
-        %% % STEP 2: Run monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
+        %% % Run monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
         timeSeries=amp;
         %creates scale w/ equal spacing between scales (do before MFDFA1)
         %Matlab code 15------------------------------------------        
@@ -135,7 +141,7 @@ for s = 1:length(tsdata) %loops through time series
         H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
         RegLine=polyval(C,log2(scale));
         
-        Hlist_list=[Hlist_list;H];
+        H_out(s,1)=H; % Save H
         MFDFA_values{1,9}=H;
         
         vars1 = {'C', 'exponents', 'F', 'fit', 'Index', 'RegLine', 'RMS', 'segments', 'X', 'X_Idx', 'Idx_start', 'Idx_stop', 'ns'};

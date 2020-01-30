@@ -80,7 +80,7 @@ for p = 1:length(particList)
     plotFlag = 0; 
     [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol);
   
-    %% Get Aois (based on interpolated data)
+    %% Flag fixations on Aois (based on interpolated data)
     cd(wdir);
     [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin,aoiStruct);
 

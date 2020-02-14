@@ -1,12 +1,13 @@
-function H = calculate_H_monofractal(ts, varargin)
+function [H, r2] = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
-%% option to edit setting here
+%% option to edit settings here
 scmin = 4;
 scmax = length(ts)/4;
 scres = 4;
 m = 2;
-
+minTimeSeriesLength = 1000;
+% otherwise, use settings from input
 if length(varargin)>1
     for v = 1:2:length(varargin)
         if strcmpi(varargin{1}, 'settings')
@@ -19,7 +20,15 @@ else % make settings from options above
     settings.scmax = scmax;
     settings.scres = scres;
     settings.m = m;
+    settings.minTimeSeriesLength = minTimeSeriesLength;
 end
+
+%% check if time series is long enough
+if (length(ts) < settings.minTimeSeriesLength)
+    H = -9999;
+    return;
+end
+
 
 %% Create scale (segment sizes)
 %Matlab code 15------------------------------------------
@@ -59,8 +68,20 @@ end
 %H= how fast overall RMS of local fluctuations grows w/ increasing segment size
 %Uses F (overall RMS)
 %Matlab code 6-------------------------------------------
-C=polyfit(log2(scale),log2(F),1);
-H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
+%C=polyfit(log2(scale),log2(F),1);
+[p,S] = polyfit(log2(scale), log2(F),1);
+x = log2(scale);
+[y,delta] = polyval(p,x,S); % delta is an estimate of the standard error in predicting a future observation at x by p(x).
+
+plot(log2(scale), log2(F), 'bo');
+hold on;
+plot(log2(scale),y,'r-'); % plot fit
+
+% calculate r^2
+rho = corrcoef([log2(F)' y']); % correlation bw observed and predicted
+r2 = rho(2,1)^2; 
+%H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
+
 %RegLine=polyval(C,log2(scale));
 
 end

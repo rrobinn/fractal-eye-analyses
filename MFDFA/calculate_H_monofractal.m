@@ -26,6 +26,7 @@ end
 %% check if time series is long enough
 if (length(ts) < settings.minTimeSeriesLength)
     H = -9999;
+    r2 = -9999;
     return;
 end
 
@@ -68,19 +69,21 @@ end
 %H= how fast overall RMS of local fluctuations grows w/ increasing segment size
 %Uses F (overall RMS)
 %Matlab code 6-------------------------------------------
-%C=polyfit(log2(scale),log2(F),1);
+C=polyfit(log2(scale),log2(F),1);
+H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
+
+%% calculate r^2
 [p,S] = polyfit(log2(scale), log2(F),1);
 x = log2(scale);
 [y,delta] = polyval(p,x,S); % delta is an estimate of the standard error in predicting a future observation at x by p(x).
 
-plot(log2(scale), log2(F), 'bo');
-hold on;
-plot(log2(scale),y,'r-'); % plot fit
+% plot(log2(scale), log2(F), 'bo');
+% hold on;
+% plot(log2(scale),y,'r-'); % plot fit
 
-% calculate r^2
+% 
 rho = corrcoef([log2(F)' y']); % correlation bw observed and predicted
 r2 = rho(2,1)^2; 
-%H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion needed
 
 %RegLine=polyval(C,log2(scale));
 

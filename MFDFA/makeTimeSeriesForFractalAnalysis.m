@@ -13,7 +13,8 @@ end
 %% Pull data from et_data_struct
 try % fields have different names depening on whether calver trials
     tsdata = et_data_struct.segmentedData;
-    col = et_data_struct.col;
+    col = et_data_struct.segSummaryCol;
+    col = renameStructField(col, 'propMissing_seg', 'propMissing'); % quick fix until I change the processing code
 catch ME
     if strcmpi(ME.identifier, 'MATLAB:nonExistentField')
         tsdata = et_data_struct.segmentedData_calVer;
@@ -32,10 +33,13 @@ for s = 1:length(tsdata)
     %create time-series based on longest fix, for each type
     longestFix = cell2mat(ts(:, col.longestFixBool));
     amp=cell2mat(ts(longestFix, col.amp));
+    if isnan(amp(end)) % last entry is NaN bc length(amp) = length(ts) - 1
+        amp = amp(~isnan(amp));
+    end
     %% Pull relevant variables to creates "specs"
     id=ts{1, col.id}; %ID
     movie=ts{1,col.trial}; %movie name
-    if (size(ts,2) == 13) % dancing ladies trial - save segment number
+    if (size(ts,2) > 12) % dancing ladies trial - save segment number
         segNum = ts{1,13};
     else
         segNum = 'NA';

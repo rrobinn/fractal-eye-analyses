@@ -32,6 +32,9 @@ for s = 1:length(tsdata)
     ts = tsdata{s};
     %create time-series based on longest fix, for each type
     longestFix = cell2mat(ts(:, col.longestFixBool));
+    if longestFix(end) == 1 % if last sample is included in the longest fixation, need to cut bc length(amp) = length(ts) - 1
+        longestFix(end-1:end) = 0; 
+    end
     amp=cell2mat(ts(longestFix, col.amp));
     if isnan(amp(end)) % last entry is NaN bc length(amp) = length(ts) - 1
         amp = amp(~isnan(amp));

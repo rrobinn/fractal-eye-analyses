@@ -5,8 +5,9 @@ function [ts_out, specs_out] = makeTimeSeriesForFractalAnalysis(et_data_struct, 
 %%
 minTsLength = 1000;
 for v=1:2:length(varargin)
-    if strcmpi(varargin{v}, 'minLength')
-        minTsLength = varargin{v+1};
+    if strcmpi(varargin{v}, 'settings')
+        settings = varargin{v+1};
+        minTsLength = settings.minTimeSeriesLength;
     end
 end
 %% Pull data from et_data_struct
@@ -45,8 +46,10 @@ for s = 1:length(tsdata)
     specs = [{id} {movie} {segNum} longestFixDur propInterp propMissing];
     %% Check if time series is long enough
     warning=0;
+    
     if length(amp)<minTsLength
-        fprintf("Warning: Time series too short");
+        fprintf("Warning: Time series too short: ");
+        fprintf([id ' - ' movie ' - ' segNum '\n']);
         warning=1;
     end
     specs_out(s,:) = [specs warning];

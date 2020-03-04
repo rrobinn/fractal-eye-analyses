@@ -24,6 +24,7 @@ Import clean data
 ```{r}
 data = read.csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/cleaned_multilevel_data.csv')
 model_data = data %>% filter(Stimulus == 'DL')
+model_data$Pixelated = as.factor(model_data$Pixelated)
 ```
 
 # Visualizations
@@ -63,7 +64,7 @@ ggplot(data=model_data, aes(x=AvePropFace_person, y=H) ) +
   facet_wrap(~Pixelated)
 ```
 
-Visualize age-related change in prop-looking
+Visualize age-related change in % face looking looking
 ```{r}
 ggplot(data=model_data, aes(x = Age, y=propFace_seg) ) +
   geom_point(alpha = .3) + 
@@ -72,6 +73,92 @@ ggplot(data=model_data, aes(x = Age, y=propFace_seg) ) +
   xlab('Age') +
   facet_wrap(~Pixelated)
 ```
+
+Face-looking (over time) models
+Logistic regression 
+glmer, family = 'binomial'
+cbind(n times on task, n time not on task)... allows things to differ between kids
+if 0 is inflated by the condition, then you dont need to worry about zero inflation 
+```{r}
+y = cbind(model_data$faceCount, model_data$otherCount)
+e = log(1)
+#################################
+# Functional form 
+#################################
+# FE and RE for intercept 
+glm.0 = glmer(y ~ (1|Participant),
+    data = model_data, family = 'binomial')
+# FE of age 
+glm.1 = glmer(y ~ 1 + Age_centeredGrandmean + (1|Participant),
+    data = model_data, family = 'binomial')
+glm.2 = glmer(y~ 1 + Age_centeredGrandmean + (1+Age_centeredGrandmean|Participant),
+    data = model_data, family = 'binomial')
+mynames <- as.character (c("glm.0", "glm.1", "glm.2")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.0),
+		     logLik(glm.1), logLik(glm.2), 
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc # Linear RE and FE of age
+
+#################################
+# Covariates & main effects
+#################################
+# Adding covariates (calver precision is not critical to include here)
+glmer.3 = glmer(y~ 1 + Age_centeredGrandmean + 
+                     AveAge_person +
+                 # QC - longest fix 
+                    scale(LongestFixDuration) +
+                   Sex +
+                   (1+Age_centeredGrandmean|Participant),
+    data = model_data, family = 'binomial')
+summary(glmer.3a)
+
+# Add Pix
+glmer.4 = glmer(y~ 1 + Age_centeredGrandmean + 
+                     AveAge_person +
+                 # QC - longest fix 
+                    scale(LongestFixDuration) +
+                   Sex +
+                    Pixelated +
+                   (1+Age_centeredGrandmean|Participant),
+    data = model_data, family = 'binomial')
+
+
+glmer.5 = glmer(y~ 1 + Age_centeredGrandmean + 
+                     AveAge_person +
+                 # QC - longest fix 
+                    scale(LongestFixDuration) +
+                   Sex +
+                    Pixelated + Age_centeredGrandmean:Pixelated + 
+                   (1+Age_centeredGrandmean|Participant),
+    data = model_data, family = 'binomial')
+mynames <- as.character (c("glm.3", "glm.4", "glm.5")) # model numbers as characters
+myaicc  <- ICtab(logLik(glmer.3),
+		     logLik(glmer.4), logLik(glmer.5), 
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc # Linear RE and FE of age
+# Model with Age x Pix interaction is best fit
+
+summary(glmer.5)
+
+```
+
+- For the average segment, participants are more likely to look at non-face AOIs than face AOIs.  
+- Probability=1 / (1 + exp(-x)) 
+```{r}
+# pix effect --> 14% increase
+1/(1+exp(--1.7813259))
+
+# pix x age interaction
+1/(1+exp(-0.0126261))
+```
+
+
 
 # Modelling 
 Establishing functional form - Best fitting model inclues Linear effect of age
@@ -224,8 +311,7 @@ lmer.6 =  lmer(H~1+Age_centeredGrandmean +
                 (1+Age_centeredGrandmean|Participant) + (1+Pixelated|ID)+(1|MovieName), data=model_data, REML=FALSE) 
 
 ```
-There is a significant effect of movie-level face-looking looking on H (why does adding the interaction terms make this effect significant?). There is also an interaction between Pixelated and movie-level face-looking (marginally)
-
+There is a significant effect of movie-level face-looking looking on H. There is also an interaction between Pixelated and movie-level face-looking (marginally)
 
 Does age interact with Pixelated, or face-looking? 
 ```{r}

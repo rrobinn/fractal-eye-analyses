@@ -6,7 +6,7 @@
 % [900:1000, [800,1000] ... [min length:1000]
 
 
-function [truncIndFromBeg, truncIndFromEnd] = TruncateTimeSeries(ts, varargin)
+function [truncIndFromBeg, truncIndFromEnd] = TruncateIndices(ts, varargin)
 nseg=10; % default settings
 settings = struct();
 settings.minTimeSeriesLength=1000;

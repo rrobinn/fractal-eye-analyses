@@ -6,6 +6,7 @@ clear all
 close all
 % set wdir
 wdir = 'C:\Users\Robin\Documents\fractal-eye-analyses';
+addpath(genpath(wdir));
 cd([wdir '/MFDFA/'])
 %datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
 datadir = 'C:\Users\Robin\Box\Dancing Ladies share\IndividualData\All_2018_12_11_DL\';

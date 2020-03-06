@@ -1,7 +1,7 @@
-function [params] = makeParameterSpace(minTsLength, varargin)
+function [params] = makeParameterSpace(tsLength, varargin)
 %% set up
 % default parameters to test 
-scmax = [minTsLength/10 minTsLength/4]; 
+scmax = [tsLength/10 tsLength/4]; 
 scmin=[4:4:16]; 
 scres=[4:4:16]; 
 

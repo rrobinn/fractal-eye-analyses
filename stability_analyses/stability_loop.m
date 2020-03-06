@@ -1,22 +1,26 @@
 % For each participant:
 %     For each time series:
 %         Create truncated time series 
-
 clear all
 close all
-% set wdir
-wdir = 'C:\Users\Robin\Documents\fractal-eye-analyses';
+%% set paths
+% path setting assumes Matlab is currently in the 'fractal-eye-analyses-'
+% folder
+wdir = pwd;
 addpath(genpath(wdir));
-cd([wdir '/MFDFA/'])
-%datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
-datadir = 'C:\Users\Robin\Box\Dancing Ladies share\IndividualData\All_2018_12_11_DL\';
-% figdir = '/Users/sifre002/Box/Dancing Ladies share/R2_figures/scres19_scmin_6/';
-figdir = 'C:\Users\Robin\Box\sifre002\11_Figures\mfdfa-stability\';
+% flexible paths for accessing data on Box 
+if strcmp(wdir(1), 'C') % PC
+    datadir = 'C:\Users\Robin\Box\Dancing Ladies share\IndividualData\All_2018_12_11_DL\';
+    figdir = 'C:\Users\Robin\Box\sifre002\11_Figures\mfdfa-stability\';
+    particList = 'C:\Users\Robin\Box\sifre002\9_ExcelSpreadsheets\Dancing_Ladies\ParticipantLists_DL\20200219_ParticList.csv';
+else
+    datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
+    figdir =  '/Users/sifre002/Box/sifre002/11_Figures/mfdfa-stability/';
+    particList = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200219_ParticList.csv';
+end
 
 % read participant list
-%p = importdata('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200219_ParticList.csv');
-p = importdata('C:\Users\Robin\Box\sifre002\9_ExcelSpreadsheets\Dancing_Ladies\ParticipantLists_DL\20200219_ParticList.csv');
-
+p=importdata(particList)
 errors = {};
 
 %% temporarily disable polynomial warnings

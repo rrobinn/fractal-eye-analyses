@@ -1,6 +1,8 @@
-% For each participant:
-%     For each time series:
-%         Create truncated time series
+% Loops through each sessions. For each time series:
+% 1. Generates parameter space (depends on ts length)
+% 2. Generates H and r2 estimates for each parameter speace (for each time series)
+
+
 clear all
 close all
 %% set paths
@@ -38,19 +40,12 @@ errors = {};
 %% temporarily disable polynomial warnings
 warning('off','MATLAB:polyfit:RepeatedPointsOrRescale');
 %%
+[settings] =  MFDFA_settings('r2plot', 0); % settings get overwritten in parameter space loop. However, need to generate settings to creat time series.
+
 for i = 1%:length(p)
     tic();
-    display(['Calculating H for ' num2str(i) ' out of ' num2str(length(p))]);
+    display(['Stability analyses for ' num2str(i) ' out of ' num2str(length(p))]);
     id = p{i};
-    
-    % only make plots for every 10th session to save time
-%     if mod(i,10)==0
-%         [settings] =  MFDFA_settings('r2plot', 1, 'scres', 19, 'scmin', 16);
-%     else
-%         [settings] =  MFDFA_settings('r2plot', 0, 'scres', 19, 'scmin', 16);
-%     end
-    [settings] =  MFDFA_settings('r2plot', 0); % settings get overwritten in parameter space loop. However, need to generate settings to creat time series.
-    
     try
         %% make time series
         calver = load([datadir id '/' id '_calVerTimeSeries.mat']); % load data
@@ -65,7 +60,7 @@ for i = 1%:length(p)
         specs(:,1) = {id}; % update id to include session number
         %%
         %% do dfa
-        display('Calculating H \n');
+        display('Calculating H across parameter space \n');
         h_out = cell(size(ts_out,1), 2);
         for t=1:size(ts_out,1) % for each time series
             ts = ts_out{t};
@@ -86,42 +81,18 @@ for i = 1%:length(p)
         end % end time series loop
         %% save variables (params, specs, ts_out(:,2), settings)
         %indiv output
-        out = horzcat(specs, h, r);
+        disp('Saving output \n');
         FolderName = [outdir id '/'];
         if ~exist(FolderName)
             mkdir(FolderName)
         end
-        save([FolderName 'r2.mat'], 'out',  'settings');
-        % group out
-        %group_out = vertcat(group_out, out);
-        
-        % figures
-        if (settings.r2plot)
-            FolderName = [figdir id '/'];
-            if ~exist(FolderName)
-                mkdir(FolderName);
-            end
-            save([FolderName id], 'specs', 'params', 'h_out');
-            FigList = findobj(allchild(0), 'flat', 'Type', 'figure');
-            for f = 1:length(FigList)
-                figHandle = FigList(f);
-                FigName = get(figHandle, 'Name');
-                saveas(figHandle, [FolderName, FigName, '.jpg']);
-            end
-            close all
-        end
+        save([FolderName 'stability_analysis.mat'], 'params_out',  'settings','params');
     catch ME
         e = {ME.identifier, id};
         errors = vertcat(errors, e);
     end
     display(['Took ' num2str(toc) 'seconds \n']);
 end
-
-%% save
-%save('/Users/sifre002/Box/Dancing Ladies share/R2_figures/group_r2.mat', 'group_out');
-%a=cell2table(group_out, 'VariableNames', {'id', 'movie', 'seg', 'longestFix', 'propInterp', 'propMissing', 'warning', 'H', 'r2'});
-%writetable(a, '/Users/sifre002/Box/Dancing Ladies share/R2_figures/group_r2.xls')
-
 
 
 

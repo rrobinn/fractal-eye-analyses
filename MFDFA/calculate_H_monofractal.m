@@ -12,6 +12,9 @@ if length(varargin)>1
     for v = 1:2:length(varargin)
         if strcmpi(varargin{1}, 'settings')
             settings = varargin{v+1};
+            if ~isfield(settings, 'scmax') % if user did not set this, set to default
+                settings.scmax = scmax;
+            end
         end
     end
 else % make settings from options above

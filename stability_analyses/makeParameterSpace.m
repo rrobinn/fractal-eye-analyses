@@ -1,7 +1,7 @@
 function [params] = makeParameterSpace(tsLength, varargin)
 %% set up
 % default parameters to test 
-scmax = [tsLength/10 tsLength/4]; 
+scmax = round([tsLength/10 tsLength/4]); 
 scmin=[4:4:16]; 
 scres=[4:4:16]; 
 
@@ -16,6 +16,7 @@ for v=1:2:length(varargin)
             scres = varargin{v+1};
     end
 end
+
 
 % error testing
 if  ~isnumeric(scmax) 
@@ -37,9 +38,10 @@ for i = 1:length(params)
     exponents=linspace(log2(params(i, 1)),log2(params(i,2)),params(i,3));
     scale=round(2.^exponents); %segment sizes
     if length(unique(scale)) < length(scale)
-        error(['makeParameterSpace.m: parameters scmin=' num2str(params(i,1)) ...
+        error(['error makeParameterSpace.m: parameters scmin=' num2str(params(i,1)) ...
             ' scmax=' num2str(params(i,3)) ', scres=' num2str(params(i,3)) ...
             ' yields duplicate scaling values']);
+        return;
     end
 end
 

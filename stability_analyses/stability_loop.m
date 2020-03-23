@@ -9,6 +9,7 @@ close all
 % path setting assumes Matlab is currently in the 'fractal-eye-analyses-'
 % folder
 wdir = pwd;
+display(['wdir=' wdir]);
 addpath(genpath(wdir));
 
 % flexible paths for accessing data on Box
@@ -19,11 +20,10 @@ if strcmp(wdir(1), 'C') % PC
     outdir = 'C:\Users\Robin\Box\sifre002\7_MatFiles\01_Complexity\stability-experiments/parameter-stability-full-ts\';
     addpath(genpath('MFDFA\'));
 elseif strcmp(wdir, '/panfs/roc/groups/7/elisonj/sifre002/matlab')
-    datadir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/data';
-    figdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/figs';
+    datadir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/data/';
+    figdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/figs/';
     particList = '/panfs/roc/groups/7/elisonj/sifre002/matlab/20200219_ParticList.csv';
     outdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/parameter-stability-full-ts/';
-    
 else
     datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
     figdir =  '/Users/sifre002/Box/sifre002/11_Figures/mfdfa-stability/';
@@ -32,6 +32,8 @@ else
     addpath(genpath('MFDFA/'));
 end
 %
+%display("data directory is:")
+%display(datadir)
 
 % read participant list
 p=importdata(particList);
@@ -42,10 +44,11 @@ warning('off','MATLAB:polyfit:RepeatedPointsOrRescale');
 %%
 [settings] =  MFDFA_settings('r2plot', 0); % settings get overwritten in parameter space loop. However, need to generate settings to creat time series.
 
-for i = 1%:length(p)
+for i = 1:length(p)
     tic();
-    display(['Stability analyses for ' num2str(i) ' out of ' num2str(length(p))]);
     id = p{i};
+    display(['Stability analyses for ' id ': ' num2str(i) ' out of ' num2str(length(p))]);
+
     try
         %% make time series
         calver = load([datadir id '/' id '_calVerTimeSeries.mat']); % load data
@@ -75,7 +78,7 @@ for i = 1%:length(p)
                 h_out{t,1} = specs(t, :);
                 h_out{t, 2} = params_out; % save H and r2 for each parameter for this time series
             catch ME
-                e = {ME.identifier, id};
+                e = {ME.message, [specs{t,1} '_' specs{t,2} '_' num2str(specs{t,3})]};
                 errors = vertcat(errors, e);
             end
         end % end time series loop
@@ -86,13 +89,16 @@ for i = 1%:length(p)
         if ~exist(FolderName)
             mkdir(FolderName)
         end
-        save([FolderName 'stability_analysis.mat'], 'params_out',  'settings','params');
+        save([FolderName 'stability_analysis.mat'], 'h_out', 'params');
     catch ME
+        
         e = {ME.identifier, id};
+        disp(['error: ' ME.identifier]);
         errors = vertcat(errors, e);
     end
     display(['Took ' num2str(toc) 'seconds \n']);
 end
 
+save('stability_loop_errors.mat', 'errors');
 
 

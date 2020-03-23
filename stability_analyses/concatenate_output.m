@@ -1,11 +1,15 @@
 % Script to read in data from each individual folder in a given path
 % (specified by "folder") and concatenate data into a single data frame
 
-folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/';
+folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/'; % Folder w/ individual data, where concatenated output will be written
 files = dir(folder);
 dirFlags = [files.isdir];
 files = files(dirFlags);
-errors= {};
+readErrors= {};
+
+addpath(genpath('~/Documents/Code/fractal-eye-analyses/'));
+
+%%
 for f = 1:size(files,1)
    
     try
@@ -34,7 +38,7 @@ for f = 1:size(files,1)
         h_r = cat(1, h_out{:,2});
         
         % write trial info into separate file
-        fid = fopen('specs.txt', 'w');
+        fid = fopen([folder 'stability_out.txt'], 'w');
         for s = 1:size(specs,1)
            temp = [specs{s,1} ',' specs{s,2} ',' specs{s,3}, ',' num2str(specs{s,4}), ...
                ',',num2str(specs{s,5}),',', num2str(specs{s,6}), ',' , num2str(specs{s,7}), ...
@@ -46,11 +50,26 @@ for f = 1:size(files,1)
      
 
     catch ME
-        
+        readErrors = horzcat(readErrors, ME.message);
         
     end
     
 end
 
 %% add errors to output
-errors = load('/Users/sifre002/Documents/Code/ssh-scratch/stability_loop_errors.mat');
+load('~/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/errors.mat');
+e = cellfun(@(x) strsplit(x,'_'), errors(:,2), 'UniformOutput', false);
+
+
+ids = cellfun(@(x) [x{1} '_' x{2} '_' x{3}], e(:,1), 'UniformOutput', false);
+movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
+segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
+
+for i = 1:size(e,1)
+    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , ,'];
+    fprintf(fid, '%s \n', temp);
+end
+
+%%
+fclose(fid);
+

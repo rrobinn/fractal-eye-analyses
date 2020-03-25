@@ -53,7 +53,7 @@ for i = 1:length(p)
         %% make time series
         calver = load([datadir id '/' id '_calVerTimeSeries.mat']); % load data
         et = load([datadir id '/' id '_segmentedTimeSeries.mat']);
-        % make time series
+        % make time series (pulls longest fix)
         [ts_out_calver, specs_out_calver] = makeTimeSeriesForFractalAnalysis(calver, 'settings', settings);
         [ts_out_et, specs_out_et] = makeTimeSeriesForFractalAnalysis(et, 'settings', settings);
         % combinate data and specs

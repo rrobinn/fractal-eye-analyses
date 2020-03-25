@@ -31,6 +31,8 @@ end
 %% Make parameter space 
 [X,Y,Z] = meshgrid(scmin,scmax,scres);
 params = [X(:) Y(:) Z(:)];
+%
+params(:,4) = round(tsLength./params(:,2),1); % save what time series was divided by
 
 %% test that the parameters work for the minimum series length
 for i = 1:length(params)

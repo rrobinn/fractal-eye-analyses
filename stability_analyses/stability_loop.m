@@ -1,3 +1,5 @@
+function stability_loop(pListFileName)
+
 % Loops through each sessions. For each time series:
 % 1. Generates parameter space (depends on ts length)
 % 2. Generates H and r2 estimates for each parameter speace (for each time series)
@@ -16,24 +18,22 @@ addpath(genpath(wdir));
 if strcmp(wdir(1), 'C') % PC
     datadir = 'C:\Users\Robin\Box\Dancing Ladies share\IndividualData\All_2018_12_11_DL\';
     figdir = 'C:\Users\Robin\Box\sifre002\11_Figures\mfdfa-stability\';
-    particList = 'C:\Users\Robin\Box\sifre002\9_ExcelSpreadsheets\Dancing_Ladies\ParticipantLists_DL\20200219_ParticList.csv';
+    particList = ['C:\Users\Robin\Box\sifre002\9_ExcelSpreadsheets\Dancing_Ladies\ParticipantLists_DL\' pListFileName];
     outdir = 'C:\Users\Robin\Box\sifre002\7_MatFiles\01_Complexity\stability-experiments/parameter-stability-full-ts\';
     addpath(genpath('MFDFA\'));
-elseif strcmp(wdir, '/panfs/roc/groups/7/elisonj/sifre002/matlab')
+elseif strcmp(wdir, '/panfs/roc/groups/7/elisonj/sifre002/matlab') % ssh
     datadir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/data/';
     figdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/figs/';
-    particList = '/panfs/roc/groups/7/elisonj/sifre002/matlab/20200219_ParticList.csv';
+    particList = ['/panfs/roc/groups/7/elisonj/sifre002/matlab/' pListFileName];
     outdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/parameter-stability-full-ts/';
 else
     datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
     figdir =  '/Users/sifre002/Box/sifre002/11_Figures/mfdfa-stability/';
-    particList = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200219_ParticList.csv';
+    particList = ['/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/' pListFileName];
     outdir = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/parameter-stability-full-ts/';
     addpath(genpath('MFDFA/'));
 end
 %
-%display("data directory is:")
-%display(datadir)
 
 % read participant list
 p=importdata(particList);
@@ -48,7 +48,7 @@ for i = 1:length(p)
     tic();
     id = p{i};
     display(['Stability analyses for ' id ': ' num2str(i) ' out of ' num2str(length(p))]);
-
+    
     try
         %% make time series
         calver = load([datadir id '/' id '_calVerTimeSeries.mat']); % load data
@@ -99,6 +99,7 @@ for i = 1:length(p)
     display(['Took ' num2str(toc) 'seconds \n']);
 end
 
-save('stability_loop_errors.mat', 'errors');
-
+[filepath,name,ext] = fileparts(pListFileName);
+save([name '_stability_loop_errors.mat'], 'errors');
+end
 

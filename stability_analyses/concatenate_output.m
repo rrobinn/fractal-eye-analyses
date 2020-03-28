@@ -69,7 +69,7 @@ movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
 segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
 
 for i = 1:size(e,1)
-    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , ,'];
+    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , , ,'];
     fprintf(fid, '%s \n', temp);
 end
 

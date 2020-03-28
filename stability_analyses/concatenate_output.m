@@ -7,9 +7,13 @@ dirFlags = [files.isdir];
 files = files(dirFlags);
 readErrors= {};
 
-addpath(genpath('~/Documents/Code/fractal-eye-analyses/'));
+addpath(genpath('~/Documents/Code/fractal-eye-analyses/')); % add dir that has concatenate_output.m to path
 
 %%
+fid = fopen([folder 'stability_out.txt'], 'w');
+temp = 'id, movie, seg, longestFixDur, propInterp, propMissing, scmin, scmax, scres, scmaxdiv, h, r2';
+fprintf(fid, '%s \n', temp);
+
 for f = 1:size(files,1)
    
     try
@@ -38,11 +42,10 @@ for f = 1:size(files,1)
         h_r = cat(1, h_out{:,2});
         
         % write trial info into separate file
-        fid = fopen([folder 'stability_out.txt'], 'w');
         for s = 1:size(specs,1)
            temp = [specs{s,1} ',' specs{s,2} ',' specs{s,3}, ',' num2str(specs{s,4}), ...
                ',',num2str(specs{s,5}),',', num2str(specs{s,6}), ',' , num2str(specs{s,7}), ...
-               num2str(rep_params(s,1)),',', num2str(rep_params(s,2)),',',num2str(rep_params(s,3)), ',', ...
+               num2str(rep_params(s,1)),',', num2str(rep_params(s,2)),',',num2str(rep_params(s,3)), ',', num2str(rep_params(s,4)), ',', ...
                num2str(h_r(s,1)), ',' num2str(h_r(s,2))];
            fprintf(fid, '%s \n', temp);
         end
@@ -57,7 +60,7 @@ for f = 1:size(files,1)
 end
 
 %% add errors to output
-load('~/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/errors.mat');
+load('~/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/stability_loop_errors.mat');
 e = cellfun(@(x) strsplit(x,'_'), errors(:,2), 'UniformOutput', false);
 
 
@@ -66,7 +69,7 @@ movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
 segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
 
 for i = 1:size(e,1)
-    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , ,'];
+    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , ,'];
     fprintf(fid, '%s \n', temp);
 end
 

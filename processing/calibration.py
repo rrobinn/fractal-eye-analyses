@@ -217,14 +217,16 @@ for file in dirList:
 
   # build filename, open, and read...
   filename = dirname + "/" + file
-  if(filename[-3:] != "csv"):
-    print("Found non CSV file: \n" + filename)
+  if(filename[-3:] != "csv" and filename[-3:] != "tsv"):
+    print("Found non .tsv/.csv file: \n" + filename)
     nonc_names_skipped.append(filename)
     continue
 
   f = open(filename)
-  cf = csv.reader(f)
-
+  if(filename[-3:]=="csv"):
+    cf = csv.reader(f)
+  else:
+    cf = csv.reader(f, delimiter = '\t')
   d = []
 
   print("Loading file %s..." %(filename))

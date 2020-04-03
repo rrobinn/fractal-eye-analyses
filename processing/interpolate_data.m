@@ -1,8 +1,28 @@
-function [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol)
+function [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol, varargin)
 % Script adds interpolated data to to ParticData.Data (a struct).
 close all
 maxInt = 100000000; % Maximum interval of missing data to be interpolated. Set to large number if you want everything interpolated.
 avgWindow = 1; % must be at least 1. Tobii's algorithm checks first valid data before/after gap.
+
+strictValidityFlag = 0;
+switch length(varargin)
+    case 0 % no options
+    case 1 % one additional variable
+        if strcmpi(varargin{1}, 'strict')
+            strictValidityFlag=1;
+        else
+            error(['Unknown input variable: ' varargin{1}]);
+        end
+    case 2 % options as <name-value> pairs
+        if strcmpi(varargin{1}, 'strict')
+            strictValidityFlag = varargin{2};
+        end
+    otherwise(error('Unknown input variable'));
+end
+if strictValidityFlag~=0 & strictValidityFlag~=1 
+    error('strict flag must be set to 0 or 1')
+end
+disp(['\n Interpolating data. strictValidityFlag set to ' num2str(strictValidityFlag) '\n']);
 
 %% Select data
 propInterpolated = zeros(length(ParticData.Data),1);
@@ -23,10 +43,13 @@ for c = 1:size(ParticData.Data,1) % for each trial
     time = cell2mat( temp(:, dataCol.timestamp) );
     
     % Can choose how strict to be here. Use first two lines to be stricter.
-    %logic1 = vl <= 1 & vl~= -9999;  % may be too stringent. tobii recomends removing code of 2 and higher
-    %logic2 = vr <= 1 & vl~= -9999;
-    logic1 = vl~= -9999; % only remove missing data.
-    logic2 = vr ~= -9999;
+    if strictValidityFlag
+        logic1 = vl <= 1 & vl~= -9999;  % may be too stringent. tobii recomends removing code of 2 and higher
+        logic2 = vr <= 1 & vl~= -9999;
+    else
+        logic1 = vl~= -9999; % only remove missing data.
+        logic2 = vr ~= -9999;
+    end
     
     finalLogic = logic1 & logic2; % both eyes are NOT missing
     gazeX(~finalLogic) = -9999; % if data are invalid (low quality), or are missing.

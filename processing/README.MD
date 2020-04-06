@@ -1,8 +1,16 @@
 Processing scripts for eye-tracking data.
 # Overview
 This folder contains code for processing raw eye-tracking data, and creating time series for MFDFA analysis. <b> batch_process.m </b> contains a "master script" that loops through eye-tracking files, calls each function, and saves the final time series used for analyses. Broadly, the processing steps include:  
-1. <b>Flagging blinks</b> (blinkDetection.m)  
-2. <b> Separating continuous stream of data into trials </b> (parse_et_totrials.m)  
-3. <b> Interpolate missing data </b> (interpolate_data.m).  
-4. <b> Flag samples where gaze coordinate falls in area of interest </b> (add_fix_faces.m)  
-5. <b> Parse each trial into multiple time series </b> (generate_timeseris.m and generate_time_series_calver.m)  
+1. <b>Flagging blinks</b> (`blinkDetection.m`)  
+2. <b>Separating continuous stream of data into trials </b> (`parse_et_totrials.m`)  
+3. <b>Interpolate missing data </b> (`interpolate_data.m`).  
+4. <b>Flag samples where gaze coordinate falls in area of interest </b> (`add_fix_faces.m`) 
+5. <b> Parse each trial into multiple time series </b> (`generate_timeseris.m` and `generate_time_series_calver.m`)  
+
+# Calibration verification  
+To collect good eye-tracking data, we must calibrate the infant to the eye-tracker. `calibration.py` calculates metrics assessing the quality of each infant's calibration. `reformat_calibration_verification.py` reformats the output to make it easier for merging with long date.
+
+# Face-looking analyses  
+Some of these analyses are specific to the movies that we use. Namely, we are interested in how much time infants look at the faces in these movies.  
+1. <b>Reading in .csv that contains the dynamic Areas of Interest (AOIs).</b> (`read_AOI` and `make_aoi_struct`) Because this a movie, the bounding boxes framing the faces change in each frame.  
+2. <b>Determining if infant is looking at a face</b> (`add_fix_faces`). Flags each sample with a 1 if the gaze-positions falls within a face bounding box.

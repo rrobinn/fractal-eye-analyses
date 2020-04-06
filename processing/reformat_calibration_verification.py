@@ -19,20 +19,22 @@ def return_first_id(fname):
 # find row where new participant data starts 
 def find_new_participant_row(df):
 	col1 = df.iloc[:,0]# Participant ID always in the first col
-	id_index = ~col1.str.contains('Average|Number') #Entries without these words will be participant IDs
+	id_index = ~col1.str.contains('Left|Right|Bottom|Center|Top|Average|Number|Stimulus') #Entries without these words will be participant IDs
 	indices = list(id_index[id_index==True].index)
 	return indices
 
 def pull_participant_data(df_slice):
-	partic = df_slice.Stimulus.iloc[0]
-	SDx = df_slice.PrecSDx.iloc[1]
-	SDy = df_slice.PrecSDy.iloc[1]
-	RMSx = df_slice.PrecRMSx.iloc[1]
-	RMSy = df_slice.PrecRMSy.iloc[1]
-	n_points = df_slice.iloc[2,1]
-	return pd.DataFrame(data={"SDx":[SDx], "SDy":[SDy],
-							  "RMSx":[RMSx], "RMSy":[RMSy],
-							  "n_points":[n_points]}, index = [partic])
+	# pull id and remove from df_slice
+	id_ind = find_new_participant_row(df_slice)
+	partic = df_slice.Stimulus[id_ind[0]]
+	df_slice = df_slice.drop(id_ind[0])
+	df_slice.index=range(len(df_slice))
+	# Remove rows that have summary data 
+	ind_to_keep = ~df_slice.Stimulus.str.contains('Number|Average') 
+	df_slice=df_slice.loc[ind_to_keep]
+	# set index to participant name 
+	df_slice.index=[partic]*len(df_slice)
+	return df_slice
 
 filename = sys.argv[1]
 #filename = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/CalVer_output/DL1_output.csv'
@@ -75,29 +77,29 @@ partic_id = return_first_id(filename)
 temp = pd.DataFrame([[partic_id, np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan]], columns=list(df.columns))
 df = temp.append(df, ignore_index = True)
 
+# Remove all the sub-headers
+df=df.loc[~df.Stimulus.str.contains('Stimulus'), :]
+df.index=range(len(df))
+
 ########################################
 # Reformat 
 #######################################
 
-# Pull rows that contain ID, Stimulus, Averages, and Num valid. 
-id_index = ~(df.iloc[:,0].str.contains('Stimulus|Left|Right|Top|Bottom|Center')) # Find the rows with ID, Number valid, and Averages
-df = df.set_index(id_index) # Set index to boolean
-df = df.loc[True] 
-df = df.set_index(np.arange(0, df.shape[0],1)) # reset indices to be sequential
-
 # Loop through DataFrame and reformat data. Save in <output>.
-output = pd.DataFrame(columns={"SDx", "SDy", "RMSx", "RMSy", "n_points"})
-for idx, row in df.iterrows():
-	if ("Number" not in row.Stimulus and "Average" not in row.Stimulus): # Then this row has the participant ID. 
-		data_slice = df.iloc[idx:idx+3,:] # Pull the next 2 rows & append to <output>
-		output= output.append(pull_participant_data(data_slice), sort = False)
+output = pd.DataFrame(columns={"Stimlus", "MinDist", "CoordX","CoordY", "Dur", "PrecSDx", "PrecSDy", "PrecRMSx", "PrecRMSy"})
+partic_indices =  find_new_participant_row(df)
+for i in range(0, len(partic_indices)-1):
+	if i==len(partic_indices): # special case - last participant in spreadsheet
+		data_slice=df.iloc[partic_indices[i]:df.shape[0]] 
+	else:
+		data_slice=df.iloc[partic_indices[i]:partic_indices[i+1]]
+	output=output.append(pull_participant_data(data_slice),sort=True)
 
 ########################################
 # Save
 #######################################
 {dir_name + "/" + base_name + "_reformatted.csv"}
 output.to_csv (dir_name + "/" + base_name + "_reformatted.csv", index = True, header=True)
-
 
 
 

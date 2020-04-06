@@ -5,12 +5,18 @@ date: "02/06/2019"
 output: html_document
 ---
 
+```{r}
+# User parameters
+min_age = 0
+max_age = 40
+```
+
+
 # Where do you want to save data?
 ```{r}
 out_dir = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/'
 file_name = 'cleaned_multilevel_data'
 ```
-
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 library(readxl)
@@ -19,16 +25,27 @@ library(sm)
 library(lme4)
 library(ggplot2)
 library(MuMIn)
-library(AICcmodavg)
 library(bbmle)
-library(glmmTMB)
-library(lmerTest)
 library(gtools)
 library(tuple)
 ```
 
-Read in data
+# Read data
 ```{r}
+Master=read_excel("/Users/sifre002/Box/Dancing Ladies share/IndividualData/Script outputs/Master_MFDFA_DL.xlsx")
+precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
+cohort_info=read.csv('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Mullens_DL_lorisMatch_20190103.csv', stringsAsFactors = FALSE)
+aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
+# demographic data
+#Read in information on participant's sex, and combine 
+info1=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'JE NUMBERS')
+info2=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'MNBCP NUMBERS')
+info3=read_excel('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Pheno Screening Master Linking File.xlsx');
+```
+
+
+```{r}
+# Format MFDFA output 
 #########################
 #import MFDFA output
 #########################
@@ -41,24 +58,22 @@ colnames(Master)[colnames(Master)=="Prop Missing"] <- "PropMissing"
 colnames(Master)[colnames(Master)=="Movie Name"] <- "MovieName"
 colnames(Master)[colnames(Master)=="Segment Num"] <- "Seg"
 # Filter out participants who are outside of age range & keep track of who we are missing Age for 
-Master_NAage=Master%>% 
-  filter(is.na(Age))
-Master_old=Master%>%
-  filter(Age>40)
+# Master_NAage=Master%>% 
+#   filter(is.na(Age))
+# Master_old=Master%>%
+#   filter(Age>max_age)
 Master=Master%>%
-  filter(Age<40)
-#########################
-# import calibration precision
-#########################
-CalVer <- read_excel("/Users/sifre002/Box/Dancing Ladies share/Formatted_CalVerData_2018_12_12/allCalVers.xlsx") #6127
-precisionInfo=as.data.frame(CalVer) 
-#########################
-# Import demographic info
-#########################
-#Read in information on participant's sex, and combine 
-info1=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'JE NUMBERS')
-info2=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'MNBCP NUMBERS')
-info3=read_excel('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Pheno Screening Master Linking File.xlsx');
+  filter(Age>min_age & Age<max_age)
+
+# Create variable for Participant ID (currently combined with session #)
+Master=Master%>%
+  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') )
+Master$Age=as.numeric(Master$Age)
+
+```
+
+```{r}
+# Clean demographic info 
 sexList = rbind(info1 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
                 info2 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
                 info3 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex) )
@@ -71,21 +86,15 @@ cohort_info=cohort_info%>%
   mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') ) %>%
   arrange(Participant)
 
-#########################
-# Import AOI-based analyses output 
-#########################
-aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
-#
+```
+
+
+Read in data
+```{r}
+
 aoi_data = aoi_data %>% filter(longestFix_Dur != -9999)
 ```
 
-# Formatting 
-```{r message=FALSE, warning=FALSE, echo=FALSE}
-# Create variable for Participant ID (currently combined with session #)
-Master=Master%>%
-  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') )
-Master$Age=as.numeric(Master$Age)
-```
 
 Merge cohort information & remove Babarr (they were recruited differently)
 ```{r}
@@ -146,63 +155,19 @@ Master2$NonPixelated = ifelse(Master2$Pixelated == 0 & Master2$Calver == 0, 1, 0
 
 Creates a FinalCalVer dataframe of average calibration XY precision information for each kid who made it through CalVer processing
 ```{r}
-#Formatting
-CalVerMaster=precisionInfo 
-CalVerMaster$`Precision_RMS_X`=as.numeric(CalVerMaster$`Precision_RMS_X`)
-CalVerMaster$`Precision_RMS_Y`=as.numeric(CalVerMaster$`Precision_RMS_Y`)
+CalVerMaster=precisionInfo
 #Find average XY precision for each calibration point
 CalVerMaster=CalVerMaster%>%
-  mutate(Precision_RMS_X_Y=(`Precision_RMS_X` + `Precision_RMS_Y`)/2)
+  filter(!is.na(CoordX)) %>%
+  mutate(Precision_RMS_X_Y=(PrecRMSx + PrecRMSy)/2) %>%
+  select(ID=X, Precision_RMS_X_Y, Stimulus)
 #Establishes 2 SD cutoffs for acceptable precision values
 PrecSD=sd(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)
 cutoff=mean(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)+2*PrecSD
 
 #Creates exclude/include dummies based on cutoff
 CalVerMaster=CalVerMaster%>%
-  mutate(exclude=if_else(Precision_RMS_X_Y>cutoff, 1, 0),
-         include=if_else(Precision_RMS_X_Y<cutoff,1,0),
-         ID=NA,
-         TypeNum=NA)
-
-PtsExcluded=sum(CalVerMaster$exclude, na.rm=TRUE)
-CalVerMaster=as.data.frame(CalVerMaster)
-
-#Adds in ID to every calibration point (Kirsten's script has ID every 5 lines only)
-# Note: can clean this up in the future 
-for (x in 1:nrow(CalVerMaster)){
-  if (grepl("JE", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
-    id=CalVerMaster$Stimulus[x]
-    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
-    end=x+5
-    for (y in x:end){
-      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
-    }
-  }
-  else if (grepl("MNBCP", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
-    id=CalVerMaster$Stimulus[x]
-    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
-    end=x+5
-    for (y in x:end){
-      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
-    }
-  }
-  else if (grepl("Bab", as.character(CalVerMaster$Stimulus[x]), fixed=TRUE)){
-    id=CalVerMaster$Stimulus[x]
-    CalVerMaster$ID[x]=CalVerMaster$Stimulus[x]
-    end=x+5
-    for (y in x:end){
-      CalVerMaster$ID[y]=CalVerMaster$Stimulus[x]
-    }
-  }
-}
-
-CalVerMaster = CalVerMaster %>%
-  filter(Type != 'NA' )
-# Type keeps track of when the calibration verification procedure took place 
-CalVerMaster[CalVerMaster$Type == 'Beg', 'TypeNum'] = 1
-CalVerMaster[CalVerMaster$Type == 'Mid', 'TypeNum'] = 2
-CalVerMaster[CalVerMaster$Type == 'End', 'TypeNum'] = 3
-CalVerMaster[CalVerMaster$Type == 'Unknown', 'TypeNum'] = 4
+  mutate(include=if_else(Precision_RMS_X_Y<cutoff,1,0)) 
 
 #Excludes points above precision cutoff AND those without any precision info
 FinalCalVer=CalVerMaster%>% 

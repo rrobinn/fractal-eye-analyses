@@ -86,7 +86,7 @@ df.index=range(len(df))
 #######################################
 
 # Loop through DataFrame and reformat data. Save in <output>.
-output = pd.DataFrame(columns={"Stimlus", "MinDist", "CoordX","CoordY", "Dur", "PrecSDx", "PrecSDy", "PrecRMSx", "PrecRMSy"})
+output = pd.DataFrame(columns={"Stimulus", "MinDist", "CoordX","CoordY", "Dur", "PrecSDx", "PrecSDy", "PrecRMSx", "PrecRMSy"})
 partic_indices =  find_new_participant_row(df)
 for i in range(0, len(partic_indices)-1):
 	if i==len(partic_indices): # special case - last participant in spreadsheet

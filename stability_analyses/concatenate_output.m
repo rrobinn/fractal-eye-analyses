@@ -1,18 +1,22 @@
 % Script to read in data from each individual folder in a given path
 % (specified by "folder") and concatenate data into a single data frame
 
+%% User-defined input
 folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/'; % Folder w/ individual data, where concatenated output will be written
+outputFileName = 'stability_out.txt'; % Name for output file with concatenated data
+header = 'id, movie, seg, longestFixDur, propInterp, propMissing, scmin, scmax, scres, scmaxdiv, h, r2'; % header for output file 
+
+%% 
 files = dir(folder);
 dirFlags = [files.isdir];
 files = files(dirFlags);
 readErrors= {};
-
+%%
 addpath(genpath('~/Documents/Code/fractal-eye-analyses/')); % add dir that has concatenate_output.m to path
 
-%%
-fid = fopen([folder 'stability_out.txt'], 'w');
-temp = 'id, movie, seg, longestFixDur, propInterp, propMissing, scmin, scmax, scres, scmaxdiv, h, r2';
-fprintf(fid, '%s \n', temp);
+
+fid = fopen([folder outputFileName], 'w');
+fprintf(fid, '%s \n', header);
 
 for f = 1:size(files,1)
    
@@ -43,7 +47,7 @@ for f = 1:size(files,1)
         
         % write trial info into separate file
         for s = 1:size(specs,1)
-           temp = [specs{s,1} ',' specs{s,2} ',' specs{s,3}, ',' num2str(specs{s,4}), ...
+           temp = [specs{s,1} ',' specs{s,2} ',' num2str(specs{s,3}), ',' num2str(specs{s,4}), ...
                ',',num2str(specs{s,5}),',', num2str(specs{s,6}), ',' , num2str(specs{s,7}), ...
                num2str(rep_params(s,1)),',', num2str(rep_params(s,2)),',',num2str(rep_params(s,3)), ',', num2str(rep_params(s,4)), ',', ...
                num2str(h_r(s,1)), ',' num2str(h_r(s,2))];

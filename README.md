@@ -13,6 +13,8 @@ Folder contains code adapted from: Espen Ihlen (2020). Multifractal detrended fl
 Check out the code -- this should work for any time series.
 
 ## analysis
-R code for modelling age-related change in Hurst-exponent. 
+R code for modelling age-related change in Hurst-exponent.
 
-test
+## Research poster
+
+![](https://github.com/rrobinn/fractal-eye-analyses/blob/master/Poster.png)

@@ -3,7 +3,9 @@
 This is a project for analyzing the fractal structure of infants eye-gaze. 
 
 ## Data
-Sample eye-tracking data collected from the same infant, at different ages. Data were collected using a Tobii eye tracker (300 Hz)
+We collected eye tracking data from infants as they watched age-appropriate movies, and pixelated versions of those movies.  
+
+This repo contains sample eye-tracking data collected from the same infant, at different ages. Data were collected using a Tobii eye tracker (300 Hz)
 
 ## Processing
 Folder contains Matlab code for processing eye-gaze data.
@@ -13,6 +15,8 @@ Folder contains code adapted from: Espen Ihlen (2020). Multifractal detrended fl
 Check out the code -- this should work for any time series.
 
 ## analysis
-R code for modelling age-related change in Hurst-exponent. 
+R code for modelling age-related change in Hurst-exponent.
 
-test
+## Research poster
+
+![](https://github.com/rrobinn/fractal-eye-analyses/blob/master/Poster.png)

@@ -3,7 +3,9 @@
 This is a project for analyzing the fractal structure of infants eye-gaze. 
 
 ## Data
-Sample eye-tracking data collected from the same infant, at different ages. Data were collected using a Tobii eye tracker (300 Hz)
+We collected eye tracking data from infants as they watched age-appropriate movies, and pixelated versions of those movies.  
+
+This repo contains sample eye-tracking data collected from the same infant, at different ages. Data were collected using a Tobii eye tracker (300 Hz)
 
 ## Processing
 Folder contains Matlab code for processing eye-gaze data.

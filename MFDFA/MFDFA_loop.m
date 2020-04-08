@@ -1,7 +1,7 @@
 clear all
 close all
 % set wdir
-wdir = '/Users/sifre002/Box/sifre002/18-Organized-Code/fractal-eye-analyses/';
+wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses';
 cd([wdir '/MFDFA/'])
 datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
 figdir = '/Users/sifre002/Box/Dancing Ladies share/R2_figures/scres19_scmin_6/';
@@ -13,12 +13,9 @@ p = importdata('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/
 errors = {};
 
 %% temporarily disable polynomial warnings
-
 w = warning('query','last');
 id = w.identifier;
 warning('off',id);
-
-
 %%
 for i = 1:length(p)
     tic();
@@ -27,9 +24,9 @@ for i = 1:length(p)
     
     % only make plots for every 7th session to save time 
     if mod(i,7)==0
-        [settings] =  MFDFA_settings('r2plot', 1, 'scres', 19, 'scmin', 16);
+        [settings] =  MFDFA_settings('r2plot', 1, 'scres', 19, 'scmin', 16, 'scmaxDiv', 4);
     else
-        [settings] =  MFDFA_settings('r2plot', 0, 'scres', 19, 'scmin', 16); 
+        [settings] =  MFDFA_settings('r2plot', 0, 'scres', 19, 'scmin', 16, 'scMaxDiv',4); 
     end
 
     

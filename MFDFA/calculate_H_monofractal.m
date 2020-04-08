@@ -2,8 +2,10 @@ function [H, r2] = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
 %% option to edit settings here
+% default parameters (if user does not enter)
 scmin = 4;
-scmax = length(ts)/4;
+scmaxDiv = 4;
+scmax = length(ts)/scmaxDiv;
 scres = 4;
 m = 2;
 minTimeSeriesLength = 1000;
@@ -12,8 +14,14 @@ if length(varargin)>1
     for v = 1:2:length(varargin)
         if strcmpi(varargin{1}, 'settings')
             settings = varargin{v+1};
-            if ~isfield(settings, 'scmax') % if user did not set this, set to default
-                settings.scmax = scmax;
+            assert(isstruct(settings), 'error: settings must be a struct()');
+            if ~isfield(settings, 'scmax') % if user did not set scmax
+                if isfield(settings, 'scmaxDiv') % if user set scmaxDiv, use this to calculate scmax
+                    settings.scmax=length(ts)/settings.scmaxDiv;
+                else % otherwise, use default setting to calculate scmax
+                    settings.scmax=scmax;
+                    settings.scmaxDiv = scmaxDiv; 
+                end
             end
         end
     end
@@ -21,6 +29,7 @@ else % make settings from options above
     settings = struct();
     settings.scmin = scmin;
     settings.scmax = scmax;
+    settings.scmaxDiv = scmaxDiv;
     settings.scres = scres;
     settings.m = m;
     settings.minTimeSeriesLength = minTimeSeriesLength;

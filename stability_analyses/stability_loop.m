@@ -21,7 +21,7 @@ if strcmp(wdir(1), 'C') % PC
     particList = ['C:\Users\Robin\Box\sifre002\9_ExcelSpreadsheets\Dancing_Ladies\ParticipantLists_DL\' pListFileName];
     outdir = 'C:\Users\Robin\Box\sifre002\7_MatFiles\01_Complexity\stability-experiments/parameter-stability-full-ts\';
     addpath(genpath('MFDFA\'));
-elseif strcmp(wdir, '/panfs/roc/groups/7/elisonj/sifre002/matlab') % ssh
+elseif strcmp(wdir, '/panfs/roc/groups/7/elisonj/sifre002/matlab')  % ssh
     datadir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/data/';
     figdir = '/panfs/roc/groups/7/elisonj/sifre002/matlab/figs/';
     particList = ['/panfs/roc/groups/7/elisonj/sifre002/matlab/' pListFileName];

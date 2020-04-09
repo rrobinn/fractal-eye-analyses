@@ -7,11 +7,19 @@ function [success] = process_individual(id)
 % inFilePath
 success = 0;
 
+
+
+
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
-wdir = cd;
-inFilePath = [wdir '/data/'];
-aoiPath = [wdir '/data/dynamic_aoi/'];
+
+[s, e]=regexp(pwd, 'fractal-eye-analyses/');
+rootDir = pwd; 
+rootDir = rootDir(1:e);
+
+addpath(genpath(rootDir));
+inFilePath = [rootDir 'data/'];
+aoiPath = [rootDir 'data/dynamic_aoi/'];
 %%
 % read in bounding boxes & make data structure of bounding boxes
 [master_AOI, aoi_headers] = read_AOI(aoiPath);
@@ -46,7 +54,6 @@ try
     
     %% Parse data into trials
     disp('Parse trials');
-    cd(wdir);
     [PrefBin, ParticData] = parse_et_totrials(id, data, dataCol);
     %% Interpolate data
     disp('Interpolate missing data');
@@ -54,7 +61,6 @@ try
     [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol);
     
     %% Flag fixations on Aois (based on interpolated data)
-    cd(wdir);
     [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin,aoiStruct);
     
     % Save  data
@@ -62,7 +68,6 @@ try
     save([inFilePath id '/' id '_Parsed'], 'ParticData', 'PrefBin');
     %% Segment the data
     disp('Create time series');
-    cd(wdir);
     [segmentedData,segSummaryCol]  = generate_timeseries(ParticData, PrefBin, dataCol);
     disp('Saving segmented data');
     save([inFilePath id '/' id '_segmentedTimeSeries'],'segmentedData', 'segSummaryCol');

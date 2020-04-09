@@ -3,10 +3,11 @@ function [PrefBin, ParticData] = parse_et_totrials(id, data, dataCol)
 % tobii output. 
 ParticData = struct(); 
 PrefBin = struct();
-%% Get participant ID 
+%% Get participant ID , date, etc.
 a = strsplit(id, '_');
 ParticipantName = [a{1}, '_', a{2}];
 SessionNumber = a{3}; 
+TimeOfDataCollection = data{1, dataCol.date};
 %% parse events
 thisParticClips = {};
 thisParticData = {};
@@ -52,6 +53,7 @@ PrefBin.ParticipantName = ParticipantName;
 PrefBin.SessionNumber = SessionNumber;
 PrefBin.MovieListAsPresented = thisParticClips(~strcmpi('-9999', thisParticClips)); % trials separated by -9999. Remove these.
 PrefBin.TimeOfTallying = date;
+PrefBin.TimeOfDataCollection = TimeOfDataCollection;
 ParticData.Data = thisParticData(~strcmpi('-9999', thisParticClips)); % trials separated by -9999. Remove these.
 
 

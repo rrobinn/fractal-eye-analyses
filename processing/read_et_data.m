@@ -3,8 +3,8 @@ function [data, dataCol] = read_et_data(id, inFilePath)
 %  Reads in eye-tracking data from tobii. (Expects a .tsv)
 % addpath(genpath('/Users/sifre002/Google Drive/8_MatScripts/1_Complexity/'));
 %% vars for debugging
-inFilePath = '/Users/sifre002/Downloads/';
-id = 'JE000102_04_07';
+%inFilePath = '/Users/sifre002/Downloads/';
+%id = 'JE000102_04_07';
 %% Get participant ID
 id = strsplit(id, '_');
 ParticipantName = [id{1}, '_', id{2}];

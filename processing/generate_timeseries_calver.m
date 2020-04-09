@@ -30,6 +30,7 @@ calVerCol.longestFixBool = 9;
 calVerCol.propMissing = 10;
 calVerCol.propInterpolated = 11;
 calVerCol.trial =12;
+calVerCol.date = 13;
 %%
 trialList = {'Center_converted.avi' ,'BottomLeft_converted.avi', 'BottomRight_converted.avi', ...
     'TopLeft_converted.avi', 'TopRight_converted.avi'};
@@ -135,6 +136,7 @@ for t = 1:size(PrefBin.MovieListAsPresented,1)
         temp(:,4) = {propMissing};
         temp(:,5) = {propInterpolated};
         temp(:,6) = {trialName};
+        temp(:,7) = {PrefBin.TimeOfDataCollection};
 
         segmentedData_calVer{count,1} =  horzcat(num2cell(d), temp);
         count = count + 1;

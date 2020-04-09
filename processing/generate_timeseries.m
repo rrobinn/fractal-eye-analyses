@@ -25,6 +25,7 @@ segSummaryCol.seg = 13;
 segSummaryCol.aoi = 14;
 segSummaryCol.vl = 15;
 segSummaryCol.vr = 16;
+segSummaryCol.date = 17;
 
 %% 
 trialList = {'01_converted.avi', '01S_converted.avi', ...
@@ -164,6 +165,7 @@ for t = 1:size(PrefBin.MovieListAsPresented,1)
             temp(:,segSummaryCol.aoi) = num2cell(tempData_aoi);
             temp(:,segSummaryCol.vl) = num2cell(vl);
             temp(:,segSummaryCol.vr) = num2cell(vr);
+            temp(:,segSummaryCol.date) = {PrefBin.TimeOfDataCollection};
             
             segmentedData{count,1} =  temp; 
             count = count + 1;

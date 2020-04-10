@@ -130,7 +130,7 @@ for t = 1:size(PrefBin.MovieListAsPresented,1)
                
         % put data together
         temp = cell(length(d), 6);
-        temp(:,1) = {PrefBin.ParticipantName};
+        temp(:,1) = {[PrefBin.ParticipantName '_' PrefBin.SessionNumber]};
         temp(:,2) = {longestFix};
         temp(:,3) = num2cell(longestFix_log);
         temp(:,4) = {propMissing};

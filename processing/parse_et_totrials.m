@@ -6,6 +6,7 @@ PrefBin = struct();
 %% Get participant ID , date, etc.
 a = strsplit(id, '_');
 ParticipantName = [a{1}, '_', a{2}];
+
 SessionNumber = a{3}; 
 TimeOfDataCollection = data{1, dataCol.date};
 %% parse events

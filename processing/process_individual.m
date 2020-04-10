@@ -13,13 +13,13 @@ success = 0;
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
 
-[s, e]=regexp(pwd, 'fractal-eye-analyses/');
+[s, e]=regexp(pwd, 'fractal-eye-analyses');
 rootDir = pwd; 
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-inFilePath = [rootDir 'data/'];
-aoiPath = [rootDir 'data/dynamic_aoi/'];
+inFilePath = [rootDir '/data/'];
+aoiPath = [rootDir '/data/dynamic_aoi/'];
 %%
 % read in bounding boxes & make data structure of bounding boxes
 [master_AOI, aoi_headers] = read_AOI(aoiPath);

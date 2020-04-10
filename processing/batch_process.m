@@ -8,22 +8,20 @@
 
 clc
 clear
-wdir = cd;
-addpath(genpath(wdir));
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
-% inFilePath = [wdir '/out/'];
-inFilePath = [wdir '/data/'];
-aoiPath = [wdir '/data/dynamic_aoi/'];
+[s, e]=regexp(pwd, 'fractal-eye-analyses');
+rootDir = pwd; 
+rootDir = rootDir(1:e);
 
+addpath(genpath(rootDir));
+inFilePath = [rootDir '/data/'];
+aoiPath = [rootDir '/data/dynamic_aoi/'];
 %%
 files = dir(inFilePath);
 dirFlags = [files.isdir];
 files = files(dirFlags);
 log = cell(size(files,1), 2);
-
-%%
-
 %%
 for p = 1:size(files,1)
     %% clear workspace & set up output directory

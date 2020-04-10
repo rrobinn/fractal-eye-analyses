@@ -9,6 +9,7 @@ scmax = length(ts)/scmaxDiv;
 scres = 4;
 m = 2;
 minTimeSeriesLength = 1000;
+plotFlag = 0;
 % otherwise, use settings from input
 if length(varargin)>1
     for v = 1:2:length(varargin)
@@ -33,6 +34,7 @@ else % make settings from options above
     settings.scres = scres;
     settings.m = m;
     settings.minTimeSeriesLength = minTimeSeriesLength;
+    settings.r2plot = plotFlag;
 end
 
 %% check if time series is long enough
@@ -89,10 +91,11 @@ H=C(1); %slope of regression line; see table, p. 15) --0.2-1.2, no conversion ne
 x = log2(scale);
 [y,delta] = polyval(p,x,S); % delta is an estimate of the standard error in predicting a future observation at x by p(x).
 
-% plot(log2(scale), log2(F), 'bo');
-% hold on;
-% plot(log2(scale),y,'r-'); % plot fit
-
+if settings.r2plot
+    plot(log2(scale), log2(F), 'bo');
+    hold on;
+    plot(log2(scale),y,'r-'); % plot fit
+end
 % 
 rho = corrcoef([log2(F)' y']); % correlation bw observed and predicted
 r2 = rho(2,1)^2; 

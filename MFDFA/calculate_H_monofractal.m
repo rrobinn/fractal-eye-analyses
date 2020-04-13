@@ -16,14 +16,7 @@ if length(varargin)>1
         if strcmpi(varargin{1}, 'settings')
             settings = varargin{v+1};
             assert(isstruct(settings), 'error: settings must be a struct()');
-            if ~isfield(settings, 'scmax') % if user did not set scmax
-                if isfield(settings, 'scmaxDiv') % if user set scmaxDiv, use this to calculate scmax
-                    settings.scmax=length(ts)/settings.scmaxDiv;
-                else % otherwise, use default setting to calculate scmax
-                    settings.scmax=scmax;
-                    settings.scmaxDiv = scmaxDiv; 
-                end
-            end
+            settings.scmax=length(ts)/settings.scmaxDiv;
         end
     end
 else % make settings from options above
@@ -92,6 +85,7 @@ x = log2(scale);
 [y,delta] = polyval(p,x,S); % delta is an estimate of the standard error in predicting a future observation at x by p(x).
 
 if settings.r2plot
+    figure();
     plot(log2(scale), log2(F), 'bo');
     hold on;
     plot(log2(scale),y,'r-'); % plot fit

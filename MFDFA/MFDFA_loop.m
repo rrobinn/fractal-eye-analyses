@@ -1,15 +1,19 @@
 clear all
 close all
-% set wdir
+%% Set Paths 
 wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses';
 cd([wdir '/MFDFA/'])
-datadir = '/Users/sifre002/Box/Dancing Ladies share/IndividualData/All_2018_12_11_DL/';
+datadir = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/';
 figdir = '/Users/sifre002/Box/Dancing Ladies share/R2_figures/scres19_scmin_6/';
 r2dir = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/r2/scres19_scmin_6/';
-% read participant list
-p = importdata('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200219_ParticList.csv');
+
+%%
+[s, e]=regexp(pwd, 'fractal-eye-analyses');
+rootDir = pwd; 
+rootDir = rootDir(1:e);
+
+addpath(genpath(rootDir));
 %
-%group_out = {};
 errors = {};
 
 %% temporarily disable polynomial warnings
@@ -17,21 +21,28 @@ w = warning('query','last');
 id = w.identifier;
 warning('off',id);
 %%
-for i = 1:length(p)
+files = dir(datadir);
+dirFlags = [files.isdir];
+files = files(dirFlags);
+log = cell(size(files,1), 2);
+
+%%
+for i = 1:size(files,1)
     tic();
     display(['Calculating H for ' num2str(i) ' out of ' num2str(length(p))]);
     id = p{i};
     
     % only make plots for every 7th session to save time 
     if mod(i,7)==0
-        [settings] =  MFDFA_settings('r2plot', 1, 'scres', 19, 'scmin', 16, 'scmaxDiv', 4);
+        [settings] =  MFDFA_settings('r2plot', 1, 'scres', 4, 'scmin', 4, 'scmaxDiv', 4);
     else
-        [settings] =  MFDFA_settings('r2plot', 0, 'scres', 19, 'scmin', 16, 'scMaxDiv',4); 
+        [settings] =  MFDFA_settings('r2plot', 0, 'scres', 4, 'scmin', 4, 'scMaxDiv',4); 
     end
 
     
     try
-        calver = load([datadir id '/' id '_calVerTimeSeries.mat']); % load data
+        % load data
+        calver = load([datadir id '/' id '_calVerTimeSeries.mat']); 
         et = load([datadir id '/' id '_segmentedTimeSeries.mat']);
         % make time series
         [ts_out_calver, specs_out_calver] = makeTimeSeriesForFractalAnalysis(calver, 'settings', settings);
@@ -59,17 +70,13 @@ for i = 1:length(p)
             h{t} = H; r{t} = r2;
         end
         %% save variables
-        %indiv output
         out = horzcat(specs, h, r);
         FolderName = [r2dir id '/'];
         if ~exist(FolderName)
             mkdir(FolderName)
         end
-        save([FolderName 'r2.mat'], 'out',  'settings');
-        % group out
-        %group_out = vertcat(group_out, out);
-        
-        % figures
+        save([FolderName 'h.mat'], 'out',  'settings');
+        %% figures
         if (settings.r2plot)
             FolderName = [figdir id '/'];
             if ~exist(FolderName)
@@ -92,7 +99,7 @@ end
 
 %% save
 %save('/Users/sifre002/Box/Dancing Ladies share/R2_figures/group_r2.mat', 'group_out');
-%a=cell2table(group_out, 'VariableNames', {'id', 'movie', 'seg', 'longestFix', 'propInterp', 'propMissing', 'warning', 'H', 'r2'});
+%a=cell2table(group_out, 'VariableNames', {'id', 'movie', 'seg', 'date','longestFix', 'propInterp', 'propMissing', 'warning', 'H', 'r2'});
 %writetable(a, '/Users/sifre002/Box/Dancing Ladies share/R2_figures/group_r2.xls')
 
 

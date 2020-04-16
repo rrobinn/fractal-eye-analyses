@@ -5,7 +5,7 @@ function [success] = runMFDFA_participant(id, varargin)
 
 %% Default paths 
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
-
+success =0;
 [s, e]=regexp(pwd, 'fractal-eye-analyses');
 rootDir = pwd; 
 rootDir = rootDir(1:e);
@@ -53,7 +53,7 @@ try
         h = cell(size(specs,1),1);
         r = cell(size(specs,1),1);
         display('Calculating H \n');
-        for t=1:2%size(ts_out,1)
+        for t=1:size(ts_out,1)
             ts = ts_out{t};
             [H, r2] = calculate_H_monofractal(ts, 'settings', settings);
             mov = specs{t,2}; mov = mov(1:regexp(mov, '\.')-1);
@@ -86,6 +86,7 @@ try
             end
             close all
         end
+        success = 1;
 catch ME
     disp(['Could not find input data for ' id]);
     return

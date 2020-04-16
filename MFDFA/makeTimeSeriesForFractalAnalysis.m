@@ -1,7 +1,5 @@
 function [ts_out, specs_out] = makeTimeSeriesForFractalAnalysis(et_data_struct, varargin)
 
-% temporarily hard-corded for debugging
-% et_data_struct = load('/Users/sifre002/Box/sifre002/18-Organized-Code/fractal-eye-analyses/data/JE000084_04_04/JE000084_04_04_calVerTimeSeries.mat');
 %%
 minTsLength = 1000;
 for v=1:2:length(varargin)
@@ -25,7 +23,7 @@ catch ME
 end
 tsdata = tsdata(~cellfun(@isempty, tsdata));% Remove empty cells from cell-array of time series
 % pre-allocate space for output
-specs_out = cell(size(tsdata,1), 7);
+specs_out = cell(size(tsdata,1), 8);
 ts_out = cell(size(tsdata,1), 1); 
 %% Loop creates time series for MFDFA
 for s = 1:length(tsdata)
@@ -42,15 +40,18 @@ for s = 1:length(tsdata)
     %% Pull relevant variables to creates "specs"
     id=ts{1, col.id}; %ID
     movie=ts{1,col.trial}; %movie name
-    if (size(ts,2) > 12) % dancing ladies trial - save segment number
-        segNum = ts{1,13};
+    dateCollected=ts{1,col.date}; % date collected
+    
+    if regexp(movie, 'Center|Top|Bottom|Left|Right') % CalVer - no segment number
+        segNum='NA';
     else
-        segNum = 'NA';
+        segNum=ts{1,col.seg};
     end
+    
     longestFixDur = ts{1, col.longestFixDur};
     propInterp = ts{1, col.propInterpolated};
     propMissing = ts{1, col.propMissing};
-    specs = [{id} {movie} {segNum} longestFixDur propInterp propMissing];
+    specs = [{id} {movie} {segNum} {dateCollected} longestFixDur propInterp propMissing];
     %% Check if time series is long enough
     warning=0;
     

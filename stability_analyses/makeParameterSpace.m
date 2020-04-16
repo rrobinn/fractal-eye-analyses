@@ -32,18 +32,18 @@ end
 [X,Y,Z] = meshgrid(scmin,scmaxDiv,scres);
 params = [X(:) Y(:) Z(:)];
 %
-params(:,4) = round(tsLength./params(:,2),1); % save what time series was divided by
+%params(:,4) = round(tsLength./params(:,2),1); % save what time series was divided by
 
 %% test that the parameters work for the minimum series length
-for i = 1:length(params)
-    %creates equal spacing of scale
-    exponents=linspace(log2(params(i, 1)),log2(params(i,2)),params(i,3));
-    scale=round(2.^exponents); %segment sizes
-    if length(unique(scale)) < length(scale)
-        error(['error makeParameterSpace.m: parameters scmin=' num2str(params(i,1)) ...
-            ' scmax=' num2str(params(i,3)) ', scres=' num2str(params(i,3)) ...
-            ' yields duplicate scaling values']);
-        return;
-    end
-end
+% for i = 1:length(params)
+%     %creates equal spacing of scale
+%     exponents=linspace(log2(params(i, 1)),log2(params(i,2)),params(i,3));
+%     scale=round(2.^exponents); %segment sizes
+%     if length(unique(scale)) < length(scale)
+%         error(['error makeParameterSpace.m: parameters scmin=' num2str(params(i,1)) ...
+%             ' scmax=' num2str(params(i,3)) ', scres=' num2str(params(i,3)) ...
+%             ' yields duplicate scaling values']);
+%         return;
+%     end
+% end
 

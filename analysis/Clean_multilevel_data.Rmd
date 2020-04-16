@@ -11,7 +11,6 @@ min_age = 0
 max_age = 40
 ```
 
-
 # Where do you want to save data?
 ```{r}
 out_dir = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/'
@@ -19,179 +18,165 @@ file_name = 'cleaned_multilevel_data'
 ```
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-library(readxl)
-library(dplyr)
-library(sm)
-library(lme4)
+#library(readxl)
+library(tidyverse)
+#library(dplyr)
+#library(sm)
+#library(lme4)
 library(ggplot2)
-library(MuMIn)
-library(bbmle)
-library(gtools)
-library(tuple)
+#library(MuMIn)
+#library(bbmle)
+#library(gtools)
+#library(tuple)
+#library(utils)
 ```
 
 # Read data
 ```{r}
-Master=read_excel("/Users/sifre002/Box/Dancing Ladies share/IndividualData/Script outputs/Master_MFDFA_DL.xlsx")
+h <- read_csv(file = "/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/h_out.txt")
+
+#precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
 precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
-cohort_info=read.csv('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Mullens_DL_lorisMatch_20190103.csv', stringsAsFactors = FALSE)
+
 aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
+
 # demographic data
-#Read in information on participant's sex, and combine 
-info1=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'JE NUMBERS')
-info2=read_excel("/Users/sifre002/Desktop/Elab Master Linking File.xlsx", sheet = 'MNBCP NUMBERS')
-info3=read_excel('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Pheno Screening Master Linking File.xlsx');
+demo = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/demographic_info.csv')
+
+# DOB (not queriable from database)
+dob = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/20200408_BCP_DOB.csv')
 ```
 
 
+
+# Format demograpic data 
 ```{r}
-# Format MFDFA output 
-#########################
-#import MFDFA output
-#########################
-Master=read_excel("/Users/sifre002/Box/Dancing Ladies share/IndividualData/Script outputs/Master_MFDFA_DL.xlsx")
-Master=as.data.frame(Master) 
-# Fix header for easier programming 
-colnames(Master)[colnames(Master)=="Longest Fix Duration"] <- "LongestFixDuration"
-colnames(Master)[colnames(Master)=="Prop Interp"] <- "PropInterp"
-colnames(Master)[colnames(Master)=="Prop Missing"] <- "PropMissing"
-colnames(Master)[colnames(Master)=="Movie Name"] <- "MovieName"
-colnames(Master)[colnames(Master)=="Segment Num"] <- "Seg"
-# Filter out participants who are outside of age range & keep track of who we are missing Age for 
-# Master_NAage=Master%>% 
-#   filter(is.na(Age))
-# Master_old=Master%>%
-#   filter(Age>max_age)
-Master=Master%>%
-  filter(Age>min_age & Age<max_age)
-
-# Create variable for Participant ID (currently combined with session #)
-Master=Master%>%
-  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') )
-Master$Age=as.numeric(Master$Age)
-
+source('/Users/sifre002/Documents/Code/misc/clean_loris_demographic.R')
+demo2 = clean_demographic_data(demo)
+# Filter for data from BCP/BSLERP
+demo2 = demo2 %>%
+  filter(grepl('BCP|DSA_Demographics', cohort)) %>%
+  filter(!grepl('mom|Parent|Phantom', cohort)) %>%
+  mutate(cohort2=ifelse(grepl('BCP',cohort), 'BCP', 'DSA')) %>%
+  mutate(male=ifelse(sex=='Male',1,0)) 
+# Merge DOB with demographic data
+dob = dob %>%
+  select(id=PSCID, DoB)
+demo2 = demo2 %>%
+  left_join(dob, by = 'id')
 ```
 
+# Format DFA output
 ```{r}
-# Clean demographic info 
-sexList = rbind(info1 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
-                info2 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex),
-                info3 %>% dplyr::select(ID = `SS-ID`, Sex =Subject_Sex) )
-sexList = sexList %>% mutate( Participant = 
-                                paste( sapply(strsplit(sexList$ID, '_'), '[', 1), sapply(strsplit(sexList$ID, '_'), '[', 2), sep = '_') )
-# Read in lo
-cohort_info=read.csv('/Users/sifre002/Box/Dancing Ladies share/IndividualData/Mullens_DL_lorisMatch_20190103.csv', stringsAsFactors = FALSE)
-cohort_info=cohort_info%>%
-  dplyr::select(ID,cohort_LORIS) %>%
-  mutate(Participant= paste( sapply(strsplit(ID, '_'), '[', 1), sapply(strsplit(ID, '_'), '[', 2), sep = '_') ) %>%
-  arrange(Participant)
+# Format DFA output 
+h = h %>%
+  # Create variable for Participant ID (currently combined with session #)
+  mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
+  left_join(dob, by=c('Participant'='id')) %>%
+  # Calculate age at time of visit 
+  mutate(DoB =as.Date(DoB, format='%m/%d/%y'),
+         date=as.Date(date, format='%m/%d/%Y')) %>%
+  mutate(age=(date-DoB)/30.42,
+         age=as.numeric(age))%>%
+    # Create Dummies for CalVer & Pixelated
+  mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
+         Pix=ifelse(grepl('S', movie), 1, 0)) 
+
+# Filter 
+h2 = h%>%
+  # If % interpolated is more than 80th percentile threshold, then remove from sample 
+  filter(propInterp<quantile(propInterp, .8)) %>%
+  # If time series was too short, remove from sample
+  filter(warning==0) %>%
+  # filter for age range
+  filter(age>min_age & age<max_age) 
+
+# Info on which trials were removed
+removed_h=h %>%
+  select(id,movie,seg,propInterp,warning,age)%>%
+  mutate(removed_tooshort=ifelse(warning==1,1,0),
+         removed_propInterp=ifelse(propInterp>quantile(propInterp, .8),1,0),
+         removed_age=ifelse(age<min_age|age>max_age,1,0)) %>%
+  select(-c(propInterp,warning,age)) %>%
+  filter(removed_tooshort==1|removed_propInterp==1|removed_age==1) 
+
+# sanity
+test = h2 %>% group_by(id) %>% summarise(n=n())
 
 ```
 
-
-Read in data
-```{r}
-
-aoi_data = aoi_data %>% filter(longestFix_Dur != -9999)
-```
-
-
-Merge cohort information & remove Babarr (they were recruited differently)
-```{r}
-cohort=merge(Master, cohort_info, by="Participant", all=FALSE,sort=FALSE)
-cohort= unique( cohort[ , c("Participant","cohort_LORIS") ] )
-Master2=merge(Master, cohort, by="Participant", all.x=TRUE)
-Master2$cohort=Master2$cohort_LORIS
-# Combine sub-cohorts to create broader ones 
-Master2$cohort_collapsed = Master2$cohort
-Master2$cohort_dummy = NA
-Master2[grepl('A', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-Master2[grepl('B', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-Master2[grepl('C', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-Master2[grepl('D', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-Master2[grepl('E', Master2$cohort), 'cohort_collapsed'] = 'BCP' 
-Master2[grepl('BABARR', Master2$cohort), 'cohort_collapsed'] = 'Babarr' # Remove Babarr, bc they were recruited differently 
-Master2[grepl('BSLERP', Master2$cohort), 'cohort_collapsed'] = 'Bslerp' 
-Master2[grepl('DevSocAtt', Master2$cohort), 'cohort_collapsed'] = 'DSA_CS'  
-# Create numeric versions of variables 
-Master2[grepl('BCP', Master2$cohort_collapsed), 'cohort_dummy'] = 1
-Master2[grepl('Bslerp', Master2$cohort_collapsed), 'cohort_dummy'] = 2
-Master2[grepl('DSA_CS', Master2$cohort_collapsed), 'cohort_dummy'] = 3
-Master2[grepl('Babarr', Master2$cohort_collapsed), 'cohort_dummy'] = 4
-Master2 = Master2 %>% filter(cohort_dummy !=4) # Remove Babarr, bc they were recruited differently 
-```
 
 Clean AOI data
 ```{r}
 aoi_data2 = aoi_data %>%
-  dplyr::select(ID = id, 
-                MovieName = movie,
-                Seg = seg, 
-                longestFix_aoi = longestFix_Dur, faceCount, otherCount)
+  filter(longestFix_Dur!=-9999) %>%
+  select(id,
+          movie,
+          seg, 
+          longestFix_aoi = longestFix_Dur, 
+          faceCount, otherCount) %>%
+  mutate(id=as.character(id),
+         movie=as.character(movie))
 ```
 
 
-Merge Sex information 
+Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing
 ```{r}
-# Merge sex list and Master 
-sexList = sexList %>% dplyr::select(Participant, Sex)
-sexList[sexList$Participant == 'JE000211_04', 'Participant'] ='JE000211_03' # error in master linkning file
-sexList[sexList$Participant == 'MNBCP000139_04', 'Participant'] ='MNBCP000139_05' # error in master linkning file
-sex=merge(Master2, sexList, by="Participant", all=FALSE,sort=FALSE)
-sex= unique( sex[ , c("ID","Sex") ] )
 
-Master2=merge(Master2, sex[ , c("ID","Sex")], by="ID", all.x=TRUE)
-Master2$female = NA
-Master2[Master2$Sex == 'F' & !is.na(Master2$Sex), 'female'] = 1 # Female as reference group for modelling
-Master2[Master2$Sex == 'M' & !is.na(Master2$Sex), 'female'] = 0
+# If output, use code below
+if (n_distinct(precisionInfo[,1])==nrow(precisionInfo)) { # Precision Info already summarized 
+  precisionInfo2=precisionInfo %>%
+  select(id=ID,
+        AvgPrecision)
+
+  cutoff=mean(precisionInfo2$AvgPrecision, na.rm=TRUE)+2*(sd(precisionInfo2$AvgPrecision,na.rm=TRUE))
+  precisionInfo2=precisionInfo2%>%
+    filter(AvgPrecision<cutoff) # remove trials above the acceptable cutoff (not included in final sample)
+  avg_prec=precisionInfo2
+} else{ 
+  precisionInfo2 = precisionInfo %>%
+    filter(!is.na(CoordX)) %>% # If missing info for X, always missing for Y as well
+    mutate(Precision_RMS_X_Y=(PrecRMSx+PrecRMSy)/2) %>%
+    select(id=X, Precision_RMS_X_Y, Stimulus,Order) %>%
+    distinct()
+  
+    #Establish threshold for acceptable precision value based on 2 SDs above sample mean
+   cutoff=mean(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)+2*sd(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)
+   
+   # Remove bad points from data
+   precisionInfo3=precisionInfo2 %>%
+      filter(Precision_RMS_X_Y<cutoff)
+  
+  #Summarize mean precision for each participant
+  avg_prec=precisionInfo3%>%
+    filter(Precision_RMS_X_Y<cutoff) %>%# remove trials above the acceptable cutoff (not included in final sample)
+    group_by(id)%>%
+    summarise(AvgPrecision=mean(Precision_RMS_X_Y)) %>%
+    ungroup() %>%
+    mutate(id=as.character(id))
+  
+  # Add back in participants with bad precision
+  excludedSess=setdiff(precisionInfo2$id, precisionInfo3$id)
+  temp=data.frame(id=excludedSess, AvgPrecision=999)
+  avg_prec=rbind(avg_prec,temp)
+}
+
+
 ```
 
-Add stimulus type (i.e., CalVer, Pixelated, NonPixelated) to MFDFA dataframe  
+# Merge demographic, DFA, aoi, and precision data
 ```{r}
-Master2$Calver = ifelse(grepl('Center|Left|Right', Master2$MovieName), 1, 0)
-Master2$Pixelated = ifelse(grepl('S', Master2$MovieName), 1, 0)
-Master2$NonPixelated = ifelse(Master2$Pixelated == 0 & Master2$Calver == 0, 1, 0)
+dim(h2)  #9274
+h3=h2%>%
+  left_join(avg_prec, by='id') %>% #Add precision info for each visit id
+  left_join(aoi_data2, by=c('id','movie','seg')) %>%#add aoi_data for each segment
+  left_join(demo2, by=c('Participant'='id'))
+
+test = h3%>%filter(is.na(AvgPrecision)) %>% select(id) %>% unique()
+
 ```
 
-Creates a FinalCalVer dataframe of average calibration XY precision information for each kid who made it through CalVer processing
-```{r}
-CalVerMaster=precisionInfo
-#Find average XY precision for each calibration point
-CalVerMaster=CalVerMaster%>%
-  filter(!is.na(CoordX)) %>%
-  mutate(Precision_RMS_X_Y=(PrecRMSx + PrecRMSy)/2) %>%
-  select(ID=X, Precision_RMS_X_Y, Stimulus)
-#Establishes 2 SD cutoffs for acceptable precision values
-PrecSD=sd(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)
-cutoff=mean(CalVerMaster$Precision_RMS_X_Y, na.rm=TRUE)+2*PrecSD
 
-#Creates exclude/include dummies based on cutoff
-CalVerMaster=CalVerMaster%>%
-  mutate(include=if_else(Precision_RMS_X_Y<cutoff,1,0)) 
-
-#Excludes points above precision cutoff AND those without any precision info
-FinalCalVer=CalVerMaster%>% 
-  filter(include==1) #only includes pts with good precision
-
-#Finds number of participants remaining
-#N=unique(FinalCalVer$ID)
-
-#Groups by ID to get average precision info for each remaining participant
-FinalCalVer=FinalCalVer%>%
-  group_by(ID)%>%
-  summarise(AvgPrecision=mean(Precision_RMS_X_Y))%>%
-  filter((!is.na(ID)))
-```
-
-```{r}
-# Commented out code - useful for reporting purposes
-# Master_sum=Master2%>%
-#   group_by(Participant, ID)%>% 
-#   summarise(n())%>%
-#   mutate(dummy = 1)%>%
-#   group_by(Participant)%>%
-#   summarise(sessions=sum(dummy))
-```
 
 
 Add individual precision info FROM FINALCALVER to MFDFA & includes only those w/ precision data in FinalCalvr  
@@ -216,52 +201,7 @@ Master3=Master3%>%
   mutate(PrecisionRMS_X_Y_centered=PrecisionRMS_X_Y-avePrec)
 ```
 
-Establishes cutoff levels for acceptable amount missing/interpolated for each segment
-```{r}
-#Finds 80th quantile for amount interpoloated and missing levels based on entire sample
-MasterInterpC=quantile(Master3$PropInterp, .80)
-# MasterMissingC=quantile(Master3$PropMissing %>% select(), .80) got rid of this bc we have longest fix as a covariate 
 
-Master_too_much_interp=Master3%>%
-  filter(PropInterp>MasterInterpC)
-# Master_too_much_missing=Master3%>%
-#   filter(PropMissing>MasterMissingC)
-#Master_combo=rbind(Master_too_much_interp,Master_too_much_missing)
-#a=as.data.frame(unique(Master_combo$ID))#251
-#Selects only segments with acceptable missing/interp levels
-Master3=Master3%>%
-  filter(PropInterp<MasterInterpC)
-```
-
-Examines and removes missing H's
-```{r}
-#Identifies segments too short to calculate H
-Master_too_short=Master3%>% 
-  filter(H=="Too Short")
-#a=as.data.frame(unique(Master_too_short$ID))
-
-#Identifies segments for which H could not be calculated for unknown reasons (e.g., dividing by 0 in matlab code)
-Master_NA=Master3%>% #628
-  filter(is.na(H))
-#a=unique(Master_NA$ID)
-#Master_no_H=rbind(Master_too_short, Master_NA)
-
-#Makes all non-numeric values Na, selecting only segments w/ valid H's
-Master3$H=as.numeric(Master3$H)
-Master3=subset(Master3, !is.na(H))
-a=unique(Master3$Participant) #184 --loss of 11 infants
-a=as.data.frame(unique(Master3$ID)) #376 --loss of 45 visits
-
-#Extracts pertinent info for modeling
-# MasterSum=Master3%>%
-#   group_by(ID)%>%
-#   dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, Age, MovieName,Stimulus, Version, Pixelated, NonPixelated, CalVer, Stimulus,Sex, female, cohort)
-# 
-# MasterSum=as.data.frame(MasterSum)
-# 
-# MasterSum$Stimulus=as.factor(MasterSum$Stimulus)
-# MasterSum$Age=as.numeric(MasterSum$Age)
-```
 
 Merge aoi data with master_longit
 ```{r}

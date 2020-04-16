@@ -1,4 +1,4 @@
-function [H, r2] = calculate_H_monofractal(ts, varargin)
+function [H, r2, error] = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
 %% option to edit settings here
@@ -10,6 +10,7 @@ scres = 4;
 m = 2;
 minTimeSeriesLength = 1000;
 plotFlag = 0;
+
 % otherwise, use settings from input
 if length(varargin)>1
     for v = 1:2:length(varargin)
@@ -29,11 +30,12 @@ else % make settings from options above
     settings.minTimeSeriesLength = minTimeSeriesLength;
     settings.r2plot = plotFlag;
 end
-
+error='NA';
+H=-9999;
+r=-9999;
 %% check if time series is long enough
 if (length(ts) < settings.minTimeSeriesLength)
-    H = -9999;
-    r2 = -9999;
+    error='tooshort';
     return;
 end
 
@@ -42,12 +44,18 @@ end
 %Matlab code 15------------------------------------------
 
 scmin = settings.scmin; % minimum segment size
-scmax=(length(ts)/4); % maximum segment size
+scmaxDiv = settings.scmaxDiv; % How many times to divide time series by to get sxmax
+scmax=(length(ts)/scmaxDiv); % maximum segment size
 scres = settings.scres;
 m = settings.m;
 %creates equal spacing of scale
 exponents=linspace(log2(scmin),log2(scmax),scres);
 scale=round(2.^exponents); %segment sizes
+
+if length(scale) > length(unique(scale))
+    error='cannot generate scmin/scmax/scres combo';
+end
+
 
 %first, integration--summing area under curve after mean centering
 %RMS{ns}, local fluctuation, is a set of vectors each w/ length equal to number of segments

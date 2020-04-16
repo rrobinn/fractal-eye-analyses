@@ -1,15 +1,15 @@
-function [params] = makeParameterSpace(tsLength, varargin)
+function [params] = makeParameterSpace(varargin)
 %% set up
 % default parameters to test 
-scmax = round([tsLength/10 tsLength/4]); 
+scmaxDiv = [4,10];
 scmin=[4:4:16]; 
 scres=[4:4:16]; 
 
 % update if user entered parameters 
 for v=1:2:length(varargin)
     switch varargin{v}
-        case 'scmax'
-            scmax = varargin{v+1};
+        case 'scmaxDiv'
+            scmaxDiv = varargin{v+1};
         case 'scmin'
             scmin = varargin{v+1};
         case 'scres'
@@ -19,8 +19,8 @@ end
 
 
 % error testing
-if  ~isnumeric(scmax) 
-   error('makeParameterSpace.m: scmax must be numeric');
+if  ~isnumeric(scmaxDiv) 
+   error('makeParameterSpace.m: scmaxDiv must be numeric');
 end
 if ~isnumeric(scmin)
     error('makeParameterSpace.m: scmin must be numeric');
@@ -29,7 +29,7 @@ if ~isnumeric(scres)
     error('makeParameterSpace.m: scres must be numeric');
 end
 %% Make parameter space 
-[X,Y,Z] = meshgrid(scmin,scmax,scres);
+[X,Y,Z] = meshgrid(scmin,scmaxDiv,scres);
 params = [X(:) Y(:) Z(:)];
 %
 params(:,4) = round(tsLength./params(:,2),1); % save what time series was divided by

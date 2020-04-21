@@ -338,7 +338,10 @@ all the data you've exported is considered valid for one / both eyes.\n")
         newL.append(float(distLefts[i]))
         newR.append(float(distRights[i]))      
     except:
+      #
+      print(i)
       print("Something went wrong slurping distance left <%s> and distance right <%s>" %(distLefts[i], distRights[i]))
+
       exit()
 
   if len(newL) != len(newR):

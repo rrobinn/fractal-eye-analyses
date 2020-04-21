@@ -2,9 +2,9 @@
 % (specified by "folder") and concatenate data into a single data frame
 
 %% User-defined input
-folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/'; % Folder w/ individual data, where concatenated output will be written
+folder = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/parameter-stability/'; % Folder w/ individual data, where concatenated output will be written
 outputFileName = 'stability_out.txt'; % Name for output file with concatenated data
-header = 'id, movie, seg, longestFixDur, propInterp, propMissing, scmin, scmax, scres, scmaxdiv, h, r2'; % header for output file 
+header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, scmin, scmaxdiv, scres, h, r2, h_warning'; % header for output file 
 
 %% 
 files = dir(folder);
@@ -47,10 +47,10 @@ for f = 1:size(files,1)
         
         % write trial info into separate file
         for s = 1:size(specs,1)
-           temp = [specs{s,1} ',' specs{s,2} ',' num2str(specs{s,3}), ',' num2str(specs{s,4}), ...
-               ',',num2str(specs{s,5}),',', num2str(specs{s,6}), ',' , num2str(specs{s,7}), ...
-               num2str(rep_params(s,1)),',', num2str(rep_params(s,2)),',',num2str(rep_params(s,3)), ',', num2str(rep_params(s,4)), ',', ...
-               num2str(h_r(s,1)), ',' num2str(h_r(s,2))];
+           temp = [specs{s,1} ',' specs{s,2} ',' num2str(specs{s,3}), ',' num2str(specs{s,4}), ... % id, movie, segment, date
+               ',' num2str(specs{s,5}) ',' num2str(specs{s,6}) ',' num2str(specs{s,7}), ... % longestFixDur, propMissing, propInterp
+               ',' num2str(rep_params(s,1)) ','  num2str(rep_params(s,2)) ',' num2str(rep_params(s,3)) ',', ... % scmin,scmaxDiv,scres
+               num2str(h_r{s,1}) ',' num2str(h_r{s,2}) ',' h_r{s,3}]; % h, r2, warning 
            fprintf(fid, '%s \n', temp);
         end
         
@@ -64,18 +64,18 @@ for f = 1:size(files,1)
 end
 
 %% add errors to output
-load('~/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/stability_loop_errors.mat');
-e = cellfun(@(x) strsplit(x,'_'), errors(:,2), 'UniformOutput', false);
-
-
-ids = cellfun(@(x) [x{1} '_' x{2} '_' x{3}], e(:,1), 'UniformOutput', false);
-movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
-segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
-
-for i = 1:size(e,1)
-    temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , , ,'];
-    fprintf(fid, '%s \n', temp);
-end
+% load([folder '/stability_loop_errors.mat']);
+% e = cellfun(@(x) strsplit(x,'_'), errors(:,2), 'UniformOutput', false);
+% 
+% 
+% ids = cellfun(@(x) [x{1} '_' x{2} '_' x{3}], e(:,1), 'UniformOutput', false);
+% %movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
+% %segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
+% 
+% for i = 1:size(e,1)
+%     temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , , ,'];
+%     fprintf(fid, '%s \n', temp);
+% end
 
 
 %%

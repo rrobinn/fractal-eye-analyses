@@ -9,6 +9,7 @@ for v=1:2:length(varargin)
     end
 end
 %% Pull data from et_data_struct
+calver=0;
 try % fields have different names depening on whether calver trials
     tsdata = et_data_struct.segmentedData;
     col = et_data_struct.segSummaryCol;
@@ -17,21 +18,38 @@ catch ME
     if strcmpi(ME.identifier, 'MATLAB:nonExistentField')
         tsdata = et_data_struct.segmentedData_calVer;
         col = et_data_struct.calVerCol;
+        calver=1;
     else
         rethrow(ME)
     end
 end
 tsdata = tsdata(~cellfun(@isempty, tsdata));% Remove empty cells from cell-array of time series
+
+if calver
+    % keep track of center trials which repeat
+    calverNames = cellfun(@(x) x{1,12}, tsdata, 'UniformOutput', false);
+    centerTrials=strcmp('Center_converted.avi', calverNames);
+    count=1;
+    for i=1:length(calverNames)
+        if centerTrials(i)
+            temp=strsplit(calverNames{i}, '.');
+            calverNames{i} = [temp{1} '_' num2str(count) '.avi'];
+            count=count+1;
+        end
+    end
+end
+
 % pre-allocate space for output
 specs_out = cell(size(tsdata,1), 8);
-ts_out = cell(size(tsdata,1), 1); 
+ts_out = cell(size(tsdata,1), 1);
+
 %% Loop creates time series for MFDFA
 for s = 1:length(tsdata)
     ts = tsdata{s};
     %create time-series based on longest fix, for each type
     longestFix = cell2mat(ts(:, col.longestFixBool));
     if longestFix(end) == 1 % if last sample is included in the longest fixation, need to cut bc length(amp) = length(ts) - 1
-        longestFix(end-1:end) = 0; 
+        longestFix(end-1:end) = 0;
     end
     amp=cell2mat(ts(longestFix, col.amp));
     if isnan(amp(end)) % last entry is NaN bc length(amp) = length(ts) - 1
@@ -57,7 +75,7 @@ for s = 1:length(tsdata)
     
     if length(amp)<minTsLength
         fprintf("Warning: Time series too short: ");
-        fprintf([id ' - ' movie ' - ' segNum '\n']);
+        fprintf([id ' - ' movie ' - ' num2str(segNum) '\n']);
         warning=1;
     end
     specs_out(s,:) = [specs warning];
@@ -65,14 +83,16 @@ for s = 1:length(tsdata)
     if warning==1
         continue % do not create time series if too short
     else
-        ts_out{s} = amp; % save time series 
+        ts_out{s} = amp; % save time series
     end
-
+    
 end
 
-
-
-
+% If calver time series, update trials names to reflect order of
+% "center_converted" trials.
+if calver
+    specs_out(:,2)=calverNames;
+end
 
 
 end

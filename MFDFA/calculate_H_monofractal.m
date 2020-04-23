@@ -1,4 +1,4 @@
-function [H, r2, error] = calculate_H_monofractal(ts, varargin)
+function [H, r2, h_error] = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
 %% option to edit settings here
@@ -30,12 +30,12 @@ else % make settings from options above
     settings.minTimeSeriesLength = minTimeSeriesLength;
     settings.r2plot = plotFlag;
 end
-error='NA';
+h_error='NA';
 H=-9999;
-r=-9999;
+r2=-9999;
 %% check if time series is long enough
 if (length(ts) < settings.minTimeSeriesLength)
-    error='tooshort';
+    h_error='tooshort';
     return;
 end
 
@@ -53,7 +53,7 @@ exponents=linspace(log2(scmin),log2(scmax),scres);
 scale=round(2.^exponents); %segment sizes
 
 if length(scale) > length(unique(scale))
-    error='cannot generate scmin/scmax/scres combo';
+    h_error='cannot generate scmin/scmax/scres combo';
 end
 
 

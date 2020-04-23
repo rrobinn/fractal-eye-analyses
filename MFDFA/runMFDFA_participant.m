@@ -34,8 +34,8 @@ if nargin>1
 end
 %% temporarily disable polynomial warnings
 w = warning('query','last');
-id = w.identifier;
-warning('off',id);
+warning_id = w.identifier;
+warning('off',warning_id);
 %% 
 try
         particDir=[dataDir id '/'];
@@ -52,10 +52,11 @@ try
         %% do dfa
         h = cell(size(specs,1),1);
         r = cell(size(specs,1),1);
+        h_errors=cell(size(specs,1),1);
         display('Calculating H \n');
         for t=1:size(ts_out,1)
             ts = ts_out{t};
-            [H, r2] = calculate_H_monofractal(ts, 'settings', settings);
+            [H, r2, h_error] = calculate_H_monofractal(ts, 'settings', settings);
             mov = specs{t,2}; mov = mov(1:regexp(mov, '\.')-1);
             seg = specs{t,3};
             if isa(seg, 'double')
@@ -66,10 +67,10 @@ try
                 %title([specs{t,2} ' - ' specs{t,3}]);
                 set(gcf, 'Name', figname)
             end
-            h{t} = H; r{t} = r2;
+            h{t} = H; r{t} = r2; h_errors{t}=h_error;
         end
         %% save variables
-        out = horzcat(specs, h, r);
+        out = horzcat(specs, h, r, h_errors);
         save([particDir 'h.mat'], 'out', 'settings'); 
         
          %% figures

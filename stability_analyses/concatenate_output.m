@@ -14,7 +14,6 @@ readErrors= {};
 %%
 addpath(genpath('~/Documents/Code/fractal-eye-analyses/')); % add dir that has concatenate_output.m to path
 
-
 fid = fopen([folder outputFileName], 'w');
 fprintf(fid, '%s \n', header);
 
@@ -55,29 +54,13 @@ for f = 1:size(files,1)
         end
         
      
-
     catch ME
         readErrors = horzcat(readErrors, ME.message);
-        
     end
     
 end
-
-%% add errors to output
-% load([folder '/stability_loop_errors.mat']);
-% e = cellfun(@(x) strsplit(x,'_'), errors(:,2), 'UniformOutput', false);
-% 
-% 
-% ids = cellfun(@(x) [x{1} '_' x{2} '_' x{3}], e(:,1), 'UniformOutput', false);
-% %movs = cellfun(@(x) [x{4} '_' x{5}], e(:,1), 'UniformOutput', false);
-% %segs = cellfun(@(x) x{6}, e(:,1), 'UniformOutput', false);
-% 
-% for i = 1:size(e,1)
-%     temp = [ids{i} ',' movs{i} ',' num2str(segs{i}) ', , , , , , , , ,'];
-%     fprintf(fid, '%s \n', temp);
-% end
-
-
-%%
 fclose(fid);
-
+%% 
+celldisp(readErrors);
+display(['Done! Concatenated output in: ' folder]);
+display(['WARNING: There were issues with ' num2str(length(readErrors)) ' files']);

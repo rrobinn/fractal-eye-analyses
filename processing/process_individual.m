@@ -58,7 +58,7 @@ try
     %% Interpolate data
     disp('Interpolate missing data');
     plotFlag = 0;
-    [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol);
+    [propInterpolated, ParticData, PrefBin] = interpolate_data(ParticData, PrefBin, plotFlag, dataCol, 'strict');
     
     %% Flag fixations on Aois (based on interpolated data)
     [ParticData, PrefBin] = add_fix_faces(ParticData, PrefBin,aoiStruct);

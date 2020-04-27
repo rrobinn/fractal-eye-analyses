@@ -53,7 +53,8 @@ exponents=linspace(log2(scmin),log2(scmax),scres);
 scale=round(2.^exponents); %segment sizes
 
 if length(scale) > length(unique(scale))
-    h_error='cannot generate scmin/scmax/scres combo';
+    display('Warning: Cannot generate scmin/scmax/scres combo');
+    h_error='param_combo';
 end
 
 

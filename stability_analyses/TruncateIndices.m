@@ -1,30 +1,60 @@
 % Code creates truncated versions of time series.
 % Outputs time series truncated in two ways:
 % beg_out: time series  start from the first index of the origial, and get
-% increasingly long. (e.g.: [1:100], [1:200], .... [1:length(time serie)]
+% increasingly long. (e.g.: [1:100], [1:200], .... [1:length(time series)]
 % end_out: time series end at the last index of the original (e.g.
 % [900:1000, [800,1000] ... [min length:1000]
 
+% varargin
+% User can either :
+% 1) set the # OF SEGMENTS to make for each time series
+% by setting "nseg" (default=10).
+% If each time series is broken up into the same # of segments, the length
+% of those segments will vary based on the length of the original time
+% series.
 
-function [truncIndFromBeg, truncIndFromEnd] = TruncateIndices(ts, varargin)
+% 2) set the base LENGTH OF EACH SEGMENT by setting "baseSegLength" and
+% "constantSegLength". contantSegLength=1/0 baseSegLength=length of
+% shortest segment. 
+% If set to 100, the next longest segment will be 200,
+% 300, so on. If a time series is broken into segments of the same lengths,
+% the number of segments generated for each time series will vary based on
+% the length of the original series
+
+
+function [truncIndFromBeg, truncIndFromEnd] = TruncateIndices(ts, constantSegLength, varargin)
 nseg=10; % default settings
+baseSegLength=100; % The shortest segment length. 
 settings = struct();
 settings.minTimeSeriesLength=1000;
+
 for v=1:2:length(varargin)
     switch varargin{v}
         case 'nseg'
             nseg = varargin{v+1};
         case 'settings'
             settings=varargin{v+1};
+        case 'baseSegLength'
+            baseSegLength=varargin{v+1}; 
         otherwise
             error(['TruncateTimeSeries.m: Unknown input parameter: ' varargin{v}]);
     end
+end
+
+if ~variableLength % 
+    nseg=floor(length(ts)/100);
 end
 
 if length(ts) < settings.minTimeSeriesLength
     beg_out={}; end_out={};
     return
 end
+
+
+if constantSegLength % Length of each truncated time series depends on the length of oringinal time series 
+    nseg=floor(length(ts)/baseSegLength); % need to override nseg
+end
+
 
 %% make indices for truncating time series from beginning
 % Generate indices for n time series that start from the beginning of the original, where n=number of segments.
@@ -45,7 +75,8 @@ startInd = startInd(1:length(startInd)-1);  % remove last index to avoid time se
 stopInd = repmat(length(ts), nseg-1, 1);
 truncIndFromEnd = [startInd' stopInd];
 
-
+    
+end
 
 % Visualize truncated time series for sanity check
 % figure();
@@ -57,10 +88,10 @@ truncIndFromEnd = [startInd' stopInd];
 % xlim([0 350])
 % subplot(3,1,3)
 % plot([truncIndFromBeg(1,1):truncIndFromBeg(1,2)],ts(truncIndFromBeg(1,1):truncIndFromBeg(1,2)), 'g')
-% xlim([0 350])
+% %xlim([0 350])
 % ylim([0 100])
 
 
 
-end
+
 

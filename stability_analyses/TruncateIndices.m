@@ -41,18 +41,19 @@ for v=1:2:length(varargin)
     end
 end
 
-if ~variableLength % 
-    nseg=floor(length(ts)/100);
-end
 
 if length(ts) < settings.minTimeSeriesLength
-    beg_out={}; end_out={};
+    truncIndFromBeg={}; truncIndFromEnd={};
     return
 end
 
 
-if constantSegLength % Length of each truncated time series depends on the length of oringinal time series 
-    nseg=floor(length(ts)/baseSegLength); % need to override nseg
+if constantSegLength % Length of each truncated time series will be (roughly) the same. 
+    % Trim time series to allow for equal segment lengths 
+    lastInd=length(ts)-mod(length(ts), baseSegLength);
+    ts=ts(1:lastInd); 
+    % override nseg
+    nseg=length(ts)/baseSegLength; 
 end
 
 
@@ -78,18 +79,6 @@ truncIndFromEnd = [startInd' stopInd];
     
 end
 
-% Visualize truncated time series for sanity check
-% figure();
-% subplot(3,1,1)
-% plot([truncIndFromBeg(3,1):truncIndFromBeg(3,2)],ts(truncIndFromBeg(3,1):truncIndFromBeg(3,2)), 'r');
-% xlim([0 350])
-% subplot(3,1,2)
-% plot([truncIndFromBeg(2,1):truncIndFromBeg(2,2)],ts(truncIndFromBeg(2,1):truncIndFromBeg(2,2)), 'b')
-% xlim([0 350])
-% subplot(3,1,3)
-% plot([truncIndFromBeg(1,1):truncIndFromBeg(1,2)],ts(truncIndFromBeg(1,1):truncIndFromBeg(1,2)), 'g')
-% %xlim([0 350])
-% ylim([0 100])
 
 
 

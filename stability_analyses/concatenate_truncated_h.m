@@ -43,7 +43,7 @@ for f = 1:size(files,1)
     for s = 1:size(trial_info,1)
         temp = [id ',' trial_info{s,1} ',' mySettings ',' ... ] %id, movie_segment, scmin, scmaxDiv, scres
             num2str(truncate_inds(s,1)) ',' num2str(truncate_inds(s,2)) ',' ... % truncate start, truncate end
-            num2str(h_out(s,1)) ',' num2str(h_out(s,1)) ',' h_errors{s,1}]; %h, r2, h_errors
+            num2str(h_out(s,1)) ',' num2str(h_out(s,2)) ',' h_errors{s,1}]; %h, r2, h_errors
         
         fprintf(fid, '%s \n', temp);
     end
@@ -55,5 +55,6 @@ end
 fclose(fid);
 %%
 celldisp(readErrors);
+readErrors=readErrors';
 display(['Done! Concatenated output in: ' folder]);
 display(['WARNING: There were issues with ' num2str(length(readErrors)) ' files']);

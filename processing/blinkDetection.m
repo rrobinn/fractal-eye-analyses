@@ -13,7 +13,7 @@ sampling_interval     = 1000/sampling_rate_in_hz; % compute the sampling time in
 gap_interval          = 100;                      % set the interval between two sets that appear consecutively for concatenation. (default = 100)
 blink_length_min      = 100/sampling_interval;     % set the minimum blink length threshold (in frames) (defualt numerator = 100)
 blink_length_max      = 400/sampling_interval;    % set the maximum blink length threshold (in frames) (default numerator = 400)
-smooth_param          = 20;
+smooth_param          = 10; % default is 10
 if(length(varargin)>1)
     for (i = 1:2:length(varargin))
         switch varargin{i}

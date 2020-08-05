@@ -14,7 +14,7 @@ max_age = 40
 # Where do you want to save data?
 ```{r}
 out_dir = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/'
-file_name = 'cleaned_multilevel_data'
+file_name = '20200803_cleaned_multilevel_data'
 ```
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
@@ -33,38 +33,44 @@ library(ggplot2)
 
 # Read data
 ```{r}
-h <- read_csv(file = "/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/h_out.txt")
+particList = read_csv(file = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200804_particlist.csv')
+
+h <- read_csv(file = "/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20200803data/h_out.txt")
 
 #precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
 precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
 
-aoi_data<- read.csv("/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/aoi_data/2019_01_10_groupAoiData.txt", sep = '\t')
+CalVer <- read_excel("/Users/sifre002/Box/DancingLadiesshare/calibration-verification/Formatted_CalVerData_2018_12_12/allCalVers.xlsx")
+
+aoi_data<- read.csv("/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20200803data/face_out.txt")
 
 # demographic data
-demo = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/demographic_info.csv')
+# demo = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/demographic_info.csv')
 
 # DOB (not queriable from database)
 dob = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/20200408_BCP_DOB.csv')
 ```
 
 
+<!-- # Format demograpic data  -->
+<!-- ```{r} -->
+<!-- source('/Users/sifre002/Documents/Code/misc/clean_loris_demographic.R') -->
+<!-- demo2 = clean_demographic_data(demo) -->
+<!-- # Filter for data from BCP/BSLERP -->
+<!-- demo2 = demo2 %>% -->
+<!--   filter(grepl('BCP|DSA_Demographics', cohort)) %>% -->
+<!--   filter(!grepl('mom|Parent|Phantom', cohort)) %>% -->
+<!--   mutate(cohort2=ifelse(grepl('BCP',cohort), 'BCP', 'DSA')) %>% -->
+<!--   mutate(male=ifelse(sex=='Male',1,0))  -->
+<!-- # Merge DOB with demographic data -->
+<!-- dob = dob %>% -->
+<!--   select(id=PSCID, DoB) -->
+<!-- demo2 = demo2 %>% -->
+<!--   left_join(dob, by = 'id') -->
 
-# Format demograpic data 
-```{r}
-source('/Users/sifre002/Documents/Code/misc/clean_loris_demographic.R')
-demo2 = clean_demographic_data(demo)
-# Filter for data from BCP/BSLERP
-demo2 = demo2 %>%
-  filter(grepl('BCP|DSA_Demographics', cohort)) %>%
-  filter(!grepl('mom|Parent|Phantom', cohort)) %>%
-  mutate(cohort2=ifelse(grepl('BCP',cohort), 'BCP', 'DSA')) %>%
-  mutate(male=ifelse(sex=='Male',1,0)) 
-# Merge DOB with demographic data
-dob = dob %>%
-  select(id=PSCID, DoB)
-demo2 = demo2 %>%
-  left_join(dob, by = 'id')
-```
+<!-- setdiff(h2$Participant, demo2$id) # not in LORIS -->
+
+<!-- ``` -->
 
 # Format DFA output
 ```{r}
@@ -72,7 +78,7 @@ demo2 = demo2 %>%
 h = h %>%
   # Create variable for Participant ID (currently combined with session #)
   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-  left_join(dob, by=c('Participant'='id')) %>%
+  left_join(dob, by=c('Participant'='PSCID')) %>%
   # Calculate age at time of visit 
   mutate(DoB =as.Date(DoB, format='%m/%d/%y'),
          date=as.Date(date, format='%m/%d/%Y')) %>%
@@ -82,10 +88,57 @@ h = h %>%
   mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
          Pix=ifelse(grepl('S', movie), 1, 0)) 
 
-# Filter 
-h2 = h%>%
-  # If % interpolated is more than 80th percentile threshold, then remove from sample 
-  filter(propInterp<quantile(propInterp, .8)) %>%
+# Filter if they are not in the participant list 
+h = h%>% filter(id %in% particList$id) 
+
+# Log who was removed 
+removed_h = h %>%
+  dplyr::select(Participant, id) %>%
+  mutate(partic_list = ifelse(id %in% particList$id, 0, 1))
+
+```
+
+
+Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing. 
+Those with precision that is worse than threshold are coded as 999
+```{r}
+source('/Users/sifre002/Documents/Code/misc/clean_calver.R')
+calver=clean_calver(precisionInfo)
+calver_thresh=calver[[1]]
+AvgPrecision=calver[[2]]
+```
+
+
+
+# Merge Precision data with H data 
+```{r}
+dim(h)  #14978
+h2= h %>% left_join(AvgPrecision, by='id') 
+# Check who is missing AvgPrecision
+h2 %>% filter(is.na(AvgPrecision)) %>% dplyr::select(id) %>% unique()
+
+  filter(!is.na(AvgPrecision) & AvgPrecision!=999) %>%#999=bad precision, NA=missing
+  filter(propInterp<quantile(propInterp, .8))
+
+
+```
+
+
+# Filter out bad segments 
+```{r}
+
+removed_precision = h2 %>%
+  left_join(AvgPrecision, by = 'id') %>%
+  mutate(removed_precision = ifelse(is.na(AvgPrecision) | AvgPrecision ==999, 1, 0) ,
+         removed_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0)) %>%
+  dplyr::select(id,movie,seg,removed_precision, removed_propInterp) %>%
+  filter(removed_precision==1 | removed_propInterp==1)
+
+removed_h = removed_h %>%
+  left_join(removed_precision, by = c('id','movie','seg')) %>%
+  filter(id %in% particList$id)
+
+h2 = h %>%
   # If time series was too short, remove from sample
   filter(warning==0) %>%
   # filter for age range
@@ -93,132 +146,106 @@ h2 = h%>%
 
 # Info on which trials were removed
 removed_h=h %>%
-  select(id,movie,seg,propInterp,warning,age)%>%
+  dplyr::select(Participant,id,movie,seg,propInterp,warning,age)%>%
   mutate(removed_tooshort=ifelse(warning==1,1,0),
-         removed_propInterp=ifelse(propInterp>quantile(propInterp, .8),1,0),
-         removed_age=ifelse(age<min_age|age>max_age,1,0)) %>%
-  select(-c(propInterp,warning,age)) %>%
-  filter(removed_tooshort==1|removed_propInterp==1|removed_age==1) 
+         removed_age=ifelse(age<min_age|age>max_age,1,0),
+         removed_particList = ifelse(!id %in% particList$id, 1,0)) %>%
+  dplyr::select(-c(warning,age)) %>%
+  filter(removed_tooshort==1|removed_age==1) 
 
 # sanity
 test = h2 %>% group_by(id) %>% summarise(n=n())
+```
+
+
+# flow on removal
+```{r}
+# How much data we started with 
+start_id = h %>%filter(id %in% particList$id) %>%dplyr::select(Participant) %>% unique() %>% nrow()
+start_sess = h %>%filter(id %in% particList$id) %>%dplyr::select(id) %>% unique() %>% nrow()
+start_seg = h %>%filter(id %in% particList$id) %>% nrow()
+
+# Outside of age-range
+removed_age = removed_h %>%
+  filter(removed_age == 1) %>%
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg = length(unique(seg))) 
+
+# Remove for precision 
+
+# Removed for times series too short 
+removed_propinterp = removed_h %>%
+  filter(removed_age ==0) %>% # Don't double-count those removed for being outside of age-range
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg = length(unique(seg))) 
+
+
+# Removed for too much interpolated 
+removed_propinterp = removed_h %>%
+  filter(removed_age ==0) %>% # Don't double-count those removed for being outside of age-range
+  filter(removed_tooshort == 1) %>%
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg = length(unique(seg))) 
+
+
+
 
 ```
 
 
-Clean AOI data
+
+```{r}
+test =h3 %>%
+  group_by(id) %>%
+  summarize(n=n())
+min(test$n)
+max(test$n)
+mean(test$n)
+```
+
+# Clean AOI data
 ```{r}
 aoi_data2 = aoi_data %>%
-  filter(longestFix_Dur!=-9999) %>%
-  select(id,
+  filter(longestFixDur!=-9999) %>%
+  dplyr::select(id,
           movie,
-          seg, 
-          longestFix_aoi = longestFix_Dur, 
+          seg,
+          longestFix_aoi = longestFixDur,
           faceCount, otherCount) %>%
   mutate(id=as.character(id),
          movie=as.character(movie))
 ```
 
-
-Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing
+# Merge AOI data with H data 
 ```{r}
-
-# If output, use code below
-if (n_distinct(precisionInfo[,1])==nrow(precisionInfo)) { # Precision Info already summarized 
-  precisionInfo2=precisionInfo %>%
-  select(id=ID,
-        AvgPrecision)
-
-  cutoff=mean(precisionInfo2$AvgPrecision, na.rm=TRUE)+2*(sd(precisionInfo2$AvgPrecision,na.rm=TRUE))
-  precisionInfo2=precisionInfo2%>%
-    filter(AvgPrecision<cutoff) # remove trials above the acceptable cutoff (not included in final sample)
-  avg_prec=precisionInfo2
-} else{ 
-  precisionInfo2 = precisionInfo %>%
-    filter(!is.na(CoordX)) %>% # If missing info for X, always missing for Y as well
-    mutate(Precision_RMS_X_Y=(PrecRMSx+PrecRMSy)/2) %>%
-    select(id=X, Precision_RMS_X_Y, Stimulus,Order) %>%
-    distinct()
-  
-    #Establish threshold for acceptable precision value based on 2 SDs above sample mean
-   cutoff=mean(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)+2*sd(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)
-   
-   # Remove bad points from data
-   precisionInfo3=precisionInfo2 %>%
-      filter(Precision_RMS_X_Y<cutoff)
-  
-  #Summarize mean precision for each participant
-  avg_prec=precisionInfo3%>%
-    filter(Precision_RMS_X_Y<cutoff) %>%# remove trials above the acceptable cutoff (not included in final sample)
-    group_by(id)%>%
-    summarise(AvgPrecision=mean(Precision_RMS_X_Y)) %>%
-    ungroup() %>%
-    mutate(id=as.character(id))
-  
-  # Add back in participants with bad precision
-  excludedSess=setdiff(precisionInfo2$id, precisionInfo3$id)
-  temp=data.frame(id=excludedSess, AvgPrecision=999)
-  avg_prec=rbind(avg_prec,temp)
-}
-
-
-```
-
-# Merge demographic, DFA, aoi, and precision data
-```{r}
-dim(h2)  #9274
-h3=h2%>%
-  left_join(avg_prec, by='id') %>% #Add precision info for each visit id
-  left_join(aoi_data2, by=c('id','movie','seg')) %>%#add aoi_data for each segment
-  left_join(demo2, by=c('Participant'='id'))
-
-test = h3%>%filter(is.na(AvgPrecision)) %>% select(id) %>% unique()
-
+h4 = h3 %>%
+  left_join(aoi_data2, by = c('id', 'movie', 'seg')) %>%
+  mutate(propFace_seg = faceCount / (faceCount + otherCount))
 ```
 
 
-
-
-Add individual precision info FROM FINALCALVER to MFDFA & includes only those w/ precision data in FinalCalvr  
-```{r message=FALSE, warning=FALSE, echo=FALSE}
-colnames(FinalCalVer)[colnames(FinalCalVer)=="AvgPrecision"] <- "PrecisionRMS_X_Y"
-FinalCalVer$precisionInfo = 1
-Master3 = merge(Master2,FinalCalVer, by="ID", all.x=TRUE)
-Master_precInf=Master3%>%
-  filter(precisionInfo==1)
-# Useful for reporting purposes 
-#a=unique(Master_precInf$ID)
-#a=unique(as.character(Master_precInf$Participant))
-
-#Filters out those without precision info (i.e., did not make it through CalVer/did not have any points above quality thresholds from previous code)
-Master3=Master3%>%
-  filter(precisionInfo==1)
-#a=unique(Master$ID) #131
-
-#Center precision on grand mean (will use this for modelling)
-avePrec=mean(Master3$PrecisionRMS_X_Y)
-Master3=Master3%>%
-  mutate(PrecisionRMS_X_Y_centered=PrecisionRMS_X_Y-avePrec)
-```
 
 
 
 Merge aoi data with master_longit
 ```{r}
-Master_longit = Master3 %>%
-  dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, SpectWidth, Age, MovieName, Seg, Stimulus, Version, Pixelated, NonPixelated, Calver, Stimulus,Sex, female, cohort_dummy)
-temp1 = Master_longit %>% filter(Stimulus=='DL') # only movie trials
-temp2 = Master_longit %>% filter(Stimulus=='C') # only CalVer trials
-
-test =merge(temp1, aoi_data2, by = c('ID', 'MovieName', 'Seg'))
-test$propFace_seg = test$faceCount / (test$faceCount + test$otherCount)
-
-temp2$longestFix_aoi = NA
-temp2$faceCount = NA
-temp2$otherCount = NA
-temp2$propFace_seg = NA
-
-Master_longit2 = rbind(test, temp2)
+# Master_longit = Master3 %>%
+#   dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, SpectWidth, Age, MovieName, Seg, Stimulus, Version, Pixelated, NonPixelated, Calver, Stimulus,Sex, female, cohort_dummy)
+# temp1 = Master_longit %>% filter(Stimulus=='DL') # only movie trials
+# temp2 = Master_longit %>% filter(Stimulus=='C') # only CalVer trials
+# 
+# test =merge(temp1, aoi_data2, by = c('ID', 'MovieName', 'Seg'))
+# test$propFace_seg = test$faceCount / (test$faceCount + test$otherCount)
+# 
+# temp2$longestFix_aoi = NA
+# temp2$faceCount = NA
+# temp2$otherCount = NA
+# temp2$propFace_seg = NA
+# 
+# Master_longit2 = rbind(test, temp2)
 ```
 
 
@@ -256,7 +283,7 @@ personLevel_var=Master_longit2%>%
             AveInterp_person=mean(PropInterp),
             AveMissing_person=mean(PropMissing),
             AvePrecision_person = mean(PrecisionRMS_X_Y),
-            AveLongestFix_person=mean(longestFix_seg_centeredGrandmean),
+            AveLongestFix_person=mean(LongestFixDuration),
             AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
             n_person=n())
 
@@ -337,23 +364,6 @@ Master_longit5$precision_person_grandmeancentered  = Master_longit5$AvePrecision
 
 ```
 
-<!-- Sanity checking  -->
-<!-- ```{r} -->
-<!-- model_data = Master_longit5 %>% filter(Stimulus == 'DL') -->
-
-<!-- ggplot(data = model_data, aes(x = Age, y = H) ) + -->
-<!--   stat_smooth(method = 'lm', se = FALSE,  formula = y~x, show.legend = FALSE, aes(group = MovieName, color = MovieName)) + -->
-<!--   stat_smooth(method ='lm', formula = y~x, color = 'black') -->
-
-<!-- library(psychometric) -->
-<!-- ICC1.lme(H, MovieName, model_data)   -->
-
-<!-- ``` -->
-
-Save data 
-```{r}
-write.csv(file = paste(out_dir, file_name, '.csv', sep= ''), Master_longit5)
-```
 
 
 

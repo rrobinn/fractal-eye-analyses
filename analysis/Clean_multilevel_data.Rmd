@@ -9,6 +9,8 @@ output: html_document
 # User parameters
 min_age = 0
 max_age = 40
+wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
+cleaned_precision_dat = 1 # Are you using precision data that have already been cleaned?
 ```
 
 # Where do you want to save data?
@@ -18,75 +20,53 @@ file_name = '20200803_cleaned_multilevel_data'
 ```
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-#library(readxl)
 library(tidyverse)
-#library(dplyr)
-#library(sm)
-#library(lme4)
 library(ggplot2)
-#library(MuMIn)
-#library(bbmle)
-#library(gtools)
-#library(tuple)
-#library(utils)
 ```
 
 # Read data
 ```{r}
-particList = read_csv(file = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/ParticipantLists_DL/20200804_particlist.csv')
+# List of id_sessions & their ages to include to analyses (DOB is identifying info) 
+particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
 
-h <- read_csv(file = "/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20200803data/h_out.txt")
+# Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
+h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
 
-#precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
-precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
+# Calibration precision spreadsheet  
+AvgPrecision <- read.csv( paste(wdir, 'data/et_precision.csv', sep=''), stringsAsFactors = FALSE )
 
-CalVer <- read_excel("/Users/sifre002/Box/DancingLadiesshare/calibration-verification/Formatted_CalVerData_2018_12_12/allCalVers.xlsx")
-
-aoi_data<- read.csv("/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20200803data/face_out.txt")
-
-# demographic data
-# demo = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/demographic_info.csv')
+# Face-looking data 
+aoi_data<- read.csv( paste(wdir, 'data/face_out.txt', sep ='') )
 
 # DOB (not queriable from database)
-dob = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/20200408_BCP_DOB.csv')
+# dob = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/20200408_BCP_DOB.csv')
 ```
 
-
-<!-- # Format demograpic data  -->
-<!-- ```{r} -->
-<!-- source('/Users/sifre002/Documents/Code/misc/clean_loris_demographic.R') -->
-<!-- demo2 = clean_demographic_data(demo) -->
-<!-- # Filter for data from BCP/BSLERP -->
-<!-- demo2 = demo2 %>% -->
-<!--   filter(grepl('BCP|DSA_Demographics', cohort)) %>% -->
-<!--   filter(!grepl('mom|Parent|Phantom', cohort)) %>% -->
-<!--   mutate(cohort2=ifelse(grepl('BCP',cohort), 'BCP', 'DSA')) %>% -->
-<!--   mutate(male=ifelse(sex=='Male',1,0))  -->
-<!-- # Merge DOB with demographic data -->
-<!-- dob = dob %>% -->
-<!--   select(id=PSCID, DoB) -->
-<!-- demo2 = demo2 %>% -->
-<!--   left_join(dob, by = 'id') -->
-
-<!-- setdiff(h2$Participant, demo2$id) # not in LORIS -->
-
-<!-- ``` -->
 
 # Format DFA output
 ```{r}
 # Format DFA output 
+
+# FOr when you have DOB from database 
+# h = h %>%
+#   # Create variable for Participant ID (currently combined with session #)
+#   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
+#   left_join(dob, by=c('Participant'='PSCID')) %>%
+#   # Calculate age at time of visit 
+#   mutate(DoB =as.Date(DoB, format='%m/%d/%y'),
+#          date=as.Date(date, format='%m/%d/%Y')) %>%
+#   mutate(age=(date-DoB)/30.42,
+#          age=as.numeric(age))%>%
+#     # Create Dummies for CalVer & Pixelated
+#   mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
+#          Pix=ifelse(grepl('S', movie), 1, 0)) 
 h = h %>%
   # Create variable for Participant ID (currently combined with session #)
   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-  left_join(dob, by=c('Participant'='PSCID')) %>%
-  # Calculate age at time of visit 
-  mutate(DoB =as.Date(DoB, format='%m/%d/%y'),
-         date=as.Date(date, format='%m/%d/%Y')) %>%
-  mutate(age=(date-DoB)/30.42,
-         age=as.numeric(age))%>%
+  left_join(particList, by='id') %>%
     # Create Dummies for CalVer & Pixelated
   mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
-         Pix=ifelse(grepl('S', movie), 1, 0)) 
+         Pix=ifelse(grepl('S', movie), 1, 0))
 
 # Filter if they are not in the participant list 
 h = h%>% filter(id %in% particList$id) 
@@ -95,116 +75,105 @@ h = h%>% filter(id %in% particList$id)
 removed_h = h %>%
   dplyr::select(Participant, id) %>%
   mutate(partic_list = ifelse(id %in% particList$id, 0, 1))
-
 ```
 
 
-Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing. 
-Those with precision that is worse than threshold are coded as 999
 ```{r}
-source('/Users/sifre002/Documents/Code/misc/clean_calver.R')
-calver=clean_calver(precisionInfo)
-calver_thresh=calver[[1]]
-AvgPrecision=calver[[2]]
-```
-
-
-
+#Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing.
+#Those with precision that is worse than threshold are coded as 999
+# SKIP THIS PART IF YOU USING CALVER DATA THAT ALREADY HAVE BEEN CLEANED
+if (cleaned_precision_dat==0) {
+  source(paste(wdir, 'processing/clean_calver.R', sep = ''))
+  calver=clean_calver(precisionInfo)
+  calver_thresh=calver[[1]]
+  AvgPrecision=calver[[2]]
+}
 # Merge Precision data with H data 
-```{r}
-dim(h)  #14978
 h2= h %>% left_join(AvgPrecision, by='id') 
-# Check who is missing AvgPrecision
-h2 %>% filter(is.na(AvgPrecision)) %>% dplyr::select(id) %>% unique()
-
-  filter(!is.na(AvgPrecision) & AvgPrecision!=999) %>%#999=bad precision, NA=missing
-  filter(propInterp<quantile(propInterp, .8))
-
-
 ```
 
 
-# Filter out bad segments 
+# Flow on exclusion
+## Outside of age-range
 ```{r}
-
-removed_precision = h2 %>%
-  left_join(AvgPrecision, by = 'id') %>%
-  mutate(removed_precision = ifelse(is.na(AvgPrecision) | AvgPrecision ==999, 1, 0) ,
-         removed_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0)) %>%
-  dplyr::select(id,movie,seg,removed_precision, removed_propInterp) %>%
-  filter(removed_precision==1 | removed_propInterp==1)
-
-removed_h = removed_h %>%
-  left_join(removed_precision, by = c('id','movie','seg')) %>%
-  filter(id %in% particList$id)
-
-h2 = h %>%
-  # If time series was too short, remove from sample
-  filter(warning==0) %>%
-  # filter for age range
-  filter(age>min_age & age<max_age) 
-
-# Info on which trials were removed
-removed_h=h %>%
-  dplyr::select(Participant,id,movie,seg,propInterp,warning,age)%>%
-  mutate(removed_tooshort=ifelse(warning==1,1,0),
-         removed_age=ifelse(age<min_age|age>max_age,1,0),
-         removed_particList = ifelse(!id %in% particList$id, 1,0)) %>%
-  dplyr::select(-c(warning,age)) %>%
-  filter(removed_tooshort==1|removed_age==1) 
-
-# sanity
-test = h2 %>% group_by(id) %>% summarise(n=n())
-```
-
-
-# flow on removal
-```{r}
-# How much data we started with 
-start_id = h %>%filter(id %in% particList$id) %>%dplyr::select(Participant) %>% unique() %>% nrow()
-start_sess = h %>%filter(id %in% particList$id) %>%dplyr::select(id) %>% unique() %>% nrow()
-start_seg = h %>%filter(id %in% particList$id) %>% nrow()
-
-# Outside of age-range
-removed_age = removed_h %>%
-  filter(removed_age == 1) %>%
+h2 = h2 %>% mutate(remove_age = ifelse(age>=min_age & age<=max_age, 0,1))
+# How many ppl were outside age-range?
+h2 %>%
+  filter(remove_age == 1) %>%
   summarize(n_partic = length(unique(Participant)),
             n_sess = length(unique(id)),
-            n_seg = length(unique(seg))) 
-
-# Remove for precision 
-
-# Removed for times series too short 
-removed_propinterp = removed_h %>%
-  filter(removed_age ==0) %>% # Don't double-count those removed for being outside of age-range
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg = length(unique(seg))) 
-
-
-# Removed for too much interpolated 
-removed_propinterp = removed_h %>%
-  filter(removed_age ==0) %>% # Don't double-count those removed for being outside of age-range
-  filter(removed_tooshort == 1) %>%
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg = length(unique(seg))) 
-
-
-
-
+            n_seg = n())
 ```
 
-
-
+This left us with:  
 ```{r}
-test =h3 %>%
-  group_by(id) %>%
-  summarize(n=n())
-min(test$n)
-max(test$n)
-mean(test$n)
+h2 = h2 %>% filter(remove_age==0)
 ```
+<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
+
+## Precision  
+
+We removed the following data for  <b>poor calver precision</b>:  
+```{r}
+h2 = h2 %>% mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
+
+# Remove for precision
+removed_calver = h2 %>%
+  filter(remove_precision ==1)%>%
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg =n())
+
+removed_calver
+```
+
+This left us with:  
+```{r}
+h2 = h2 %>% filter(remove_precision==0)
+
+```
+<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
+
+## Interpolation  
+We removed the following data for  <b>% interp</b>:  
+```{r}
+
+h2 = h2 %>% mutate(remove_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0))
+
+h2 %>%
+  filter(remove_propInterp ==1) %>%
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg =n())
+```
+This left us with:  
+```{r}
+h2 = h2 %>% filter(remove_propInterp==0)
+
+```
+<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
+
+## Too short  
+We removed the following data for  <b>time series that were too short</b>:  
+```{r}
+h2 = h2 %>% mutate(remove_tooshort = ifelse(h==-9999,1,0))
+# Removed for too short
+h2 %>%
+  filter(remove_tooshort == 1) %>%
+  summarize(n_partic = length(unique(Participant)),
+            n_sess = length(unique(id)),
+            n_seg = n())
+```
+
+This left us with: 
+```{r}
+h2 = h2 %>% filter(remove_tooshort==0)
+```
+<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments. </b>
+
+
+
+
 
 # Clean AOI data
 ```{r}
@@ -221,149 +190,154 @@ aoi_data2 = aoi_data %>%
 
 # Merge AOI data with H data 
 ```{r}
-h4 = h3 %>%
+h2 = h2 %>%
   left_join(aoi_data2, by = c('id', 'movie', 'seg')) %>%
   mutate(propFace_seg = faceCount / (faceCount + otherCount))
 ```
 
 
-
-
-
-Merge aoi data with master_longit
-```{r}
-# Master_longit = Master3 %>%
-#   dplyr::select(ID, Participant, LongestFixDuration, PropInterp, PropMissing, PrecisionRMS_X_Y,Amplitude, H, SpectWidth, Age, MovieName, Seg, Stimulus, Version, Pixelated, NonPixelated, Calver, Stimulus,Sex, female, cohort_dummy)
-# temp1 = Master_longit %>% filter(Stimulus=='DL') # only movie trials
-# temp2 = Master_longit %>% filter(Stimulus=='C') # only CalVer trials
-# 
-# test =merge(temp1, aoi_data2, by = c('ID', 'MovieName', 'Seg'))
-# test$propFace_seg = test$faceCount / (test$faceCount + test$otherCount)
-# 
-# temp2$longestFix_aoi = NA
-# temp2$faceCount = NA
-# temp2$otherCount = NA
-# temp2$propFace_seg = NA
-# 
-# Master_longit2 = rbind(test, temp2)
-```
-
-
 # Create person-, visit-, and movie-centered variables. These are used to parse variance for modelling.
+## Grand means  
 ```{r}
 # Get grand mean for average age
-AveAge = Master_longit2 %>%
-  group_by(ID)%>%
-  summarise(Age = unique(Age)) %>%
+AveAge = h2 %>%
+  # Pull age for each person's visit (average age calculated so that their age at each visit is weighted online once)
+  group_by(id)%>%
+  summarise(Age = unique(age)) %>%
+  # Calculate sample's average Age 
   summarise(Age = mean(Age) )
 
 # Get grand mean for average longest fix
-aveLongFix=mean(Master_longit2$LongestFixDuration)
-AveAge = Master_longit2 %>%
-  group_by(ID) %>%
-  summarise(age = mean(Age))
-AveAge = mean(AveAge$age)
-#avePrec=mean(Master_longit2$PrecisionRMS_X_Y)
-#avePropFace = mean(Master_longit2$propFace_seg, na.rm = TRUE)
+aveLongFix=mean(h2$longestFixDur)
+avePrec=mean(h2$Precision_RMS_X_Y)
+avePropFace = mean(h2$propFace_seg, na.rm = TRUE)
+```
+* Average age = `r AveAge`  
+* Average longest fix duration = `r aveLongFix`  
+* Average calver precision = `r avePrec`  
+* Average % face-looking = `r avePropFace`  
 
-#
-Master_longit2=Master_longit2%>%
-  mutate(Age_centeredGrandmean=as.numeric(Age-AveAge),
-         longestFix_seg_centeredGrandmean = as.numeric(LongestFixDuration - aveLongFix))
-
+## Person-level variables 
+```{r}
 # Creating level 3 (person) variables:
-# Average age: Participant's average age, centered on grand mean
+# Average age: Participant's average age (weight each visit once)
 # Average Interpolated: mean prop interp
 # Average precision: mean precision (weight each visit once)
-# Average longest fix: mean longest fix, centered on grand mean 
-# Average face looking: NEED TO ADD THIS 
-personLevel_var=Master_longit2%>%
+# Average longest fix: mean longest fix, centered on grand mean
+personLevel_var=h2%>%
   group_by(Participant)%>%
-  summarise(AveAge_person=mean(unique(Age_centeredGrandmean)), 
-            AveInterp_person=mean(PropInterp),
-            AveMissing_person=mean(PropMissing),
-            AvePrecision_person = mean(PrecisionRMS_X_Y),
-            AveLongestFix_person=mean(LongestFixDuration),
+  summarise(AveAge_person=mean(Age_centeredGrandmean),
+            AveInterp_person=mean(propInterp),
+            AveMissing_person=mean(propMissing),
+            AvePrecision_person = mean(Precision_RMS_X_Y),
+            AveLongestFix_person=mean(longestFixDur),
             AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
             n_person=n())
 
+h2%>%
+  group_by(Participant)%>%
+  dplyr::select(faceCount, otherCount) %>%
+  summarise(AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
+            n_person=n())
+
+```
+
+# Session-level variables 
+```{r}
 # Session age = Age_centeredGrandmean (no within-session variability)
 # Average interpolated: Mean prop interp, for the session
 # Average Missing: Mean prop Missing
 # Average longest fix: mean longest fix, centered on grand mean
-# Average face looking: mean face looking for the session 
-sessionLevel_var = Master_longit2 %>%
-  group_by(ID) %>%
-  summarise(AveInterp_session = mean(PropInterp),
-            AveMissing_session = mean(PropMissing), 
-            AveLongestFix_session = mean(longestFix_seg_centeredGrandmean),
-            AvePropFace_session = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ))
-
-
-movieLevel_var = Master_longit2 %>%
-  group_by(Participant, ID, MovieName) %>%
-  summarise(AveInterp_movie = mean(PropInterp),
-            AveMissing_movie = mean(PropMissing), 
-            AveLongestFix_movie = mean(longestFix_seg_centeredGrandmean),
-            AvePropFace_movie = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ))
-
-# Merge person-level
-Master_longit3 = merge(Master_longit2, personLevel_var, by = 'Participant')
-# Merge visit-level
-Master_longit4 = merge(Master_longit3, sessionLevel_var, by = 'ID')
-# Merge movie-level
-Master_longit5 = merge(Master_longit4, movieLevel_var, by = c('Participant', 'ID', 'MovieName'))
-# Create SEGMENT-LEVEL VARIABLES centered at MOVIE LEVEL
-Master_longit5$propInterp_segment_groupmeancentered = Master_longit5$PropInterp - Master_longit5$AveInterp_movie
-Master_longit5$longestFix_segment_groupmeancentered = Master_longit5$longestFix_seg_centeredGrandmean - Master_longit5$AveLongestFix_movie
-Master_longit5$propFace_segment_groupmeancentered = Master_longit5$propFace_seg - Master_longit5$AvePropFace_movie
-
-# Create MOVIE-LEVEL VARIABLES centered at VISIT-LEVEL
-Master_longit5$propInterp_movie_groupmeancentered = Master_longit5$AveInterp_movie - Master_longit5$AveInterp_session
-Master_longit5$longestFix_movie_groupmeancentered = Master_longit5$AveLongestFix_movie - Master_longit5$AveLongestFix_session
-Master_longit5$propFace_movie_groupmeancentered = Master_longit5$AvePropFace_movie - Master_longit5$AvePropFace_session
-
-# Create VISIT-LEVEL variables centered at PERSON-LEVEL
-Master_longit5$propInterp_session_groupmeancentered = Master_longit5$AveInterp_session - Master_longit5$AveInterp_person
-Master_longit5$longestFix_session_groupmeancentered = Master_longit5$AveLongestFix_session - Master_longit5$AveLongestFix_person
-Master_longit5$propFace_session_groupmeancentered = Master_longit5$AvePropFace_session - Master_longit5$AvePropFace_person
-Master_longit5$precision_session_groupmeancentered = Master_longit5$PrecisionRMS_X_Y - Master_longit5$AvePrecision_person
-
-# Create PERSON_LEVEL variables centered at GRAND MEAN
-Master_longit5$propInterp_person_grandmeancentered = Master_longit5$AveInterp_person - mean(Master_longit5$PropInterp)
-Master_longit5$longestFix_person_grandmeancentered  = Master_longit5$AveLongestFix_person - mean(Master_longit5$AveLongestFix_person)
-Master_longit5$propFace_person_grandmeancentered  = Master_longit5$AvePropFace_person - mean(Master_longit5$propFace_seg, na.rm = TRUE)
-Master_longit5$precision_person_grandmeancentered  = Master_longit5$AvePrecision_person - mean(Master_longit5$PrecisionRMS_X_Y, na.rm=TRUE)
-
-############################################################################
-#Commented out code - could be useful or reporting 
-
-#Finds participant info
-# Master_longit_sample=Master_longit4%>%
-#   group_by(Participant, ID)%>%
-#   summarise(n=n(),
-#             female=mean(as.numeric(female, na.rm=TRUE)))
-# Master_longit_female=Master_longit4%>%
-#   filter(female==1)%>%
-#   group_by(Participant)%>%
-#   summarise(n=n())
-
-# N_female=unique(Master_longit_female$Participant)
-# mean(Master_longit$PropMissing, na.rm=TRUE)
-
-# #Finds time pts per kid
-# library(tuple)
-# Master_longit_sum=Master_longit%>%
-#   group_by(Participant, ID)%>%
-#   summarize(n())%>%
-#   mutate(dummy=1)%>%
-#          # dup=duplicated(Participant),
-#          # trip=triplicated(Participant))%>%
-#   group_by(Participant)%>%
-#   summarize(sessions=sum(dummy))
+# Average face looking: mean face looking for the session
+sessionLevel_var = h2 %>%
+  group_by(id) %>%
+  summarise(AveInterp_session = mean(propInterp),
+            AveMissing_session = mean(propMissing),
+            AveLongestFix_session = mean(longestFixDur),
+            AvePropFace_session = sum(faceCount, na.rm = TRUE) / 
+              ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ))
 
 ```
 
 
+# Movie-level
+```{r}
+movieLevel_var = h2 %>%
+  group_by(Participant, id, movie) %>%
+  summarise(AveInterp_movie = mean(propInterp),
+            AveMissing_movie = mean(propMissing),
+            AveLongestFix_movie = mean(longestFixDur),
+            AvePropFace_movie = sum(faceCount, na.rm = TRUE) / 
+              (sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE)) )
+```
 
+```{r}
+# # # # # # # # # # # #
+# Create centered variables 
+# # # # # # # # # # # #
+
+# Merge person-level
+h3 = merge(h2, personLevel_var, by = 'Participant')
+# Merge visit-level
+h4 = merge(h3, sessionLevel_var, by = 'id')
+# Merge movie-level
+h5 = merge(h4, movieLevel_var, by = c('Participant', 'id', 'movie'))
+
+# Create PERSON_LEVEL variables centered at GRAND MEAN
+h5$propInterp_person_grandmeancentered = h5$AveInterp_person - mean(h5$propInterp)
+h5$longestFix_person_grandmeancentered  = h5$AveLongestFix_person - mean(h5$longestFixDur)
+h5$propFace_person_grandmeancentered  = h5$AvePropFace_person - mean(h5$propFace_seg, na.rm = TRUE)
+h5$precision_person_grandmeancentered  = h5$AvePrecision_person - mean(h5$Precision_RMS_X_Y, na.rm=TRUE)
+h5$age_centered_grandmean = h5$age - AveAge$Age
+
+# Create VISIT-LEVEL variables centered at PERSON-LEVEL
+h5$propInterp_session_groupmeancentered = h5$AveInterp_session - h5$AveInterp_person
+h5$longestFix_session_groupmeancentered = h5$AveLongestFix_session - h5$AveLongestFix_person
+h5$propFace_session_groupmeancentered = h5$AvePropFace_session - h5$AvePropFace_person
+h5$precision_session_groupmeancentered = h5$Precision_RMS_X_Y - h5$AvePrecision_person # each visit has one Precision_RMS_X_Y
+
+
+# Create MOVIE-LEVEL VARIABLES centered at VISIT-LEVEL
+h5$propInterp_movie_groupmeancentered = h5$AveInterp_movie - h5$AveInterp_session
+h5$longestFix_movie_groupmeancentered = h5$AveLongestFix_movie - h5$AveLongestFix_session
+h5$propFace_movie_groupmeancentered = h5$AvePropFace_movie - h5$AvePropFace_session
+
+# Create SEGMENT-LEVEL VARIABLES centered at MOVIE LEVEL
+h5$propInterp_segment_groupmeancentered = h5$propInterp - h5$AveInterp_movie
+h5$longestFix_segment_groupmeancentered = h5$longestFixDur - h5$AveLongestFix_movie
+h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
+
+
+# Code for error checking 
+# test = h5 %>% filter(id == 'JE000053_03_01' & movie == '01_converted.avi')
+# test$AveAge_person
+# 
+# 
+# test = h5 %>% filter(id == 'JE000053_03_01') %>%
+#   dplyr::select(id,movie,seg,
+#                 AvePropFace_person, AvePropFace_session, AvePropFace_movie,
+#                 faceCount,otherCount,propFace_seg, propFace_segment_groupmeancentered, 
+#                 propFace_movie_groupmeancentered, propFace_session_groupmeancentered,propFace_person_grandmeancentered)
+# 
+# test = h5 %>% filter(id == 'JE000053_03_01') %>%
+#   dplyr::select(id, movie, seg, 
+#                 AvePropFace_person, AvePropFace_session, AvePropFace_movie,
+#                 faceCount,otherCount,propFace_seg, propFace_segment_groupmeancentered, 
+#                 propFace_movie_groupmeancentered, propFace_session_groupmeancentered,propFace_person_grandmeancentered)
+# # test visit-level face avg 
+# sum(test$faceCount, na.rm = TRUE) / (sum(test$faceCount, na.rm = TRUE)  + sum(test$otherCount, na.rm = TRUE))
+# # Test movie-level face 
+# a = test %>% filter(movie == '01_converted.avi') 
+# sum(a$faceCount, na.rm = TRUE) / (sum(a$faceCount, na.rm = TRUE)  + sum(a$otherCount, na.rm = TRUE))
+# # test - segment level prop face
+# test[1, 'faceCount'] / (test[1, 'faceCount'] + test[1, 'otherCount'])
+# test[1, 'propFace_seg']
+# # test segment - level cnetering
+# test[1, 'propFace_seg'] - test[1, 'AvePropFace_movie'] == test[1, 'propFace_segment_groupmeancentered']
+# test[1, 'AvePropFace_movie'] - test[1, 'AvePropFace_session'] == test[1, 'propFace_movie_groupmeancentered']
+# test[1, 'AvePropFace_session'] - test[1, 'AvePropFace_person'] == test[1, 'propFace_session_groupmeancentered']
+# test[1, 'AvePropFace_person'] - avePropFace == test[1, 'propFace_person_grandmeancentered']
+
+
+```
 

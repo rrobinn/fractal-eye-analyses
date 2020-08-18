@@ -1,5 +1,5 @@
 Folder contains de-identified sample data.  
-1. <b>Eye-tracking data.</b> Sample data from participant JE000084_04. Data from three visits (04, 06, and 07) are contained in their own folder. Each folder contains:  
+1. <b>Eye-tracking data.</b> Data from participants, with each visit contained in their own folder. Folder names include participant ID (e.g., JE000053_03) and the visit number (e.g. '_01). Each folder (in `individual_data/`) contains:  
 * Raw data: a .mat file containing their raw eye-tracking data.  
 * Parsed: a .mat file that parses the raw data by trials.  
 * segmentedTimeSeries: Time series from experiment.  

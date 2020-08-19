@@ -15,7 +15,7 @@ cleaned_precision_dat = 1 # Are you using precision data that have already been 
 
 # Where do you want to save data?
 ```{r}
-out_dir = '/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/clean_data/'
+out_dir = paste(wdir, 'data/', sep = '')
 file_name = '20200803_cleaned_multilevel_data'
 ```
 
@@ -211,6 +211,10 @@ AveAge = h2 %>%
 aveLongFix=mean(h2$longestFixDur)
 avePrec=mean(h2$Precision_RMS_X_Y)
 avePropFace = mean(h2$propFace_seg, na.rm = TRUE)
+
+# Create varaible for person's age centered at grand mean 
+h2=h2%>%
+ mutate(Age_centeredGrandmean=as.numeric(age-AveAge$Age)) 
 ```
 * Average age = `r AveAge`  
 * Average longest fix duration = `r aveLongFix`  
@@ -233,13 +237,6 @@ personLevel_var=h2%>%
             AveLongestFix_person=mean(longestFixDur),
             AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
             n_person=n())
-
-h2%>%
-  group_by(Participant)%>%
-  dplyr::select(faceCount, otherCount) %>%
-  summarise(AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
-            n_person=n())
-
 ```
 
 # Session-level variables 
@@ -296,7 +293,6 @@ h5$longestFix_session_groupmeancentered = h5$AveLongestFix_session - h5$AveLonge
 h5$propFace_session_groupmeancentered = h5$AvePropFace_session - h5$AvePropFace_person
 h5$precision_session_groupmeancentered = h5$Precision_RMS_X_Y - h5$AvePrecision_person # each visit has one Precision_RMS_X_Y
 
-
 # Create MOVIE-LEVEL VARIABLES centered at VISIT-LEVEL
 h5$propInterp_movie_groupmeancentered = h5$AveInterp_movie - h5$AveInterp_session
 h5$longestFix_movie_groupmeancentered = h5$AveLongestFix_movie - h5$AveLongestFix_session
@@ -339,5 +335,10 @@ h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
 # test[1, 'AvePropFace_person'] - avePropFace == test[1, 'propFace_person_grandmeancentered']
 
 
+```
+
+```{r}
+# optional: save output
+write_csv(x = h5, path = paste(out_dir, 'cleaned_data.csv', sep=''))
 ```
 

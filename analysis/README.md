@@ -11,5 +11,11 @@ Repo containing R scripts for analyzing H-statistics.
 4. The time series has < 20% data interpolated.   
 5. The time series has at least 1,000 samples.  
 
-# Model_H_Face_Looking.Rmd  
+# 2020-manuscript  
+Directory contains final .Rmd files for manuscript.  
+
+## Model_H_Trajectories.Rmd  
+Includes modeling steps for examining eye-gaze complexity longitudinal trajectories.  
+
+## Model_H_Face_Looking.Rmd  
 Includes modeling steps for examining the relationship between face-looking and H-values.  

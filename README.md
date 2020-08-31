@@ -26,6 +26,4 @@ Check out the code -- this should work for any time series.
 ## analysis
 R code for modelling age-related change in Hurst-exponent.
 
-## Research poster
 
-![](https://github.com/rrobinn/fractal-eye-analyses/blob/master/Poster.png)

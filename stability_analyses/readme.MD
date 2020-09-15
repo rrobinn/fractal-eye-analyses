@@ -21,6 +21,7 @@ The user parameters that can impact the estimation of *a* include:
 
 ## To run  
 ### stability_participant.m  
+Call the function `stability_participant.m`.  
 
 <b>Description</b>  
 Run DFA for an eye-tracking visit for a number of parameter combinations.  
@@ -28,4 +29,15 @@ Run DFA for an eye-tracking visit for a number of parameter combinations.
 <b>Usage</b>  
 `stability_participant(id)`  
 `stability_participant(id, 'settings', settings, 'dataDir', data_directory, 'figDir', fig_directory, 'outDir', output_directory)`  
+
+<b>Arguments</b>  
+| Argument      | Description |
+| ----------- | ----------- |
+| id      | Session id (e.g. JE123456_03)       |
+| settings      | struct() containing DFA settings       |
+| dataDir      | Path to directory with .mat files       |
+| figDir      | Path to directory where figures should be saved       |
+| outDir      | Path to directory where .mat files should be saved       |
+
+
 

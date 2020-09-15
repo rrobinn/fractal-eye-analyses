@@ -1,0 +1,147 @@
+---
+title: "pinkNoiseSim"
+author: "Isa Stallworthy & Robin Sifre"
+date: "09/15/2020"
+output: html_document
+---
+
+```{r}
+n_ts = 1000 # How many time series to simulate 
+set.seed(123)
+wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
+out_dir = paste(wdir, 'stability_analyses/out/',sep='')
+```
+
+
+
+Reads in csv time-series from dancing ladies and creates a wide ts dataset 
+```{r setup1, include=FALSE}
+library(tidyverse)
+library(rapport)
+library(tuneR)
+library(pracma)
+library(SuppDists)
+
+# Each row is a time series. Should be time series that passed QA/QC. 
+h=read.csv(paste(wdir,'data/cleaned_data.csv', sep='')) # Info about sample H (used for parameters)
+```
+
+Info about original ts
+```{r setup2, include=FALSE, echo=FALSE, warning=FALSE}
+sampling_density = 300 # sampling density in hz 
+
+h = h %>%
+  filter(remove_age == 0,
+         remove_precision ==0,
+         remove_propInterp ==0,
+         remove_tooshort == 0) %>%
+  dplyr::select(length_ms = longestFixDur) %>% # duration of time series in ms 
+  mutate(length_frames = length_ms / (1000/sampling_density),
+         length_frames = round(length_frames, 0))
+
+# Calculate length of each time series  
+meanLength=mean(h$length_frames)
+sdLength=sd(h$length_frames)
+hist(h$length_frames)
+
+# simulate population distribution of time series length
+parms = JohnsonFit(h$length_frames, moment = 'quant') # Estimate parameters for Johnson distribution 
+sim_lengths = rJohnson(nrow(h), parms) # Random distribution generator 
+sim_lengths = round(sim_lengths)
+
+par(2,1,new=TRUE)
+hist( h$length_frames , freq=FALSE)
+# plot(function(x)dJohnson(x,parms), 1000, 2000, add=TRUE, col="red")
+hist( sim_lengths , freq=FALSE) # close enough for these purposes 
+```
+
+
+
+Create pink noise time-series
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE}
+#noise(f, d, type="unif", listen = FALSE, Sample = FALSE)
+#d=duration of signal
+#f=frequency
+#type= noise type
+
+# Example of simulated pink noise
+a=noise(kind=c("pink"), d=1000)
+plot(a)
+
+simData=NULL
+hursts=NULL
+
+n_sim_lengths = length(sim_lengths)
+for (i in 1:n_ts){
+  
+  if (i==1 | mod(i,100)==0) { print( paste('Simulating', i, 'of', n_ts) ) }
+  
+  # Select time series length from distribution 
+  temp_ind = round( runif(1, 1, n_sim_lengths), 0)
+  rand_length = sim_lengths[temp_ind]
+  
+  # Generates pink noise
+  n=noise(kind=c("pink"), d=rand_length)
+  nts=as.data.frame(t(n@left)) # Pull ts data  
+  
+  # Estimates hurst exponent (can compare to output from Ihlen 2012)
+  hurst=hurstexp(ts(nts), display=FALSE)$Hs 
+
+  # Save output
+  simData=bind_rows(simData, nts)
+  hursts=rbind(hursts,hurst)
+}
+
+
+
+write.csv(simData, paste(out_dir, 'simTimeSeries.csv', sep=''))
+write.csv(hursts,  paste(out_dir, 'simHursts.csv', sep=''))
+
+```
+
+
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE}
+
+##RUN THE FOLLOWING CODE ONCE: THEN READ IN EXCEL FILE FOR THE FUTURE (ABOVE)
+
+# file_dir='/Users/Isabella/Box/Dancing Ladies share/Stability analyses/Time series csv/'
+# sessions=list.files(file_dir)
+# sessions=as.data.frame(unlist(sessions))
+# 
+# ID_list=NULL
+# Dataset=NULL
+# 
+# for (i in 124:nrow(sessions)){
+#   id=sessions[i,1]
+#   segments=list.files(paste(file_dir, id, sep="/"))
+#   segments=as.data.frame(segments)
+#   
+#   if (nrow(segments)<1){
+#     print(paste("No data for", id)) 
+#   }
+#   
+#   if (nrow(segments)>1){
+#     
+#     for (x in 1:nrow(segments)){
+#       file=read.csv(paste(file_dir, id, '/', segments[x,1], sep=""), header = F)
+#       movie=paste(sapply(strsplit(as.character(segments[x,1]), '_'), '[', 4), ... = sapply(strsplit(as.character(segments[x,1]), '_'), '[', 5), sep = '_') 
+#       segment=sapply(strsplit(as.character(segments[x,1]), '_'), '[', 6)
+#       
+#       
+#       # data=matfile$segmentedData
+#       data=file
+#       data=as.data.frame(as.numeric(unlist(data)))
+#       data=as.data.frame(data[!is.nan(as.numeric(unlist(data))),])
+#       data=transpose(data)
+#       data=cbind(id,movie,segment, data)
+#       ID_list=rbind(ID_list, id)
+#       Dataset=rbind.fill(Dataset, data)
+#     }
+#   }
+# }
+# 
+# #saves out since it takes a long-ass time to run
+# # library(xlsx)
+# write.csv(Dataset, '/Users/Isabella/Box/Dancing Ladies share/Stability analyses/allTimeSeries.csv')
+```

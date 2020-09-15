@@ -1,4 +1,6 @@
-This folder contains scripts for analyses intended to estimate how much data are needed for DFA when using 300 Hz eye-tracking data.  
+# About 
+This folder contains scripts for analyses intended to estimate how much data are needed for DFA. Though Ihlen et al. (2012) broadly recommends at least 1,000 samples, one might imagine that the minimum-required-length might vary depending on the type and density of data collected.  
+
 The user parameters that can impact the estimation of *a* include:  
 
 * <b> scmin and scmaxDiv </b> - the minimum and maximum sample size of segments. E.g., for a time-series of length=1,000 if the `scmin`=4, then estimating RMS and Fq at the smallest scale will be done with 250 segments of length=4.  

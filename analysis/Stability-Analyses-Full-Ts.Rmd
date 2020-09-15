@@ -1,0 +1,412 @@
+---
+title: "Stability Analyses"
+author: "Robin Sifre"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    self_contained: true
+---
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(rmarkdown)
+library(readr)
+library(tidyverse)
+library(DT)
+library(lme4)
+
+## Global options
+options(max.print="75")
+options(scipen = 999)
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+```{r}
+# Read stability analysis data 
+dat <- read_csv("/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/parameter-stability/stability_out.txt")
+# Read calver data
+precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
+# Clean calver data
+source('/Users/sifre002/Documents/Code/misc/clean_calver.R')
+calver=clean_calver(precisionInfo)
+calver_thresh=calver[[1]]
+AvgPrecision=calver[[2]]
+# Remove sessions w/ bad calver & where h was not calculated
+good_calver_id = AvgPrecision %>%
+  filter(AvgPrecision!=999)%>%
+  select(id) 
+dat2 = dat %>%
+  filter(id %in% good_calver_id$id) %>%
+  filter(is.na(h_warning))
+# Variables to help with analyses
+dat2 = dat2 %>%
+  # Dummy variables for trial type 
+  mutate(calver = ifelse(grepl('Center|Left|Right',movie), 1, 0),
+         pix = ifelse(grepl('S', movie), 1, 0),
+         dl = ifelse(calver==0&pix==0, 1, 0)) %>%
+  # Factor of stimulus type
+  mutate(trial=ifelse(calver==1, 'CalVer', 'other'),
+         trial=ifelse(pix==1, 'Pixelated', trial),
+         trial=ifelse(dl==1, 'Social', trial)) %>%
+  # Dummy var indicating MS setting
+  mutate(ms_settings = ifelse(scmaxdiv==4 & scmin==4 & scres==4, 1, 0))  %>%
+  # Participant ID 
+  mutate(Participant=paste(lapply(strsplit(id,'_'), '[', 1), lapply(strsplit(id,'_'), '[', 2), sep='_')) %>%
+  # scmax calculated based on length of time series and scmaxdiv
+  mutate(longestFixDur_frames=longestFixDur/3.3333,
+         scmax=round(longestFixDur_frames/scmaxdiv,0))
+
+
+# Convert parameters to factors for easier plotting
+# dat2 = dat2 %>%
+#   mutate(scres=as.factor(scres),
+#          scmin=as.factor(scmin),
+#          scmaxdiv=as.factor(scmaxdiv))
+
+  
+```
+
+
+# About
+The goal of these analyses is to test how different user-defined parameters impacts the estimation of $H$. This is part of a larger effort to understand how parameters and characteristics of the time series (e.g. length, sampling density) impact estimates of $H$.  
+
+These parameters include:  
+```{r}
+var_description = data.frame(row.names = c('scmaxDiv', 'scmin', 'scres'), 
+                 Description = c('# to divide length(time series) by to determine maximum segment length', 'Minimum scale (segment length)', 'total # of segment sizes'),
+                 Values = c('4, 10', '4, 8, 12, 16','4, 8, 12, 16'))
+kable(var_description) 
+```
+This yields 2x4x4=32 parameters to test for each time series.  In other words, I estimated $H$ 32 times for each time series. 
+
+## Examples 
+
+
+These parameters determine the <b>smallest and largest scales</b> that RMS is calculated at, and <b>how many scales</b> it is calculated at. In the figure below, `scmin`=16, `scmax`=1024, and `scres`=7. At each scale:  
+1. The time series is separated into n bins (n is determined by the scale).  
+2. RMS is calculated at each bin.  
+3. The overall RMS is calculated for the time series (red line). Notice that the red line decreases at smaller scales. 
+
+![Ihlent et al. (2012). `scmax`, `scmin`, determine the smallest and largest scales that RMS is estimated at. `scres` determines the number of scales RMS is estimated at.](stability_imgs/Ihlen_RMS_segmentsizes.png)
+Consider the following time series & parameters:  
+
+```{r}
+examples=data.frame(row.names= c('Ex 1', 'Ex 2', 'Ex 3'),
+  length=c(1000,1000,1000),scmin=c(4, 4, 10), scmaxDiv=c(10, 10, 4), scres=c(8, 4, 8)
+)
+kable(examples)
+```
+
+<b>Ex 1.</b> RMS is calculated for 250 small chunks (scale=4) all the way through 10 big chunks (scale=100). RMS will be calculated <b>8 times</b> along this spectrum.     
+<b>Ex 2.</b> Same as above except RMS is estimated only <b>4 times</b> along this spectrum.  
+<b>Ex 3.</b> RMS is calculated for 100 small chunks (scale=10), all the way through 4 big chunks (scale=250). RMS will be calculated <b>8 times</b> along this spectrum.
+
+## Parameters used in the *Scientfic Reports* manuscripts.
+
+In the current manuscript under review we used the following parameters:  
+```{r}
+var_description = data.frame(row.names = c('scmaxDiv', 'scmin', 'scres'), 
+                 Description = c('# to divide length(time series) by to determine maximum segment length', 'Minimum segment length', 'total # of segment sizes'),
+                 Values = c('4', '4','4'))
+kable(var_description) 
+```
+
+Looking back, I think I would have increased `scmin`, since it is hard to get an accurate RMSE with only 4 samples.  
+I would also have increased `sres`, since I would be more comfortable with our visualizations that there is a linear relationship between Power and Frequency with more than 4 data points. 
+
+## Ihlen's recommendations  
+"Both statistical and phenomenological arguments exist on how to choose the minimum and maximum segment size.....The statistical argument is to choose minimum and maximum segment sizes that provide a numerical stable estimation of RMS and Fq"  
+
+* `scmin` should be larger than 10 samples  
+* `scmin` must be considerably larger than the polynomial order m to prevent overfitting  
+* `scmax` below 1/10 of the sample size of the time series will provide at least 10 segments for computing `Fq`  
+
+However, published papers that used DFA with eye-tracking data used different parameters that we chose to follow. 
+
+# The data
+
+```{r}
+temp=dat2%>%filter(ms_settings==1)
+```
+* Data from `r n_distinct(temp$Participant)` participants (n sessions=`r n_distinct(temp$id)`).  
+* I can't figure out why a lot more segments per participant are included in my analysis than in the MS. 
+
+<u><b>Note on negative H and low $r^2$ values:</u></b>
+```{r}
+# Whats happening with neg H values
+n_neg_segs=dat2 %>% 
+  filter(h<0) %>% 
+  distinct(id,movie,seg) %>% 
+  nrow()
+
+# low r^2
+n_low_r2=dat2 %>%
+  filter(r2<.9) %>%
+  distinct(id,movie,seg) %>%
+  nrow()
+
+lowr = dat2 %>%
+  filter(r2<.9) 
+
+# datatable(dat2 %>% 
+#   filter(h<0) %>% 
+#   select(id, movie, seg, h, scmin, scmax, scres, scmaxdiv), rownames=FALSE,filter='top',  options=list(pageLength=5, scrollX=T),
+#   caption='Time series where H was estimated as negative')
+```
+- <b>Negative $H$ values:</b> While there are `r sum(dat2$h<0)` negative *H* values in this dataset, only `r n_neg_segs` segments are contributing to these values. 
+- <b>Low $r^2$ values:</b> There are `r sum(dat2$r2<.9)` $r^2$ values <.90. `r n_low_r2` segments contribute to these values. However, these cases tend to be 'white noise' (mean $H$=`r mean(lowr$h)`).
+
+## Distribution of H values 
+```{r}
+# Distribution of H values
+temp %>%
+  ggplot(aes(x=h)) + 
+  geom_histogram(color='black') + 
+  facet_wrap(~trial, nrow=3)
+
+
+kable(temp %>%
+  group_by(trial) %>%
+  summarize(Mean=mean(h),
+            SD=sd(h),
+            min=min(h),
+            max=max(h)),
+            digits=2,
+            caption='Summary stats on H')
+```
+
+## Distribution of $r^2$ values  
+
+There are a very small # of segments with $r^2$<.7 (`r round(sum(temp$r2<.9)/nrow(temp),3)*100` %). Removed them for easier visualization of distributions. 
+```{r}
+summary(temp$r2)
+
+temp %>%
+  filter(r2>=.9) %>%
+  ggplot(aes(x=r2)) + 
+  geom_histogram(color='black') + 
+  facet_wrap(~trial, nrow=3)
+
+```
+
+
+```{r}
+# Average # of segements per visit
+kable(temp %>%
+      # Count # of Calver and non-calver segments for each session
+      group_by(id, calver) %>%
+      summarize(n_segs=n()) %>%
+      ungroup() %>%
+      # Caculate mean, sd, min, max
+      group_by(calver) %>%
+      summarize(Mean = mean(n_segs),
+                SD=sd(n_segs),
+                Min = min(n_segs),
+                Max=max(n_segs)),
+      digits=1,
+      caption='Summary stats on the number of segments per visit')
+```
+
+
+# Estimating the impact of parameters 
+
+There are two ways we can evaluate how robust the Hurst-exponent is to changes in parameters:  
+1. Whether there is a statistically significant and meaningful impact on the estimation of $H$.  
+2. The $r^2$ estimates of the time series. This reflects the degree to which there was a linear relationship between <b>Power</b> and <b>Frequency</b>. In the Figure below, $R^2$ is the residual between the points and line
+
+![Ihlent et al. (2012). H is the slope between scale (segment sample size) and the overall RMS.](stability_imgs/Ihlen_RMS_vs_scale.png)  
+
+In this figure, the number of points is determined by `scres`, while the values at the first and last x-value correspond to `scmin` and `scmax`.
+
+
+## Impact of parameters on *H* and $r^2$
+
+## scmaxdiv  
+`scmaxdiv`= <b>How many segments included @ largest scale; more segments=smaller segments.</b>
+
+It should be noted that because the length of each time series varies, `scmax` will vary for each time series; thus, the impact of this parameter is confounded with/may interact with time series length.  
+```{r}
+# Histogram of H values at scmax=4, 10
+ggplot(data=dat2, aes(x=h)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  scale_x_continuous(limits=c(0,1.5))+
+  facet_wrap(~scmaxdiv, nrow=2) +
+  labs(x='H', title='Histogram of H values at scmax=4, 10', caption='Increasing scmaxdiv (e.g., making the largest bin size SMALLER), appears to increase H estimates')
+```
+
+```{r}
+# Histogram of r2 values at scmax=4, 10
+dat2 %>%
+  filter(r2>=.9) %>%
+  ggplot(data=., aes(x=r2)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scmaxdiv, nrow=2) +
+  labs(x='r2', title='Histogram of r2 values at scmax=4, 10', caption='(r2>=.9). Not a big impact on r2')
+```
+
+
+```{r}
+dat2 %>% 
+  mutate(shortFixation=ifelse(longestFixDur_frames<quantile(longestFixDur_frames, .5), 'Shorter Fixations', 'Longer Fixations')) %>%
+ggplot(data=., aes(x=scmax, y=h, color=as.factor(scmaxdiv))) + 
+  geom_point(alpha=.2) +
+  facet_wrap(~shortFixation, nrow=2) + 
+  labs(x='scmax (segment size of largest bin)', title='Impact of scmax on H', 
+       caption='Data divided by shorter/longer time series (based on median split).')
+```
+<b><u>Take-aways about scmaxdiv </b></u>  
+- When scmax is too small (i.e., scmaxdiv set too high), H estimates are more variable (and in some cases, negative!). This is particularly true for shorter fixations - for a shorter fixation when `scmaxdiv=10`, the values of `scmax` and `scmin` (e.g. the biggest and smallest scales) may be too close to each other.  
+
+- `scmax` does not really impact $r^2$ estimates.  
+
+- Given the length of our time series, `scmaxdiv=10` may not provide a large enough scale for `scmax`. If a time series is 1,000 frames, and `scmaxdiv=10`, then the largest scale is 100 frames (330 ms). For now, I'll keep `scmaxdiv=4`.  
+
+
+
+
+## scmin
+```{r}
+# scmin and H
+dat2 %>%
+  ggplot(data=., aes(x=h)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scmin) +
+  labs(caption='H distributions. As you increase scmin, distribution of H estimates gets wider')
+```
+
+
+```{r}
+#scmin and r2
+dat2 %>%
+  #filter(r2>=.9) %>%
+  ggplot(data=., aes(x=r2)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scmin) +
+  labs(title='Impact of scmin on r2',
+         caption='r2 distributions. When scmin is too low (4) or too high (16), the left-tail of r2 estimates gets longer (more values indicating poor linear fit')
+
+dat2 %>%
+  filter(r2>=.9) %>%
+  ggplot(data=., aes(x=r2)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scmin) +
+  labs(title='Impact of scmin on r2, filtered for r2>=.9',
+         caption='r2 distributions. Among hte high estimates, scmin=8 seems to have the best outcomes for linear fit.')
+```
+
+
+
+```{r}
+# Interaction between scmax and scmin for H
+dat2 %>%
+  ggplot(data=., aes(x=scmax, y=h)) + 
+  geom_point(alpha=.2) +
+  geom_hline(aes(yintercept=mean(h)), color='red', linetype='dashed') +
+  facet_wrap(~scmin, nrow=2)  +
+  labs(title='Impact of scmax on H, plotted for each scmin', caption='A lower scmin is better for when scmax is low.')
+```
+
+```{r}
+# Interaction between scmax and scmin for r2
+dat2 %>%
+  ggplot(data=., aes(x=scmax, y=r2)) + 
+  geom_point(alpha=.2) +
+  facet_wrap(~scmin, nrow=2)  +
+  labs(title='Impact of scmax on r2, plotted for each scmin' , caption='A lower scmin seems to lead to better r^2 values')
+```
+
+
+```{r}
+dat2 %>%
+  group_by(scmin, scmaxdiv) %>%
+  summarize(mean=mean(h),
+            sd=sd(h)) %>%
+  ggplot(data=., aes(x=scmin,y=mean)) + 
+  geom_bar(aes(fill=factor(scmaxdiv)), stat='identity', 
+           position=position_dodge(2), width=2) + 
+  scale_x_continuous(breaks=c(4,8,12,16)) + 
+  labs(title='Interaction between scmin and scmaxdiv', y='Mean H',
+       caption='When scmin=4, H is higher. The rest are pretty indistinguishable from each other')
+```
+
+
+When `scmin` is too high, seems to exacerbate the issue of a too-low `scmax`. When `scmax` is too low, esimates of h are more variable, especially when paired with a too-high `scmin` (16). 
+
+
+<b><u>Take-aways on scmin</b></u>:  
+- `scmin=4` is too short. Though it can mitigate the issues when `scmax` is too low, it also leads to an overestimation of $H$.  
+- `scmin=16` is too large, and exacerbates the issue of when `scmax` is too low.  
+- `scmin=8` seems to be be a sweet-spot.
+
+## scres
+The number of points doesn't seem to influence H that much
+```{r}
+dat2 %>%
+  ggplot(data=., aes(x=h)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scres) +
+  labs(caption='H distributions as a function of scres. As you increase scmin, distribution of H estimates gets wider')
+```
+
+```{r}
+dat2 %>%
+  filter(r2>=.9) %>%
+  ggplot(data=., aes(x=r2)) + 
+  geom_histogram(aes(y=..density..),color='black',fill='white') + 
+  geom_density(alpha=.2, fill="#FF6666")+
+  facet_wrap(~scres) +
+  labs(title='r2 distributions as a function of scres', caption='When scres=4, r2 is higher. But this may be artifactual (over-estimating linear fit with only 4-points)')
+```
+
+
+<b><u>scres take-aways:</b></u>  
+- Doesn't seem to make much of a difference. Will increase scres, though, since this was a criticism of our MS. 
+
+
+# Linear models
+There are 32 repeated estimates of H per segment. To account for this I create a unique identifier for each id/movie/seg combo.  
+The effect size of `scres` is negligble. Here, I focus on `scmin`, `scmaxdiv`, and their interaction.
+
+## Impact on H
+```{r}
+dat2 = dat2 %>%
+  mutate(seg_id = paste(id,movie,seg, sep='_'))
+
+
+lm.0 = lmer(data=dat2, h ~ 1 + (1|seg_id), REML=FALSE) # Intercept-only
+lm.1 = lmer(data=dat2, h ~ 1 + scmin + scmaxdiv +  (1|seg_id), REML=FALSE) # Main effects
+lm.2 = lmer(data=dat2, h ~ 1 + scmin + scmaxdiv + I(scmin*scmaxdiv) + (1|seg_id), REML=FALSE) # Interaction effects
+anova(lm.1, lm.2)
+summary(lm.1)
+summary(lm.2)
+
+```
+- For every increase in `scmin`, $H$ changes by `r fixef(lm.2)[['scmin']]`.  (Increase scmin leads to a decrease in H)
+- For every inscres in `scmaxdiv`, $H$ changes by `r fixef(lm.2)[['scmaxdiv']]` (Increasing scmaxdix/decreasing scmax leads to an increase in H)  
+- The interaction effect is small. But, when scmin is 0/low, the effect of scmaxdiv is lower (e.g., scmaxdiv matters more when scmin is high). 
+
+
+
+# Conclusion  
+I'd adopt the following settings:
+- `scmaxdiv`=4 (same as paper). While Ihlen et al. recommend at least 10, this leads to some issues (particularly for the shorter time series).  
+- `scmin`=8. While scmin=4 resulted in the best outcomes for $r^2$, this also leads to some negative RMS values (Ihlen et al., talk about this). I don't trust those estimates as much. It also seems to systematically inflate $H$ values.  
+- `scres`=8. I don't really think there is a good argument against more points. 
+
+
+
+

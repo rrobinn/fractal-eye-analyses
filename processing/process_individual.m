@@ -1,4 +1,4 @@
-function [success] = process_individual(id)
+function [success] = process_individual(id, varargin)
 %% process_individual
 %  processes data for one individual. Useful for parallelizing jobs
 
@@ -9,10 +9,8 @@ success = 0;
 
 
 
-
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
-
 [s, e]=regexp(pwd, 'fractal-eye-analyses');
 rootDir = pwd; 
 rootDir = rootDir(1:e);
@@ -20,6 +18,18 @@ rootDir = rootDir(1:e);
 addpath(genpath(rootDir));
 inFilePath = [rootDir '/data/'];
 aoiPath = [rootDir '/data/dynamic_aoi/'];
+
+%% Override defaults if varargin>0 varargin (settings, and path overriding)
+if nargin>1
+    for v=1:2:length(varargin)
+        switch varargin{v}
+            case 'dataDir'
+                inFilePath = varargin{v+1};
+            otherwise
+                error(['Input ' varargin{v} 'not recognized']);
+        end
+    end
+end
 %%
 % read in bounding boxes & make data structure of bounding boxes
 [master_AOI, aoi_headers] = read_AOI(aoiPath);

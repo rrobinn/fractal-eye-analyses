@@ -4,6 +4,10 @@ function calculate_h_truncated(id, dataDir, outDir, varargin)
 % 1. Generates parameter space (depends on ts length)
 % 2. Generates H and r2 estimates for each parameter speace (for each time series)
 
+% % Arguments
+% dataDir = directory with truncated time series
+% outDir = directory to save output 
+
 [settings] =  MFDFA_settings('scres',8,'scmin',8,'scmaxDiv', 4, 'minTimeSeriesLength',0, 'r2plot', 0);
 
 if length(varargin)>0

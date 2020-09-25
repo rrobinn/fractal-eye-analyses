@@ -13,12 +13,7 @@ outdir = [rootDir '/out/truncated-time-series/'];
 %% set up
 myErrors ='NA';
 [settings] =  MFDFA_settings('r2plot', 0, 'scres', 8, 'scmin', 8, 'scmaxDiv', 4);
-
-display(['Truncating time series for: ' id]);
-display(['scmin = ' num2str(settings.scmin)]);
-display(['scmaxDiv = ' num2str(settings.scmaxDiv)]);
-display(['scres = ' num2str(settings.scres)]);
-
+constantSegLength = 1; 
 %% Override defaults if varargin>0 varargin (settings, and path overriding)
 if nargin>1
     for v=1:2:length(varargin)
@@ -29,14 +24,26 @@ if nargin>1
                 datadir = varargin{v+1};
             case 'outDir'
                 outdir = varargin{v+1};
+            case 'constantSegLength'
+                constantSegLength = varargin{v+1};
             otherwise
                 error(['Input ' varargin{v} 'not recognized']);
         end
     end
 end
 %%
-outdir=[outdir id '/'];
+if constantSegLength
+    outdir=[outdir 'constant_segment_length/' id '/'];
+else
+    outdir=[outdir 'variable_segment_length/' id '/'];
+end
 datadir=[datadir id '/'];
+
+display(['Truncating time series for: ' id]);
+display(['scmin = ' num2str(settings.scmin)]);
+display(['scmaxDiv = ' num2str(settings.scmaxDiv)]);
+display(['scres = ' num2str(settings.scres)]);
+display(['constantSegLength set to: ' num2str(constantSegLength)]);
 try
     calver = load([datadir id '_calVerTimeSeries.mat']); % load data
     et = load([datadir id '_segmentedTimeSeries.mat']);
@@ -58,7 +65,8 @@ try
         if isa(seg, 'double')
             seg = num2str(seg);
         end
-        [begInd, endInd] = TruncateIndices(ts, 'settings', settings); % get indices for truncating from beginning, truncating from end
+        
+        [begInd, endInd] = TruncateIndices(ts, constantSegLength, 'settings', settings); % get indices for truncating from beginning, truncating from end
         truncs=[begInd;endInd]; % indices for truncating
         temp=cell(length(truncs),1);
         for u=1:length(truncs)

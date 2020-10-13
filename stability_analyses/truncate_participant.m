@@ -8,7 +8,7 @@ rootDir = pwd;
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-datadir = [rootDir '/data/'];
+datadir = [rootDir '/data/individual_data/'];
 outdir = [rootDir '/out/truncated-time-series/'];
 %% set up
 myErrors ='NA';
@@ -56,15 +56,28 @@ try
     clear specs_out_calver specs_out_et ts_out_calver ts_out_et;
     
     %% truncate time series
-    ts_out = ts_out(~cellfun(@isempty, ts_out)); % remove empty cells (time series that were not made b/c fixation was too short)
+    %ts_out = ts_out(~cellfun(@isempty, ts_out)); % remove empty cells (time series that were not made b/c fixation was too short)
+    
     out = cell(size(ts_out,1), 3); % preallocate output for holding indices for truncating
     for t=1:size(ts_out,1)
-        ts = ts_out{t};
+        % Pull trial info
         mov = specs{t,2}; mov = mov(1:regexp(mov, '\.')-1);
         seg = specs{t,3};
+        specs{t,1} = [mov '_' seg]; % movie identifier
         if isa(seg, 'double')
             seg = num2str(seg);
         end
+        % Save trial info
+        out{t,1} = [mov '_' seg];
+        ts = ts_out{t};
+        
+        if isempty(ts) % empty cells (time series that were not made b/c fixation was too short)
+            out{t,2} = NaN;
+            out{t,3}=NaN;
+            continue;
+        end
+
+
         
         [begInd, endInd] = TruncateIndices(ts, constantSegLength, 'settings', settings); % get indices for truncating from beginning, truncating from end
         truncs=[begInd;endInd]; % indices for truncating
@@ -73,7 +86,6 @@ try
             temp{u}=ts(truncs(u,1):truncs(u,2));
         end
         
-        out{t,1} = [mov '_' seg]; % movie identifier
         out{t,2} = truncs; %  info about indices
         out{t,3}=temp;
         clear temp; 

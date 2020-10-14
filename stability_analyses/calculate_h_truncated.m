@@ -28,29 +28,37 @@ if ~exist(outDirFolderName)
     mkdir(outDirFolderName)
 end
 
+% Load truncated time series 
 out=importdata([dataDir id '/' id '_truncated_ts.mat']);
 
 %% create variables that hold parameters 
-% # of truncated time series to do DFA on
-n_truncated=cellfun(@length, out(:,2));
-%n_truncated=unique(n_truncated);
-
-
 h_out = [];
 h_errors={};
+
+% separate time series that were too short to be included from the others
+missing=cellfun(@length, out(:,2), 'UniformOutput', false); 
+missing=cell2mat(missing);
+missing=missing==1;
+
+out_missing=out(missing,1);
+out_data=out(~missing,:);
+
+% # of truncated time series to do DFA on
+n_truncated=cellfun(@length, out_data(:,2));
+
 % duplicate trial info (e.g. id, movie, segment, etc.) n times, where
 % n=# of truncated time series
-truncate_inds = cat(1, out{:,2});
-trial_info=cell(size(out,1),1);
-for t=1:size(out,1)
-    temp=out(t,:);
+truncate_inds = cat(1, out_data{:,2});
+trial_info=cell(size(out_data,1),1);
+for t=1:size(out_data,1) % For the time series w/ enough data
+    temp=out_data(t,:);
     trial_info(t) = cellfun(@(x) repmat({x}, n_truncated(t),1), temp(1), 'UniformOutput', false); 
 end
 trial_info = cat(1, trial_info{:,1});
 
 %% do dfa
-for t=1:size(out,1) % for each time series
-    ts = out{t,3};
+for t=1:size(out_data,1) % for each time series
+    ts = out_data{t,3};
     % pre-allocate matrix & cell-array for output
     temp_out=zeros(size(ts,1),2);
     temp_errors=cell(size(ts,1),2);
@@ -68,7 +76,7 @@ for t=1:size(out,1) % for each time series
 end
 
 %% save output
-save([outDirFolderName 'truncated_h.mat'], 'h_out', 'h_errors', 'trial_info', 'truncate_inds','settings');
+save([outDirFolderName 'truncated_h.mat'], 'h_out', 'h_errors', 'trial_info', 'truncate_inds','settings','out_missing');
 
 end % End function
 

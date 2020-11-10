@@ -46,14 +46,15 @@ for s=1:size(simData,1)
     % Make sure missing data are only at the end of the series
     % (999 is padding at the end of ts to ensure that each time series has the same dimension)
     padding = find(ts==999);
-    if length(padding)==1 && padding==length(ts) % Case where there is only one missing value at the end
-        ts=ts(ts~=999); % Trim the end of the time series if coded as 999
-    else
-        assert(unique(diff(find(ts==999))) == 1, ...
-            'Unexpected missing data pattern. Missing data are not all contiguous');
-        ts=ts(ts~=999);
+    if length(padding)~=0
+        if length(padding)==1 && padding==length(ts) % Case where there is only one missing value at the end
+            ts=ts(ts~=999); % Trim the end of the time series if coded as 999
+        else
+            assert(unique(diff(find(ts==999))) == 1, ...
+                'Unexpected missing data pattern. Missing data are not all contiguous');
+            ts=ts(ts~=999);
+        end
     end
-    
 
     % preallocate output for holding indices for truncating
     out = cell(1, 3);

@@ -62,7 +62,10 @@ end
 %RMS{ns}, local fluctuation, is a set of vectors each w/ length equal to number of segments
 %overall RMS calculated here
 X=cumsum(ts-mean(ts));
-X=transpose(X);
+% Transpose if X is a column vector (should be a row vector)
+if size(X,1) > size(X,2)
+    X=transpose(X);
+end
 %Scaling function F(ns) computed for multiple segment sizes to
 %account for the differential impacts of fast and slow evolving fluctuations;
 %Matlab code 5-------------------------------------------

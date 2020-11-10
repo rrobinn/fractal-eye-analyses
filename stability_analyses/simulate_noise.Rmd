@@ -1,5 +1,5 @@
 ---
-title: "pinkNoiseSim"
+title: "Pink Noise Simulation"
 author: "Isa Stallworthy & Robin Sifre"
 date: "09/15/2020"
 output: html_document
@@ -11,7 +11,6 @@ set.seed(123)
 wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
 out_dir = paste(wdir, 'stability_analyses/out/',sep='')
 ```
-
 
 
 Reads in csv time-series from dancing ladies and creates a wide ts dataset 
@@ -64,8 +63,10 @@ Create pink noise time-series
 #f=frequency
 #type= noise type
 
-# Example of simulated pink noise
-a=noise(kind=c("pink"), d=1000)
+# Example of simulated pink noise (tuneR package)
+a=noise(kind=c("pink"), 
+        samp.rate = sampling_density, # Sampling rate of wave (hz)
+        duration=1000) # Number of samples
 plot(a)
 
 simData=NULL
@@ -81,8 +82,10 @@ for (i in 1:n_ts){
   rand_length = sim_lengths[temp_ind]
   
   # Generates pink noise
-  n=noise(kind=c("pink"), d=rand_length)
-  nts=as.data.frame(t(n@left)) # Pull ts data  
+  n=noise(kind=c("pink"), 
+          samp.rate=sampling_density,
+          duration=rand_length)
+  nts=as.data.frame(t(n@left)) # Pull ts data 
   
   # Estimates hurst exponent (can compare to output from Ihlen 2012)
   hurst=hurstexp(ts(nts), display=FALSE)$Hs 
@@ -91,10 +94,11 @@ for (i in 1:n_ts){
   simData=bind_rows(simData, nts)
   hursts=rbind(hursts,hurst)
 }
+# Re-code missing data as 999 - easier to import into MATLAB
+simData[is.na(simData)] = 999
 
+write.table(simData, sep=',', paste(out_dir, 'simTimeSeries.csv', sep=''),row.names = FALSE,col.names = FALSE)
 
-
-write.csv(simData, paste(out_dir, 'simTimeSeries.csv', sep=''))
 write.csv(hursts,  paste(out_dir, 'simHursts.csv', sep=''))
 
 ```

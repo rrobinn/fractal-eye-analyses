@@ -3,10 +3,10 @@ function [H, r2, h_error] = calculate_H_monofractal(ts, varargin)
 
 %% option to edit settings here
 % default parameters (if user does not enter)
-scmin = 4;
+scmin = 8;
 scmaxDiv = 4;
 scmax = length(ts)/scmaxDiv;
-scres = 4;
+scres = 8;
 m = 2;
 minTimeSeriesLength = 1000;
 plotFlag = 0;

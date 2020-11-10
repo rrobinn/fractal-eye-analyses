@@ -1,0 +1,871 @@
+---
+title: "DFA Simulation"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    self_contained: true
+---
+
+
+```{r setup, echo=FALSE, warning=FALSE,message=FALSE}
+library(knitr)
+library(rmdformats)
+library(rmarkdown)
+library(tidyverse)
+library(corrplot)
+library(reshape2)
+library(mice)
+library(lmerTest)
+library(lme4)
+library(MuMIn)
+library(sjstats)
+library(AICcmodavg)
+library(sjstats)
+library(broom)
+library(sm)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               cache.extra = tools::md5sum('/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/truncated_ts/constant_segment_length/stability_out.txt'))
+opts_knit$set(width=75)
+
+# Control # of digits in output
+knitr::knit_hooks$set(inline = function(x){
+  x <- sprintf('%1.3f',x)
+  paste(x, collapse=', ')
+})
+
+
+```
+
+# About  
+
+## Background
+I use eye-tracking data to measure attention development in babies. One metric I use is <b>fractality</b> as a way to estimate the organizational structure of variance in a time series - how predictable/random is the noise?  
+
+## The challenge
+To mesaure how fractal a time series is, I use an analysis called <b>Detrended Fluctuation Analysis (DFA)</b>.  
+The recommended minimum time series length for DFA on "biomedical time series data" is 1,000 contiguous samples.  Because of how noisy infant eye-tracking data is, we exclude a lot of data that does not meet this minimum requirement.  
+  
+<b>The goal of these analyses is to determine the minimum required time series length for DFA using 300 Hz eye-tracking data.</b> Can we include shorter time series so that we can include more data in future analyses?   
+
+## The approach
+DFA provides a summary output for a given time series: $h$  
+
+If we take time series of data, and chop them up into smaller and smaller pieces, how small can we go before:  
+1) the segment length starts to predict our $h$ estimates, and   
+2) our $h$ estimates become unstable?  
+
+For each estimate of $h$, I also calculated an $r^$ estimate of model fit for a linear relationship between power and frequency. I will also examine how segment length impacts $r^$ values.  
+
+### Methods notes 
+- All time series passed QA/QC. I selected the settings for calculating $H$ (e.g. scmin, scmax) based on prior stability analyses (`scmin=8`, `scres=8`, and `scmaxDiv=4`).  
+- Time series were segmented from the beginning & from the end. Truncated segment lengths start from 100 and increase by 100.  
+- For example, if a time series had 1,000 samples, the time series from the <b>first index</b> were ([1:100], [1:200], ... [1:1000]), and the time series from the <b>last index</b> were ([900:1000], [800:1000], ... [100:1000]).  
+- This gives us 2 100-length segments (first 100 samples, last 100 samples), 2 200-length segments (first 200 samples, last 200 samples), and so on.  
+- The last few frames of the time series were trimmed so that time series was divisible by 100.  
+- Longer time series have more segments. $n segments=(Length / 100 *2) -1$
+
+
+```{r example_fig, cache=TRUE}
+frombeg_start=rep(1,10)
+frombeg_end=seq(100,1000,100) # 100:1000
+
+plot_dat_beg=data.frame(x_start=rep(1,10), x_end=seq(100,1000,100), type='Start From First Sample')
+plot_dat_end=data.frame(x_start=seq(100,900,100), x_end=rep(1000,9), type='End at Last Sample')
+
+plot_dat=rbind(plot_dat_beg, plot_dat_end)
+plot_dat$y = c(1:10, 1.5:9.5) # ordered from type
+plot_dat$type = as.character(plot_dat$type)
+plot_dat[10, 'type']='Complete'
+
+ggplot(data=plot_dat, aes(color=type)) + 
+  geom_segment(aes(x=x_start,xend=x_end, y=y, yend=y)) +
+  scale_x_continuous(breaks=seq(0,1000,100))  +
+  scale_y_continuous(labels = c('length=900','length=900'), breaks = c(1.5,9)) + 
+  theme_bw() + 
+  labs(title='How truncated segments were generated from a time series', 
+       x='Example time series, length=1,020', y='',
+       caption='Note that last 20 frames are truncated so that the length is divisible by 100 \n to allow for equal segmant sizes across all time series.')
+
+```
+
+*Example of truncated segments*
+```{r ex_fig_beg, echo=FALSE, fig.fullwidth=TRUE, cache=TRUE}
+img <- readPNG("/Users/sifre002/Documents/Writing/Dissertation/E1/figs/Trunc_Beg.png")
+grid::grid.raster(img)
+```
+
+```{r ex_fig_end, echo=FALSE, fig.fullwidth=TRUE, cache=TRUE}
+img <- readPNG("/Users/sifre002/Documents/Writing/Dissertation/E1/figs/Trunc_End.png")
+grid::grid.raster(img)
+```
+
+
+# Sanity checks
+## Make sure all time series in (2020) paper is included in the present analyses 
+```{r, cache.extra=TRUE, echo = TRUE}
+# Read stability analysis data 
+dat=read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/constant_segment_length/stability_out.txt', stringsAsFactors = FALSE)
+# Check that data match ms data
+ms = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/data/cleaned_data.csv')
+```
+- `stability_out.txt`: File with \u03b1 and $r^2$ estimated for each truncated segment.  
+- `cleaned_data.csv`: File with all time series included in the final (2020) manuscript (the sample to be included in these analyses).  
+
+```{r datacheck, echo=TRUE}
+# List of time series that were included in the 2020 ms 
+ms =ms %>%
+  dplyr::select(id, movie, seg, h,
+              remove_age, remove_precision, remove_propInterp,remove_tooshort) %>%
+  # Include time series that passed QC
+  filter(remove_age ==0, 
+         remove_precision==0,
+         remove_propInterp==0, remove_tooshort == 0) %>%
+  # Generate a distinct list of time series (data are long, want one row per time series)
+  distinct() %>%
+  dplyr::select(id,movie,seg,h) %>%
+  mutate(movie=gsub('.avi','',movie),
+         movie_seg=paste(movie,seg,sep='_'),
+         uid=paste(id, movie_seg)) 
+ms_ids = ms%>%dplyr::select(uid) %>%distinct()
+dat=dat %>% mutate(uid = paste(id, movie_seg))
+```
+
+<b><u>List of participant in the manuscript not in the current analysis</u>:</b>
+```{r, include=TRUE}
+# Who is in the MS that is not in stability analyses?
+missing_ts = setdiff(ms_ids$uid, dat$uid) 
+missing_ids = lapply(strsplit(missing_ts, ' '), '[[', 1)
+unlist(missing_ids) %>% unique()  
+```
+
+```{r, include=TRUE}
+# Filter for time series that were included in the manuscript 
+dat2 = dat %>%
+  filter(uid %in% ms$uid)
+# Double check that all of the time series are included here 
+if (!length(unique(dat2$uid)) == nrow(ms)){
+  print('Warning: Time series does not match 2020 publication')
+}
+```
+
+<b><u>After retaining only the time series from the manuscript</u>:</b>  
+```{r}
+# Info on time series length of the original data 
+n_trunc=dat2 %>%
+  dplyr::select(uid, trunc_end) %>%
+  group_by(uid) %>%
+  summarize(orig_len = max(trunc_end)) %>%
+  ungroup() %>%
+  mutate(n=(orig_len)/100) %>%
+  mutate(n_series = (n*2)-1) %>%
+  dplyr::select(-c(n))
+```
+- The average rounded length of the original times series was `r mean(n_trunc$orig_len)` (min=`r min(n_trunc$orig_len)`, max=`r max(n_trunc$orig_len)`).  
+- Each time series of length *N* generated [(*N*/100)*2]-1 truncated time series.  The average number of truncated time series generated per original series was `r as.integer(mean(n_trunc$n_series))` (min=`r as.integer(min(n_trunc$n_series))`, max=`r as.integer(max(n_trunc$n_series))`).  
+- Of the original time series, `r as.integer(sum(n_trunc$orig_len>1000))` were longer than 1,000 samples.
+
+
+```{r clean_data, cache=TRUE, echo = TRUE}
+# Make Variables to help with analyses
+dat2 = dat2 %>%
+  # Dummy variables for trial type 
+  mutate(calver = ifelse(grepl('Center|Left|Right',movie_seg), 1, 0),
+         pix = ifelse(grepl('S', movie_seg), 1, 0),
+         dl = ifelse(calver==0&pix==0, 1, 0)) %>%
+  # Factor of stimulus type
+  mutate(trial=ifelse(calver==1, 'CalVer', 'other'),
+         trial=ifelse(pix==1, 'Pixelated', trial),
+         trial=ifelse(dl==1, 'Social', trial)) %>%
+  # Dummy var indicating MS setting
+  mutate(ms_settings = ifelse(scmaxdiv==4 & scmin==4 & scres==4, 1, 0))  %>%
+  # Participant ID 
+  mutate(Participant=paste(lapply(strsplit(id,'_'), '[', 1), lapply(strsplit(id,'_'), '[', 2), sep='_')) %>%
+  # Unique identifier for each segment
+  mutate(longname=paste(id, movie_seg, sep='_')) %>%
+  # Length of time series
+  mutate(trunc_length=trunc_end-trunc_start,
+         trunc_length_bin=round(trunc_length, -2), # Rounding to a neg number means rounding to power of 10
+         trunc_length_bin=trunc_length_bin/100) %>%  # Easier for figs 
+  # Flag the original length t.s. 
+  # Create variable that indicates whether truncating from the beginning or end
+  mutate(trunc_version=ifelse(trunc_start==1, 'beg','end'))
+```
+
+```{r makewide, cache=TRUE}
+dfa=dat2 %>% 
+  dplyr::select(Participant, id, movie_seg, longname, h, r2,trial, trunc_length, trunc_length_bin, trunc_version)
+#Create wide data
+dfa.wide.beg=dcast(dfa %>%
+                   filter(trunc_version=='beg') %>%
+                         # trunc_length_bin<=15) %>% 
+                   dplyr::select(longname, h, trunc_length_bin),
+                   longname ~ trunc_length_bin,
+                   value.var='h')
+
+dfa.wide.end=dcast(dfa %>%
+                   filter(trunc_version=='end') %>%
+                          #trunc_length_bin<=15) %>% 
+                   dplyr::select(longname, h, trunc_length_bin),
+                   longname ~ trunc_length_bin,
+                   value.var='h')
+```
+
+
+## How many segments were made for each time series?  
+```{r barplot_nsegs, echo = TRUE}
+###########################################
+# Missing data patterns
+###########################################
+# Recode as 1=has data, 0=no data 
+miss=dfa.wide.beg %>% dplyr::select(-c('longname'))
+miss[is.na(miss)]=0
+miss[miss!=0]=1
+mean_dat=round(colMeans(miss)*100,0)
+
+data.frame(pct_ts = mean_dat, ts_length = seq(100,2900,100)) %>%
+  ggplot(data=., aes(x=ts_length, y=pct_ts)) + 
+  geom_bar(stat = 'identity') + 
+  geom_hline(yintercept = 25, color = 'red') +
+  scale_x_continuous(breaks=seq(100,2800,300)) + 
+  labs(x='Truncated Segment Length', y = 'Proportion of Time Series Represented', 
+       caption='All time series had a minimum length of 1,000 samples, and generated truncated segments of length {100, 200, ... 900}. \n Fewer time series gemerated truncated segments longer than 1,000. An *a priori* cut-off of 25% was included for determining which truncated lengths to include in analyses.') +
+  theme_bw()
+```
+
+```{r}
+dfa2 = dfa %>% filter(trunc_length_bin<=22)
+```
+After removing truncated time series >=2300, the final sample included `r as.integer(nrow(dfa2))`.  
+
+
+
+# Impact of length on *h*
+## Preliminary Visualizations
+<u>Does <b>a) the direction of truncating</b> or <b>b)the trial type</b> seem to moderate the relationship between segment length and $h$?</u> 
+
+The range of $H$ estimates gest tighter the longer the segment. No clear impact of Trial type (calver, pix, or social) or whether segment was truncated from the beginning or end of the time series. 
+```{r length_vs_H_begend}
+
+# Does truncating from beginning/end matter? 
+ggplot(data=dfa2, aes(x=trunc_length_bin, y=h, color=trunc_version)) + 
+  geom_point(alpha=.2) + 
+  theme_bw() + 
+  labs(x='Length of time series segment (1 unit=100 samples)', y='\u03b1') + 
+  scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) 
+```
+
+```{r length_vs_H_trial}
+# Does the trial type matter?
+ggplot(data=dfa2, aes(x=trunc_length_bin, y=h, color=trial)) + 
+  geom_point(alpha=.2) + 
+  scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) +
+  theme_bw() + 
+  labs(x='Length of time series segment (1 unit=100 samples)', y='\u03b1')
+```
+
+
+Boxplots of $H$ to show interquartile range. 
+```{r h_boxplot}
+ggplot(data=dfa2, aes(x=trunc_length_bin, y=h)) +
+  geom_boxplot(aes(group=trunc_length_bin, alpha=.2)) + 
+  scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) +
+  theme(legend.position = 'none', panel.background = element_rect(fill='white', color = 'black')) +
+  labs(x='Segment length (1 unit=100 samples)', y='\u03b1')
+```
+
+
+## Impact of time series length on *h*  
+Model the impact of truncated segment length (`trunc_length_bin`) on $h$.  
+- `lm.0`: Baseline/intercept only model.  
+- `lm.1`: Linear effect of segment length.  
+- `lm.2`: Quadratic effect of segment length.  
+
+
+```{r overll_h_model, echo=TRUE}
+# Baseline model
+lm.0 = lmer(data = dfa2,
+            h ~1+
+              (1 | longname) , REML = FALSE)
+
+# Linear fixed effect of TruncLength
+lm.1 = lmer(data = dfa2,
+            h ~1+ trunc_length_bin_c +
+              (1 | longname), REML = FALSE)
+
+# Quad fixed effect of TruncLength
+lm.2 = lmer(data = dfa2,
+            h ~1+ poly(trunc_length_bin_c,2) +
+              (1 | longname), REML = FALSE)
+
+anova(lm.0, lm.1, lm.2)
+
+summary(lm.2)
+```
+
+```{r interpret_h_model}
+b_int=fixef(lm.2)[[1]]
+b_lin=fixef(lm.2)[[2]]
+b_quad=fixef(lm.2)[[3]]
+
+```
+- The average $H$ estimate was `r b_int`.  
+- The positive and negative effects are zero when length=`r abs(b_lin/b_quad)+1`
+
+```{r interpret_beta_func}
+# interpret_beta_coefficients <-function(thresh, dat, model_list, outcome){
+#   # Calculate SD(outcome)
+#   temp=dat %>% filter(trunc_length_bin>=thresh)
+#   if (outcome=='H') SDy = sd(temp$h)
+#   if (outcome=='r2') SDy=sd(temp$r2)
+#   
+#   # Pull betas from regression model
+#   fixefs=fixef(model_list[[thresh]])
+#   fixefs=fixefs[2:length(fixefs)] # Want to interpret the slopes
+# 
+#   # Calculate the normed betas 
+#   b1=fixefs[[1]] # Linear effect 
+#   b1_norm=fixefs[[1]]*(1/SDy)
+#   if (length(fixefs)==2){ # If model had quad effect, calculate the normed beta
+#     b2=fixefs[[2]]
+#     b2_norm=fixefs[[2]]*(1/SDy)
+#     return(list(b1=b1, b1_norm=b1_norm, 
+#              b2=b2, b2_norm=b2_norm,
+#              SDy=SDy))
+#     }else{# Only have Beta-1 to return
+#       return(list(b1=b1, b1_norm=b1_norm, SDy=SDy))
+#     }
+#   }
+```
+
+
+
+```{r runmods_h, cache = TRUE, include=TRUE, echo =TRUE}
+# count = 1
+# lmer0.out = list()
+# r2.out = list()
+# #
+# # # Sensitivity analysis to determine when we see Fixed Effect of TruncLength
+# thresh = seq(1, max(dfa2$trunc_length_bin)-2) # Need at least 3 levels of trunc_length_bin to test for quadratic effect 
+#   # Center trunc_length_bin so that the shortest segment length is 0
+# dfa2 = dfa2 %>% mutate(trunc_length_bin_c = trunc_length_bin -1)
+# 
+# for (m in thresh) {
+#   modeldat =dfa2 %>% filter(trunc_length_bin >= m )
+# 
+#   # Baseline model
+#   lm.0 = lmer(data = modeldat,
+#               h ~1+
+#                 (1 | longname) , REML = FALSE)
+# 
+#   # Linear fixed effect of TruncLength
+#   lm.1 = lmer(data = modeldat,
+#               h ~1+ trunc_length_bin_c +
+#                 (1 | longname), REML = FALSE)
+#   
+# 
+#   
+#   # Generate r2 for all models 
+#   modeldat$y0 = predict(object = lm.0, newdata=modeldat)
+#   modeldat$y1 = predict(object = lm.1, newdata=modeldat)
+#   r2=c(cor(modeldat$h, modeldat$y0)^2,
+#        cor(modeldat$h, modeldat$y1)^2)
+#   
+#   # Save model output
+#   lmer0.out[[count]] = lm.0
+#   lmer1.out[[count]] = lm.1
+#   r2.out[[count]] = r2
+#   count = count + 1
+# }
+```
+
+
+```{r sensitivity_h, cache=FALSE}
+## Model results examining Beta of "Segment Length" Parameter
+
+# # Go thru model results and pull fixed effects & model fit stats for each dataset
+# int.out = c()
+# b1.out= c()
+# n.out=c()
+# dLL_lin.out=c()
+# dLL_quad.out=c()
+# icc.out=c()
+# for (i in c(1:length(lmer0.out)) ) {
+# #for(i in c(1:3)){
+#   m0 = lmer0.out[[i]]
+#   m1 = lmer1.out[[i]]
+# 
+#   # Calculate stats on linaer model fit 
+#   temp=anova(m0,m1)  
+#   p_lin = temp$`Pr(>Chisq)`[2]# p-value for whether adding "length" term improves model fit
+#   dLL_lin = temp$logLik[2] - temp$logLik[1] # delta log-likelihood 
+#   
+#   # Calculate stats on quadratic model fit
+#   #temp=anova(m1,m2)  
+#   #p_quad = temp$`Pr(>Chisq)`[2]# p-value for whether adding "length" term improves model fit
+#   #dLL_quad = temp$logLik[2] - temp$logLik[1] # delta log-likelihood 
+#   
+#   # Pull FEs - baseline
+#   summ=summary(m0)
+#   fixef = coef(summ)
+#   beta_base = round(fixef[, 'Estimate'], 3)
+#   se_base = round(fixef[, 'Std. Error'],3)
+# 
+#   # Pull FEs - linear 
+#   summ = summary(m1)
+#   fixef = coef(summ)
+#   beta_lin = round(fixef[, 'Estimate'], 3)
+#   se_lin = round(fixef[, 'Std. Error'],3)
+#   
+#   # Pull FEs - quad
+#   #summ = summary(m2)
+#   #fixef = coef(summ)
+#   #beta_quad=round(fixef[, 'Estimate'], 3)
+#   #se_quad = round(fixef[, 'Std. Error'],3)
+#   
+#   # Sample size for model
+#   sample_size=nobs(m0)
+#   
+#   # ICC
+#   icc = icc(m0)$ICC_adjusted
+#   
+#   # make strings for table
+#  if (p_lin < 0.5) { # If linear model was best 
+#     int_str = paste(beta_lin[[1]], " (", se_lin[[1]], ")",sep = "")
+#     b1_str = paste(beta_lin[[2]], " (", se_lin[[2]], ")", sep = '')
+#     b2_str = ''
+#   } else{
+#      int_str = paste(beta_base[[1]], " (", se_base[[1]], ")",sep = "")
+#      b1_str =''
+#      b2_str= ''
+#    }
+#   
+#   int.out = c(int.out, int_str) # Save beta coef &  se for Int 
+#   b1.out = c(b1.out, b1_str) # Beta coef & SE for length
+#   n.out= c(n.out, sample_size) # sample size 
+#   dLL_lin.out=c(dLL_lin.out, dLL_lin) # Change in log-lik from adding linear term
+#   icc.out=c(icc.out,icc)
+# }
+# 
+# int.out = as.data.frame(int.out)
+# b1.out = as.data.frame(b1.out)
+# n.out = as.data.frame(n.out)
+# dLL_lin.out = as.data.frame(dLL_lin.out)
+# r2_base=unlist(lapply(r2.out, '[[', 1))
+# r2_lin=unlist(lapply(r2.out, '[[', 2))
+```
+
+```{r table_h}
+# Make table showing FEs for segment length
+# mytable = cbind(n.out,
+#                 int.out, b1.out,
+#                 r2_base, r2_lin)
+# 
+# mytable = mytable %>%
+#   # Calculate change in R^2 
+#   mutate(d_r2lin = r2_lin-r2_base, # Change in r2 from linear model to base
+#          # Re-format for easier reading 
+#          d_r2lin = formatC(d_r2lin, format = 'e', digits=2)) %>%
+#   # Only include delta-r2 for the models that were selected
+#   mutate(d_r2lin = ifelse(b1.out=='', '', d_r2lin)) %>%
+#   dplyr::select(-c(r2_lin))
+# 
+# mytable$thresh = thresh[1:nrow(mytable)]
+# mytable=mytable %>% dplyr::select(thresh, n=n.out, int.out, b1.out, r2_base, d_r2lin)
+# 
+# kable(mytable, digits = 4, align = c('l', 'c','c','c', 'c', 'c'), caption = 'Best fitting models for each truncated segment length. A one-unit change in segment length=100 more samples.')
+```
+
+## Interpret Beta weights with respect to $H$
+
+```{r interpret_betas_h, include=FALSE}
+# Get list of best fitting models for each dataset
+# bestmods = mytable %>%
+#   dplyr::select(thresh, b1.out) %>%
+#   mutate(best_model='baseline',
+#          best_model=ifelse(b1.out!='', 'linear', best_model))
+# 
+# str_out=c()
+# for (i in bestmods$thresh) {
+#   # Select which model to pull regression weights from 
+#   my_str=''
+#   if (bestmods[i, 'best_model'] == 'baseline')  { # No weights to interpret for baseline model
+#     str_out=c(str_out, my_str)
+#     next 
+#   }
+#   
+#   if (bestmods[i, 'best_model'] == 'linear') {
+#     model_list = lmer1.out
+#   } else{ # quadratic 
+#      model_list = lmer2.out
+#   } 
+#   # Calculate the standardized coefficient. 
+#   temp=interpret_beta_coefficients(thresh=i, dat=dfa2, model_list=model_list, outcome='H')
+#   my_str = paste('The slope of Y at X=0 (segment length=100) is ', round(temp$b1,2), ' (e.g. ', round(temp$b1_norm, 4), ' SDs of Y, SDy=',
+#          round(temp$SDy,4), ').  ', sep='')
+#   
+#   if (!is.null(temp$b2_norm)) {
+#     my_str = paste(my_str,
+#                    'With each 100-sample increase in segment length, the slope changes by ', 
+#                    round(temp$b2_norm, 4), ' SDs')
+#   }
+#   str_out=c(str_out,my_str)
+# }
+# 
+# bestmods %>%
+#   mutate(interpretation = str_out) %>%
+#   kable(digits=4, align=c('l', 'c', 'c', 'r'))
+
+```
+
+```{r plot_model_results_h, cache=TRUE}
+# Plot model for full dataset 
+mod = lmer1.out[[1]]
+dfa2$trunc_length_bin_c = dfa2$trunc_length_bin - 1
+dfa2$yhat = predict(mod, newdata=dfa2)
+
+my_labs = unique(dfa2$trunc_length_bin)
+my_breaks = unique(dfa2$trunc_length_bin_c)
+ggplot(data = dfa2, aes(x=trunc_length_bin_c, y=h)) + 
+  geom_point(alpha=0.2) + 
+  geom_smooth(aes(y=yhat)) +
+  scale_x_continuous(breaks=my_breaks,labels = my_labs ) + 
+  labs(x = 'Truncated Segment Length \n (Each unit=100 samples)', y= '\u03b1')
+```
+
+
+## Variability in $H$ as a function of segment length. 
+* Idea here is that you want there to be HIGH betwen-group-variance and LOW within-group-variane (the group is the time series).
+```{r icc_h}
+icc.out=as.data.frame(icc.out)
+icc.out$thresh = thresh[1:nrow(icc.out)] # Thresh defined in sensitivity analysis chunk
+icc.out %>% 
+  dplyr::select(thresh, icc.out) %>%
+  mutate(color = ifelse(thresh==10,0,1)) %>%
+  ggplot(data=., aes(x=thresh, y=icc.out)) +
+  geom_col(aes(fill=as.factor(color))) + 
+  scale_x_continuous(breaks = icc.out$thresh, labels = icc.out$thresh*100) +
+  coord_flip() +
+  labs(x='Included truncated segments of length>=N', y = 'ICC') +
+  theme_bw()
+```
+
+```{r nseg_per_series, cache=TRUE}
+# Calculate the avg # of truncated segments per time series 
+avg_seg_per_series = NULL
+for (t in icc.out$thresh){
+  temp = dfa2 %>%
+          filter(trunc_length_bin_c>=t) %>%
+          count(longname) %>%
+          summarise(mean_n = mean(n))
+  avg_seg_per_series=c(avg_seg_per_series, temp$mean_n)
+}
+```
+
+```{r model_icc_h, echo = TRUE}
+icc.out$nsegs = avg_seg_per_series
+icc.out$threshc=icc.out$thresh - min(icc.out$thresh)
+
+lm.icc = lm(icc.out ~ 1 + poly(threshc,2) + nsegs, data=icc.out)
+summary(lm.icc)
+
+```
+
+
+# Impact of segment length on $r^2$  
+## Preliminary Visualizations 
+The figures for $r^2$ values tell a different story. $r^2$ is the fit between a linear slope between log(power) and log(frequency), and the actual RMS values estimated at different scales. A low $r^2$ values suggests that there may not actually be power-law scaling.  
+* Should be noted that the median $r^2$ value is high at each segment length.  
+* Even for time series with 1,000 samples, a small % have low $r^2$ values. Perhaps we should exclude time series with low $r^2$ values?
+```{r figs_r2}
+# Plot r2 values 
+ggplot(data=dfa2, aes(x=trunc_length_bin, y=r2, color=trunc_version)) + 
+  geom_point(alpha=.2) + 
+  theme_bw() + 
+  labs(x='Length of time series segment (1 unit=100 samples)', y=expression(r^2)) + 
+  scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) 
+
+ggplot(data=dfa2, aes(x=trunc_length_bin, y=r2)) +
+  geom_boxplot(aes(group=trunc_length_bin, alpha=.2)) + 
+  scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) +
+  theme_bw() +
+  labs(x='Length of time series segment (1 unit=100 samples)', y=expression(r^2))
+```
+
+Skew of $r^2$
+```{r}
+quantile(dfa2$r2, seq(.05,.9,.1))
+```
+- $r^2$ is high for almost all of the data.  
+- Because of the skew, I will define <b>good model fit</b> as $r^2$ values >=0.9. Logistic regression models to determine how segment length impacts the probability of good model fit.  
+
+## Models
+### Model results examining Beta of "Segment Length" Parameter 
+```{r model_r2, echo = TRUE}
+dfa2$r2bin = ifelse(dfa2$r2 <= .9,0,1) # 5th percentile cutoff
+glm.0 = glmer(data=dfa2, r2bin ~ 1 + (1|longname), link='logit', REML=FALSE)
+glm.1 = glmer(data=dfa2, r2bin ~ 1 + trunc_length_bin_c+(1|longname), link='logit',REML=FALSE)
+glm.2 = glmer(data=dfa2, r2bin ~ 1 + poly(trunc_length_bin_c,2)+(1|longname), link='logit',REML=FALSE)
+```
+
+```{r modeltest_r2, include=FALSE}
+anova(glm.1, glm.0)
+anova(glm.2, glm.1)
+dfa2$yhat1 = predict(glm.2, newdata=dfa2)
+```
+
+
+
+```{r model_r2_fig, cache=TRUE, include= TRUE}
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+ggplot(data = dfa2, aes(x=trunc_length_bin_c, y=r2)) + 
+  geom_point(alpha=0.2) + 
+  geom_smooth(aes(y=logit2prob(yhat1))) +
+  scale_x_continuous(breaks=my_breaks,labels = my_labs ) + 
+  theme_bw() + 
+  labs(x = 'Truncated Segment Length \n (Each unit=100 samples)', y= 'Probability of good model fit')
+```
+
+
+```{r print_r2_model}
+summary(glm.2)
+int = fixef(glm.2)[[1]]
+int_prob=logit2prob(int)
+lin = fixef(glm.2)[[2]]
+lin_prob=logit2prob(lin)
+quad = fixef(glm.2)[[3]]
+
+e=2.718281828459
+
+abs(lin/quad) # Point when pos (linear) and neg (quadratic) effects are zero
+
+```
+- On average, the probability of having good model fit was `r int_prob`.  
+- Point at which positive effect and negative effect are zero: `r abs(lin/quad) +1`
+
+
+### Sensitivity Analysis
+```{r runmods_r2, cache = TRUE, include=TRUE, echo =TRUE}
+count = 1
+glm0.out = list()
+glm1.out = list()
+glm2.out = list()
+r2.out = list()
+#
+thresh = seq(2, max(dfa2$trunc_length_bin)-2) # Need at least 3 levels of trunc_length_bin to test for quadratic effect 
+
+for (m in thresh) {
+  modeldat =dfa2 %>% filter(trunc_length_bin >= m )
+  
+  # Center trunc_length_bin so that the shortest segment length is 0
+  # Do this for every thresholded dataset, to better interpret the linear/quadratic effect
+  modeldat = modeldat %>% mutate(trunc_length_bin_c = trunc_length_bin - m)
+  
+  # Baseline model
+  glm.0 = glmer(r2bin ~1+(1 | longname), 
+               data = modeldat, link='logit', REML = FALSE)
+
+  # Linear fixed effect of TruncLength
+  glm.1 = glmer(r2bin ~1+ trunc_length_bin_c+(1 | longname), 
+               data = modeldat, link='logit', REML = FALSE)
+  # Quadratic effect
+  glm.2 =glmer(r2bin ~1+ poly(trunc_length_bin_c,2)+(1 | longname), 
+               data = modeldat, link='logit', REML = FALSE)
+  
+
+  # Generate r2 for all models 
+  modeldat$y0 = predict(object = glm.0, newdata=modeldat)
+  modeldat$y1 = predict(object = glm.1, newdata=modeldat)
+  modeldat$y2 = predict(object = glm.2, newdata=modeldat)
+  r2=c(cor(modeldat$r2, modeldat$y0)^2,
+       cor(modeldat$r2, modeldat$y1)^2,
+       cor(modeldat$r2, modeldat$y2)^2)
+  
+  # Save model output
+  glm0.out[[count]] = glm.0
+  glm1.out[[count]] = glm.1
+  glm2.out[[count]] = glm.2
+  r2.out[[count]] = r2
+  count = count + 1
+}
+```
+
+
+```{r sensitivity_r2, cache=FALSE}
+# Go thru model results and pull fixed effects & model fit stats for each dataset
+int.out = c()
+b1.out= c()
+b2.out = c()
+n.out=c()
+dLL_lin.out=c()
+dLL_quad.out=c()
+icc.out=c()
+count=1
+for (i in c(1:length(glm0.out)) ) {
+  m0 = glm0.out[[i]]
+  m1 = glm1.out[[i]]
+  m2 = glm2.out[[i]]
+
+  # Calculate stats on linaer model fit 
+  temp=anova(m0,m1)  
+  p_lin = temp$`Pr(>Chisq)`[2]# p-value for whether adding "length" term improves model fit
+  dLL_lin = temp$logLik[2] - temp$logLik[1] # delta log-likelihood 
+  
+  # Calculate stats on quadratic model fit
+  temp=anova(m1,m2)
+  p_quad = temp$`Pr(>Chisq)`[2]# p-value for whether adding "length" term improves model fit
+  dLL_quad = temp$logLik[2] - temp$logLik[1] # delta log-likelihood
+  
+  # Pull FEs - baseline
+  summ=summary(m0)
+  fixef = coef(summ)
+  beta_base = round(fixef[, 'Estimate'], 3)
+  se_base = round(fixef[, 'Std. Error'],3)
+
+  # Pull FEs - linear 
+  summ = summary(m1)
+  fixef = coef(summ)
+  beta_lin = round(fixef[, 'Estimate'], 3)
+  se_lin = round(fixef[, 'Std. Error'],3)
+  
+  # Pull FEs - quad
+  summ = summary(m2)
+  fixef = coef(summ)
+  beta_quad=round(fixef[, 'Estimate'], 3)
+  se_quad = round(fixef[, 'Std. Error'],3)
+  
+  # Sample size for model
+  sample_size=nobs(m0)
+  
+  # ICC
+  icc = icc(m0)$ICC_adjusted
+  
+  # make strings for table
+ if (p_quad < 0.5) { # If quadratic model improved fit over linear model 
+    int_str = paste(beta_quad[[1]], " (", se_quad[[1]], ")",sep = "")
+    b1_str = paste(beta_quad[[2]], " (", se_quad[[2]], ")", sep = '')
+    b2_str = paste(beta_quad[[3]], " (", se_quad[[3]], ")", sep = '')
+ }else if (p_lin<0.5){ # If linear model improved fit over baseline 
+    int_str = paste(beta_lin[[1]], " (", se_lin[[1]], ")",sep = "")
+    b1_str = paste(beta_lin[[2]], " (", se_lin[[2]], ")", sep = '')
+    b2_str = ''
+  } 
+  else{ # baseline was best model 
+     int_str = paste(beta_base[[1]], " (", se_base[[1]], ")",sep = "")
+     b1_str =''
+     b2_str= ''
+   }
+  
+  int.out = c(int.out, int_str) # Save beta coef &  se for Int 
+  b1.out = c(b1.out, b1_str) # Beta coef & SE for length
+  b2.out = c(b2.out, b2_str)
+  n.out= c(n.out, sample_size) # sample size 
+  dLL_lin.out=c(dLL_lin.out, dLL_lin) # Change in log-lik from adding linear term
+  dLL_quad.out=c(dLL_quad.out, dLL_quad)
+  icc.out=c(icc.out,icc)
+}
+
+int.out = as.data.frame(int.out)
+b1.out = as.data.frame(b1.out)
+b2.out = as.data.frame(b2.out)
+n.out = as.data.frame(n.out)
+dLL_lin.out = as.data.frame(dLL_lin.out)
+dLL_quad.out = as.data.frame(dLL_quad.out)
+r2_base=unlist(lapply(r2.out, '[[', 1))
+r2_lin=unlist(lapply(r2.out, '[[', 2))
+r2_quad=unlist(lapply(r2.out, '[[',3))
+```
+
+```{r table_r2}
+# Make table showing FEs for segment length
+mytable = cbind(n.out,
+                int.out, b1.out, b2.out,
+                r2_base, r2_lin, r2_quad)
+
+mytable = mytable %>%
+  # Calculate change in R^2 
+  mutate(d_r2lin = r2_lin-r2_base, # Change in r2 from linear model to base
+         d_r2quad = r2_quad - r2_base, # Change in r2 from quad to base 
+         # Re-format for easier reading 
+         d_r2lin = formatC(d_r2lin, format = 'e', digits=2),
+         d_r2quad = formatC(d_r2quad, format='e', digits=2))%>%
+  # Only include delta-r2 for the models that were selected
+  mutate(d_r2lin = ifelse(b1.out=='', '', d_r2lin), # If baseline model was the best, dont report delta-r2 for linear 
+         d_r2quad= ifelse(b1.out==''|b2.out=='','', d_r2quad)) %>% # If baeline or linear was best, dont report delta-r2 for quad
+  dplyr::select(-c(r2_lin, r2_quad))
+
+mytable$thresh = thresh[1:nrow(mytable)]
+mytable=mytable %>% dplyr::select(thresh, n=n.out, int.out, b1.out, b2.out, r2_base, d_r2lin, d_r2quad)
+
+kable(mytable, digits = 4, align = c('l', 'c','c','c', 'c', 'c','c','c'), caption = 'Best fitting models for each truncated segment length. A one-unit change in segment length=100 more samples.')
+```
+
+
+### Variability in $r^$ as a function of segment length. 
+```{r icc_r2}
+icc.out=data.frame(icc=c(icc(glm.0)$ICC_adjusted, # Append first model result (where thresh = 1)
+                          icc.out) )
+
+icc.out$thresh = c(1:nrow(icc.out))
+icc.out %>%
+  dplyr::select(thresh, icc) %>%
+  mutate(color = ifelse(thresh==10,0,1)) %>%
+  ggplot(data=., aes(x=thresh, y=icc)) +
+  geom_col(aes(fill=as.factor(color))) +
+  scale_x_continuous(breaks = icc.out$thresh, labels = icc.out$thresh*100) +
+  coord_flip() +
+  labs(x='Included truncated segments of length>=N', y = 'ICC') +
+  theme_bw()
+```
+
+
+```{r lowr2}
+# Examine segment length, h, and how many unique time series contributed to this
+# cutoff = quantile(dfa2$r2, c(0.05))[[1]]
+# lowr = dfa2 %>%
+#   filter(r2 <= cutoff) %>%
+#   summarise(n = n(),
+#             mean_h = mean(h), 
+#             mean_r2 = mean(r2),
+#             median_length = median(trunc_length_bin),
+#             min_length = min(trunc_length_bin),
+#             max_length = max(trunc_length_bin),
+#             n_trunc1 = sum(trunc_length_bin==1),
+#             n_trunc2 = sum(trunc_length_bin==2),
+#             n_trunc3 = sum(trunc_length_bin==3),
+#             n_trunc4 = sum(trunc_length_bin==4))
+
+# - `r lowr$n` segments were removed for being in the bottom 5th percentile of $r^2$ values (mean $r^2$=`r lowr$mean_r2`, mean $H$=`r lowr$mean_h`).  
+# - Most were short segments: `r round(lowr$n_trunc1 / lowr$n * 100, 2)`% were length=100, `r round(lowr$n_trunc2 / lowr$n * 100, 2)`% were length=200, `r round(lowr$n_trunc3 / lowr$n * 100, 2)`% were length=300, `r round(lowr$n_trunc4 / lowr$n * 100, 2)`% were length=400.   
+# - To make modeling easier, I'll only consider truncated segment lengths >=400.  
+# - Even w/ longer segment lengths, there are still some outlier $r^2$ values,. In DFA, we'll only include time series w/ $r^$ >=0.8 Remove anything less from the sample too.  
+```
+
+```{r conditional_r2, cache=TRUE}
+# dfa3 = dfa2 %>% 
+#   filter(trunc_length_bin >= 4,
+#          r2 >= 0.8)
+# #k=max(dfa3$r2) + 1
+# 
+# # Plot r2 values 
+# ggplot(data=dfa3, aes(x=trunc_length_bin, y=r2) ) + 
+#   geom_point(alpha=.2) + 
+#   theme_bw() + 
+#   labs(x='Length of time series segment (1 unit=100 samples)', y=expression(r^2)) + 
+#   scale_x_continuous(breaks=unique(dfa2$trunc_length_bin)) 
+
+```

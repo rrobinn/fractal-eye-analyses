@@ -77,7 +77,7 @@ for (f in files){
   # filename without extension
   fname=gsub(pattern = "\\.tsv$", "", filename)  
   
-  write.csv(x=to_print, file = paste(f, '/', fname, '.txt', sep='' ), row.names = FALSE, eol = '\n', col.names = colnames)  
+  write.csv(x=to_print, file = paste(f, '/', fname, '.txt', sep='' ), row.names = FALSE, eol = '\n')  
   write.csv(x=colnames, file = paste(f, '/colnames.txt', sep =''), row.names=FALSE)
   
 

@@ -178,5 +178,8 @@ for f=1:length(folderNames)
     data(:, dataCol.gazeY) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeY)) );
     data(:, dataCol.gazeLx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeLx)) );
     data(:, dataCol.gazeRx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeRx)) );
+    %% Remove rows where media = 999 (padding bw trials)
+    toremove = strcmp(data(:, dataCol.media), '999');
+    data=data(~toremove, :); 
 end
 end

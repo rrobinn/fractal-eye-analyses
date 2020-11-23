@@ -24,6 +24,7 @@ if strictValidityFlag~=0 & strictValidityFlag~=1
 end
 disp(['\n Interpolating data. strictValidityFlag set to ' num2str(strictValidityFlag) '\n']);
 
+PrefBin.StrictValidityFlag = strictValidityFlag;
 %% Select data
 propInterpolated = zeros(length(ParticData.Data),1);
 if isempty(ParticData.Data) % quit if there is no data.

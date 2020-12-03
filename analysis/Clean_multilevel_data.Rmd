@@ -46,35 +46,24 @@ aoi_data<- read.csv( paste(wdir, 'data/face_out.txt', sep ='') )
 # Format DFA output
 ```{r}
 # Format DFA output 
-
-# FOr when you have DOB from database 
-# h = h %>%
-#   # Create variable for Participant ID (currently combined with session #)
-#   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-#   left_join(dob, by=c('Participant'='PSCID')) %>%
-#   # Calculate age at time of visit 
-#   mutate(DoB =as.Date(DoB, format='%m/%d/%y'),
-#          date=as.Date(date, format='%m/%d/%Y')) %>%
-#   mutate(age=(date-DoB)/30.42,
-#          age=as.numeric(age))%>%
-#     # Create Dummies for CalVer & Pixelated
-#   mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
-#          Pix=ifelse(grepl('S', movie), 1, 0)) 
 h = h %>%
   # Create variable for Participant ID (currently combined with session #)
   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
   left_join(particList, by='id') %>%
     # Create Dummies for CalVer & Pixelated
   mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
-         Pix=ifelse(grepl('S', movie), 1, 0))
-
-# Filter if they are not in the participant list 
-h = h%>% filter(id %in% particList$id) 
+         Pix=ifelse(grepl('S', movie), 1, 0)) %>%
+ # Variable to keep track of if theyre in participant list
+  mutate(particList = ifelse(id %in% particList$id, 1, 0))
 
 # Log who was removed 
 removed_h = h %>%
   dplyr::select(Participant, id) %>%
-  mutate(partic_list = ifelse(id %in% particList$id, 0, 1))
+  mutate(partic_list = ifelse(id %in% particList$id, 0, 1)) %>%
+  filter(particList == 1)
+
+# Filter if they are not in the participant list 
+h = h%>% filter(particList == 0) 
 ```
 
 
@@ -157,6 +146,7 @@ h2 = h2 %>% filter(remove_propInterp==0)
 We removed the following data for  <b>time series that were too short</b>:  
 ```{r}
 h2 = h2 %>% mutate(remove_tooshort = ifelse(h==-9999,1,0))
+write.csv(file = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/cleaned_data_incl_too_short.csv', x = h2)
 # Removed for too short
 h2 %>%
   filter(remove_tooshort == 1) %>%

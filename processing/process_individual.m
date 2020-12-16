@@ -3,7 +3,7 @@ function [success] = process_individual(id, varargin)
 %  processes data for one individual. Useful for parallelizing jobs
 
 % assumes that data{} and dataCol.() have already been created by
-% read_et_data.m. There should already be a folder for each participant in
+% read_et_data.m. There should already be a folder for each visit in
 % inFilePath
 success = 0;
 

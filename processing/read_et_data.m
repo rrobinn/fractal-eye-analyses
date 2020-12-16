@@ -1,4 +1,4 @@
-function [data, txtCol] = read_et_data(inFilePath, varargin)
+function read_et_data(inFilePath, varargin)
 %% Reads in eye-tracking data from tobii. (Expects a .txt file, with corresponding colnames.txt)
 % Inputs: 
 % inFilePath = Path to parent directory that has sub-directories (one for each visit) containing
@@ -48,7 +48,7 @@ log = cell(length(folderNames), 2);
 for f=1:length(folderNames)
     
     log{f,1} = folderNames{f}; 
-    cd(folderNames{f});
+    cd([inFilePath folderNames{f}]);
     disp(['Looking for ' folderNames{f} '.txt']);
     
     txtFileName = [folderNames{f} '.txt']; % Name of .txt file script looks for
@@ -179,7 +179,9 @@ for f=1:length(folderNames)
     data(:, dataCol.gazeLx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeLx)) );
     data(:, dataCol.gazeRx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeRx)) );
     %% Remove rows where media = 999 (padding bw trials)
-    toremove = strcmp(data(:, dataCol.media), '999');
-    data=data(~toremove, :); 
+    %toremove = strcmp(data(:, dataCol.media), '-9999');
+    %data=data(~toremove, :); 
+    save([folderNames{f} '_RawData.mat'], 'data', 'dataCol');
+    clear data dataCol; 
 end
 end

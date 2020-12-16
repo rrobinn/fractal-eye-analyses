@@ -1,0 +1,228 @@
+---
+title: "R Notebook"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    self_contained: true
+---
+
+```{r warning=FALSE, comment = FALSE, message = FALSE}
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(readxl)
+wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+               cache=FALSE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               include=TRUE)
+
+
+source(paste(wdir, '/processing/helper_functions/get_date_et.R', sep =''))
+# Directory where each session has its own directory
+data_dir = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
+# LORIS query
+cohort_csv = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
+```
+
+# Pulling info
+The age at a visit is not easily linked to the session ID. To get this information, I pull the date of visit from the tobii file, and calculate the age based on their DOB (which Eli sends me bc PII).   
+
+## Get date of visit from tobii
+```{r getDateOfVisit, cache = TRUE}
+files = list.dirs(data_dir)
+# Get date of scan for calculating DOBs from raw tobii file
+ids = c()
+date_of_vis = c()
+
+for (f in files){
+  ids = c(ids, basename(f))
+  date_of_vis = c(date_of_vis, get_date_et(f))
+}
+
+# Years are not entered in consistent way - fix this. 
+date_of_vis = unlist(date_of_vis)
+date_split = strsplit(date_of_vis, '/')
+
+# Data.frame to store visit dates 
+visit_dates = data.frame(session = ids, 
+                         date = as.character(date_of_vis),
+                         year = unlist(lapply(date_split, '[', 3)),
+                         month = unlist(lapply(date_split, '[', 1)) ,
+                         day = unlist(lapply(date_split, '[', 2) ))
+
+
+# Format visit date 
+visit_dates = visit_dates %>%
+  mutate(session = as.character(session)) %>%
+  mutate(PSCID = paste(lapply(strsplit(session, '_'), '[[', 1),
+                       lapply(strsplit(session, '_'), '[[', 2), sep = '_') ) %>%
+  # Fix years
+  mutate(year = as.numeric(as.character(year)),
+         year = year%%2000,
+         year = year + 2000) %>%
+  mutate(month = as.numeric(as.character(month)),
+         day = as.numeric(as.character(day))) %>%
+  mutate(visit_date = paste(year,month,day, sep = '-')) 
+
+```
+
+```{r}
+head(visit_dates)
+```
+
+## DOB
+```{r}
+DOB = read_excel("/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx", 
+                 sheet = "Clean", col_types = c("text", "numeric", "date"))
+DOB = DOB %>% dplyr::select(PSCID, DOB)
+```
+
+
+## Get info on cohort
+```{r}
+cohort = read.csv(cohort_csv, stringsAsFactors = FALSE)
+cohort = cohort %>%
+  dplyr::select(CandID = demographics.CandID,
+                Cohort = demographics.Cohort,
+                PSCID = demographics.PSCID) %>%
+  filter(Cohort != 'BCP_CFP') %>%
+  distinct() 
+
+# Add row number for IDs w/ multiple cohorts 
+cohort = cohort %>% group_by(PSCID) %>% mutate(rownum = row_number())
+```
+
+# Merge DOB and Cohort info with list of new visits 
+```{r}
+visits = list.dirs(data_dir)
+visits = basename(visits)
+visits = new[2:length(visits)]
+
+# Get ID
+temp = strsplit(visits, '_')
+ids = paste(lapply(temp, '[', 1), lapply(temp, '[', 2), sep = '_')
+
+# Make data.frame
+visits = data.frame(session = visits, PSCID = ids, stringsAsFactors=FALSE) # 213 
+
+# Merge DOB
+visits = left_join(visits, DOB, by = 'PSCID') # 213
+
+# Merge cohort info
+visits$rownum = 1 # Only pull the first cohort for an individual
+visits = left_join(visits, cohort, by = c('PSCID', 'rownum'))
+
+# Merge visit dates 
+visits = left_join(visits, visit_dates %>% dplyr::select(session, visit_date), by = 'session')
+
+```
+
+
+```{r}
+# Calculate age at visits
+visits = visits %>%
+  mutate(age = as.Date(visit_date) - as.Date(DOB),
+         age = as.numeric(age),
+         age = age/30.42)
+
+# Clean up cohort
+visits = visits %>%
+  mutate(Cohort2 = ifelse(grepl(pattern = 'BCP_A', x = Cohort), 'BCP_A', Cohort),
+         Cohort2 = ifelse(grepl(pattern = 'BCP_B', x = Cohort), 'BCP_B', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'BCP_C', x = Cohort), 'BCP_C', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'BCP_D', x = Cohort), 'BCP_D', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'BCP_ELISON', x = Cohort), 'BCP_ELISON', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'BCP_E', x = Cohort) & Cohort2!='BCP_ELISON', 'BCP_E', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'DSA', x = Cohort), 'Other', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'Infant_Face_Tracking', x = Cohort), 'Other', Cohort2)) # DevSocAtt, Infant Face Tracking
+
+```
+
+
+# Data from MS
+```{r}
+# Data from ms (to see who we already have)
+# List of id_sessions & their ages to include to analyses (DOB is identifying info) 
+particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
+
+# Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
+h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
+
+# Calibration precision spreadsheet  
+AvgPrecision <- read.csv( paste(wdir, 'data/et_precision.csv', sep=''), stringsAsFactors = FALSE )
+```
+
+```{r ms_participants, cache = TRUE}
+min_age = 0
+max_age = 40
+h = h %>%
+  # Create variable for Participant ID (currently combined with session #)
+  mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
+  left_join(particList, by='id') %>%
+  # Create Dummies for CalVer & Pixelated
+  mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
+         Pix=ifelse(grepl('S', movie), 1, 0)) %>%
+  # Variable to keep track of if theyre in participant list
+  mutate(particList = ifelse(id %in% particList$id, 1, 0))
+
+#  Merge precision data
+h2= h %>% left_join(AvgPrecision, by='id') 
+h2 = h2 %>% mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
+
+# Merge age range
+h2 = h2 %>% mutate(remove_age = ifelse(age>=min_age & age<=max_age, 0,1))
+
+# Merge prop interp
+h2 = h2 %>% mutate(remove_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0))
+
+# Merge too short
+h2 = h2 %>% mutate(remove_tooshort = ifelse(h==-9999,1,0))
+
+h2 = h2 %>% 
+  mutate(excl1 = ifelse(remove_precision==1 | remove_age == 1 | remove_propInterp ==1 | remove_tooshort == 1, 1, 0),
+         excl2 = ifelse(remove_precision==1 | remove_age == 1 | remove_propInterp ==1, 1, 0))
+```
+
+```{r echo = TRUE}
+dim(h2)
+dim(h2 %>% filter(excl1 == 0)) # Exclusionary criteris from 2020 ms
+```
+
+
+
+```{r}
+old_data = h2 %>%
+  filter(excl1 ==0) %>%
+  dplyr::select(session = id, Cohort = cohort, age) %>%
+  distinct() %>%
+  mutate(Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort),
+         Cohort2 = ifelse(grepl(pattern = 'DevSocAtt', x = Cohort), 'Other', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'ELISON', x = Cohort), 'BSLERP', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'E1', x = Cohort), 'BCP_E', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'A2', x = Cohort) | 
+                            grepl(pattern = 'A3', x = Cohort) , 'BCP_A', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'B1', x = Cohort) |
+                            grepl(pattern = 'B2', x = Cohort) |
+                            grepl(pattern = 'B3', x = Cohort), 'BCP_B', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'C1', x = Cohort) |
+                            grepl(pattern = 'C2', x = Cohort) |
+                            grepl(pattern = 'C3', x = Cohort), 'BCP_C', Cohort2),
+         Cohort2 = ifelse(grepl(pattern = 'D1', x = Cohort) |
+                            grepl(pattern = 'D2', x = Cohort) |
+                            grepl(pattern = 'D3', x = Cohort), 'BCP_D', Cohort2)) 
+
+```
+
+
+
+
+
+
+

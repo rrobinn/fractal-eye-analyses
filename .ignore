@@ -16,5 +16,9 @@
 *README.html
 *README_cache/
 #*README_files/
+
 # Prevent users to commit output
 out/
+
+# data directories
+data/misc_queries/*

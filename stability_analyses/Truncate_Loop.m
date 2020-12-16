@@ -18,7 +18,7 @@ for i = 1:length(files)
     id = files(i).name;
     try
         [myErrors] = truncate_participant(id);
-        errors=vertcat(errors,myErrors);
+        errors=vertcat(errors,{myErrors, id});
     catch ME
         e = {ME.identifier, id};
         errors = vertcat(errors, e);

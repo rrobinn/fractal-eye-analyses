@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r}
-n_ts = 1000 # How many time series to simulate 
+n_ts = 10000 # How many time series to simulate 
 set.seed(123)
 wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
 out_dir = paste(wdir, 'stability_analyses/out/',sep='')
@@ -47,6 +47,8 @@ hist(h$length_frames)
 parms = JohnsonFit(h$length_frames, moment = 'quant') # Estimate parameters for Johnson distribution 
 sim_lengths = rJohnson(nrow(h), parms) # Random distribution generator 
 sim_lengths = round(sim_lengths)
+sim_lengths = sim_lengths[sim_lengths>=1000] # remove time series shorter than 1,000 samples 
+
 
 par(2,1,new=TRUE)
 hist( h$length_frames , freq=FALSE)
@@ -105,47 +107,3 @@ write.csv(hursts,  paste(out_dir, 'simHursts.csv', sep=''))
 
 
 
-```{r setup, include=FALSE, echo=FALSE, warning=FALSE}
-
-##RUN THE FOLLOWING CODE ONCE: THEN READ IN EXCEL FILE FOR THE FUTURE (ABOVE)
-
-# file_dir='/Users/Isabella/Box/Dancing Ladies share/Stability analyses/Time series csv/'
-# sessions=list.files(file_dir)
-# sessions=as.data.frame(unlist(sessions))
-# 
-# ID_list=NULL
-# Dataset=NULL
-# 
-# for (i in 124:nrow(sessions)){
-#   id=sessions[i,1]
-#   segments=list.files(paste(file_dir, id, sep="/"))
-#   segments=as.data.frame(segments)
-#   
-#   if (nrow(segments)<1){
-#     print(paste("No data for", id)) 
-#   }
-#   
-#   if (nrow(segments)>1){
-#     
-#     for (x in 1:nrow(segments)){
-#       file=read.csv(paste(file_dir, id, '/', segments[x,1], sep=""), header = F)
-#       movie=paste(sapply(strsplit(as.character(segments[x,1]), '_'), '[', 4), ... = sapply(strsplit(as.character(segments[x,1]), '_'), '[', 5), sep = '_') 
-#       segment=sapply(strsplit(as.character(segments[x,1]), '_'), '[', 6)
-#       
-#       
-#       # data=matfile$segmentedData
-#       data=file
-#       data=as.data.frame(as.numeric(unlist(data)))
-#       data=as.data.frame(data[!is.nan(as.numeric(unlist(data))),])
-#       data=transpose(data)
-#       data=cbind(id,movie,segment, data)
-#       ID_list=rbind(ID_list, id)
-#       Dataset=rbind.fill(Dataset, data)
-#     }
-#   }
-# }
-# 
-# #saves out since it takes a long-ass time to run
-# # library(xlsx)
-# write.csv(Dataset, '/Users/Isabella/Box/Dancing Ladies share/Stability analyses/allTimeSeries.csv')
-```

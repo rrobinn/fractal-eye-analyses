@@ -2,7 +2,7 @@
 % (specified by "folder") and concatenate data into a single data frame
 
 %% User-defined input
-folder = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/parameter-stability/'; % Folder w/ individual data, where concatenated output will be written
+folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/parameter-stability-full-ts/'; % Folder w/ individual data, where concatenated output will be written
 outputFileName = 'stability_out.txt'; % Name for output file with concatenated data
 header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, scmin, scmaxdiv, scres, h, r2, h_warning'; % header for output file 
 

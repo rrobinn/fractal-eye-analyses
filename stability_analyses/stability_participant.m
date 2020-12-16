@@ -13,9 +13,9 @@ rootDir = pwd;
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-dataDir = [rootDir '/data/'];
+dataDir = [rootDir '/data/individual_data/'];
 figDir = [rootDir '/Figs/stability/'];
-outDir = [rootDir '/out/stability_analyses/'];
+outDir = [rootDir '/out/stability_analyses/parameter-stability-full-ts/'];
 %% Default settings
 [settings] =  MFDFA_settings();
 %% Override defaults if varargin>0 varargin (settings, and path overriding)

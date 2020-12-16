@@ -2,10 +2,10 @@
 % (specified by "folder") and concatenate data into a single data frame
 
 %% User-defined input
-folder = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/truncated_ts/constant_segment_length/'; % Folder w/ individual data, where concatenated output will be written
-outputFileName = 'stability_out.txt'; % Name for output file with concatenated data
+folder = '/Users/sifre002/Documents/Code/fractal-eye-analyses/out/stability_analyses/simulated_series/'; % Folder w/ individual data, where concatenated output will be written
+outputFileName = 'simulated_stability_out.txt'; % Name for output file with concatenated data
+simulatedDataFlag = 1;
 header = 'id, movie_seg, scmin, scmaxdiv, scres, trunc_start, trunc_end, h, r2, h_warning'; % header for output file
-
 %%
 files = dir(folder);
 dirFlags = [files.isdir];
@@ -33,6 +33,13 @@ for f = 1:size(files,1)
         end
         
     end
+    
+    % If .mat file is empty 
+    if isempty(h_out) || isempty(h_errors)
+        readErrors = horzcat(readErrors, [id ' had empty h_out']);
+        continue;
+    end
+    
     % Create character of smin,scmaxDiv,scres
     mySettings=[num2str(settings.scmin) ',' num2str(settings.scmaxDiv) ',' num2str(settings.scres)];
     
@@ -58,3 +65,5 @@ celldisp(readErrors);
 readErrors=readErrors';
 display(['Done! Concatenated output in: ' folder]);
 display(['WARNING: There were issues with ' num2str(length(readErrors)) ' files']);
+
+save([folder 'readErrors.mat'], 'readErrors');

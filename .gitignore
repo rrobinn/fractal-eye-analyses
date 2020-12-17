@@ -4,4 +4,8 @@ data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx
 data/misc_queries/cohort-2020-12-07.csv
 data/misc_queries/age-2020-12-03.csv
 *.html
-processing/dissertation_partic_list.Rmd
+
+processing/dissertation_dissertation_partic_list_files/
+processing/dissertation_dissertation_partic_list_cache/
+
+.DS_Store

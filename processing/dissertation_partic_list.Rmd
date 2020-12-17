@@ -102,7 +102,7 @@ cohort = cohort %>%
   dplyr::select(CandID = demographics.CandID,
                 Cohort = demographics.Cohort,
                 PSCID = demographics.PSCID) %>%
-  filter(Cohort != 'BCP_CFP') %>%
+  filter(Cohort != 'BCP_CFP') %>% # Feeding visit (not a real vis)
   distinct() 
 # Add row number for IDs w/ multiple cohorts 
 cohort = cohort %>% group_by(PSCID) %>% mutate(rownum = row_number())

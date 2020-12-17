@@ -6,12 +6,13 @@ output:
     self_contained: true
 ---
 
-```{r warning=FALSE, comment = FALSE, message = FALSE}
+```{r warning=FALSE, comment = FALSE, message = FALSE, echo = FALSE}
 library(tidyverse)
 library(ggplot2)
 library(knitr)
 library(readxl)
-wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
+library(DT)
+wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
 opts_chunk$set(echo=FALSE,
                cache=FALSE,
@@ -22,18 +23,28 @@ opts_chunk$set(echo=FALSE,
                warning=FALSE,
                include=TRUE)
 
-
-source(paste(wdir, '/processing/helper_functions/get_date_et.R', sep =''))
-# Directory where each session has its own directory
-data_dir = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
-# LORIS query
-cohort_csv = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
+source(paste(wdir, 'processing/helper_functions/get_date_et.R', sep =''))
 ```
 
-# Pulling info
-The age at a visit is not easily linked to the session ID. To get this information, I pull the date of visit from the tobii file, and calculate the age based on their DOB (which Eli sends me bc PII).   
+# About
+To get a list of visits, age at visit, and cohort, the following info must be merged:  
+ 
+```{r echo = TRUE}
+# Directory where each session has its own sub-directory
+data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
+# LORIS query
+cohort_csv = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
+# DOB query
+DOB = read_excel(paste(wdir, "data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx", sep = ''), 
+                 sheet = "Clean", col_types = c("text", "numeric", "date"))
+```
+- `data_dir`: Location of <b>eye-tracking data</b> (.tsv and .mat files). If a .tsv in `~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED` contains the strings 'CalVer', 'Dancing', 'EU', or 'DL', it will end up with its own subdirectory in `~/AUDIT_PASSED/`.  
+- `cohort_csv`: Participant <b>cohort information</b> queried from LORIS.  
+- `DOB`: Contains each participant's date of birth. The age at a visit is not easily linked to the session ID. To get this information, I pull the date of visit from the tobii file, and calculate the age based on their DOB (which Eli sends me bc PII).  
 
-## Get date of visit from tobii
+
+
+## Get date of visit from tobii .tsv
 ```{r getDateOfVisit, cache = TRUE}
 files = list.dirs(data_dir)
 # Get date of scan for calculating DOBs from raw tobii file
@@ -76,11 +87,11 @@ visit_dates = visit_dates %>%
 head(visit_dates)
 ```
 
-## DOB
+
+## Get DOB
 ```{r}
-DOB = read_excel("/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx", 
-                 sheet = "Clean", col_types = c("text", "numeric", "date"))
 DOB = DOB %>% dplyr::select(PSCID, DOB)
+head(DOB)
 ```
 
 
@@ -93,16 +104,17 @@ cohort = cohort %>%
                 PSCID = demographics.PSCID) %>%
   filter(Cohort != 'BCP_CFP') %>%
   distinct() 
-
 # Add row number for IDs w/ multiple cohorts 
 cohort = cohort %>% group_by(PSCID) %>% mutate(rownum = row_number())
+head(cohort)
 ```
 
-# Merge DOB and Cohort info with list of new visits 
+# Merge data 
 ```{r}
+# Merge DOB and Cohort info with list of new visits 
 visits = list.dirs(data_dir)
 visits = basename(visits)
-visits = new[2:length(visits)]
+visits = visits[2:length(visits)]
 
 # Get ID
 temp = strsplit(visits, '_')
@@ -146,7 +158,6 @@ visits = visits %>%
 ```
 
 
-# Data from MS
 ```{r}
 # Data from ms (to see who we already have)
 # List of id_sessions & their ages to include to analyses (DOB is identifying info) 
@@ -190,18 +201,22 @@ h2 = h2 %>%
          excl2 = ifelse(remove_precision==1 | remove_age == 1 | remove_propInterp ==1, 1, 0))
 ```
 
+List of visits from manucript should include those who were excluded.  
 ```{r echo = TRUE}
 dim(h2)
 dim(h2 %>% filter(excl1 == 0)) # Exclusionary criteris from 2020 ms
 ```
 
+```{r echo=TRUE}
+old_data = h2 %>%
+  filter(excl1 ==0) %>%
+  dplyr::select(session = id, Cohort = cohort, PSCID = Participant, age) %>%
+  distinct()
+```
 
 
 ```{r}
-old_data = h2 %>%
-  filter(excl1 ==0) %>%
-  dplyr::select(session = id, Cohort = cohort, age) %>%
-  distinct() %>%
+old_data = old_data %>%
   mutate(Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort),
          Cohort2 = ifelse(grepl(pattern = 'DevSocAtt', x = Cohort), 'Other', Cohort2),
          Cohort2 = ifelse(grepl(pattern = 'ELISON', x = Cohort), 'BSLERP', Cohort2),
@@ -217,6 +232,116 @@ old_data = h2 %>%
          Cohort2 = ifelse(grepl(pattern = 'D1', x = Cohort) |
                             grepl(pattern = 'D2', x = Cohort) |
                             grepl(pattern = 'D3', x = Cohort), 'BCP_D', Cohort2)) 
+```
+
+
+# Final visit list  
+Includes visits that were ultimately excluded.  
+
+```{r}
+old_data$old = 1
+visits$old = 0
+
+# List of sessions that show up in both
+to_remove_from_new = intersect(old_data$session, visits$session)
+visits = visits %>% filter(!(session %in% to_remove_from_new))
+
+vis_list = rbind(old_data, visits %>% dplyr::select(session, Cohort, PSCID, Cohort, Cohort2, age, old))
+
+datatable(vis_list)
+```
+
+<b>List of Cohorts</b>
+```{r}
+unique(vis_list$Cohort2)
+```
+
+
+<b>visits that are not BSLERP/BCP cohorts</b>  
+```{r}
+datatable(vis_list %>% filter(Cohort2 == 'Other') %>% dplyr::select(session, Cohort, Cohort2) %>% arrange(session), caption = 'Non BSLERP/BCP Visits')
+```
+
+How many visits do DevSocAtt kids have? 
+```{r}
+DSA_ids = vis_list %>% filter(Cohort2 == 'Other') %>% dplyr::select(PSCID) %>% unique()
+vis_list %>%
+  filter(PSCID %in% DSA_ids$PSCID) %>%
+  dplyr::select(PSCID, Cohort) %>%
+  group_by(PSCID) %>%
+  summarise(n_visits = n()) %>%
+  ungroup() %>%
+  count(n_visits)
+```
+
+
+<b>visits with missing cohort info</b>  
+```{r}
+vis_list %>% filter(is.na(Cohort2)) %>% dplyr::select(session, Cohort, Cohort2) %>% arrange(session)
+
+```
+
+
+```{r}
+# Add age at first visit to help w/ plotting
+vis_list2 = vis_list %>%
+  group_by(PSCID) %>%
+  # Add number of visits (n), and ageFirstVis
+  summarise(ageFirstVis = min(age)) %>%
+  left_join(., vis_list, by='PSCID') %>%
+  ungroup() %>%
+  mutate(old = ifelse(old==1, 'Old', 'New'))
+
+```
+
+## Visualize data
+
+### BSLERP
+```{r bslerp_longitfig}
+vis_list2 %>% filter(Cohort2=='BSLERP') %>%
+ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(color = old), size=1) +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
+
+```
+
+
+```{r}
+# Make df where each PSCID is a row, and New=Oldest age at newly processed vis, Old=Oldest age at visit already processed 
+age_flag = vis_list2 %>%
+  dplyr::select(PSCID, age, old) %>% 
+  group_by(PSCID, old) %>%
+  summarise(oldestVis = max(age)) %>%
+  spread(key=old, value=oldestVis) %>%
+  # If they only were processed in the first OR second batch, don't need to check
+  filter(!is.na(New) & !is.na(Old)) %>%
+  # If the oldest age at old=='Old' > oldest age at old=='New', flag 
+  mutate(flag = ifelse(Old > New,1,0))
+
+datatable(age_flag %>% 
+            filter(flag ==1) %>% 
+            dplyr::select(-c(flag)) , 
+          colnames = c('PSCID', 'Max age in new batch', 'Max age in old batch'),
+          caption = 'Cases where we missed a visit in manuscript')
+```
+
+
+
+```{r}
+ids_to_check = age_flag %>% filter(flag ==1) %>% dplyr::select(PSCID) 
+
+vis_list2 %>% 
+  filter(Cohort2=='BSLERP',
+         PSCID %in% ids_to_check$PSCID) %>%
+ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(color = old), size=1) +
+  geom_line() +
+  theme() + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
 
 ```
 
@@ -224,5 +349,96 @@ old_data = h2 %>%
 
 
 
+### BCP
+```{r bcp_ab_longitfig}
+vis_list2 %>% filter(grepl('BCP_A|BCP_B', Cohort2)) %>%
+ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(shape = old)) +
+  geom_line(aes(color = Cohort2)) +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-A, BCP-B') 
+```
 
+
+
+```{r bcp_cd_longitfig}
+vis_list2 %>% filter(grepl('BCP_C|BCP_D|BCP_E', Cohort2)) %>%
+ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(shape = old)) +
+  geom_line(aes(color = Cohort2)) +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-C, D, E') 
+```
+
+
+We didn't miss any earlier BCP visits in the manuscript
+```{r}
+vis_list2 %>% 
+  filter(grepl('BCP', Cohort2),
+         PSCID %in% ids_to_check$PSCID) 
+```
+
+### DevSocAtt
+```{r other_longitfig}
+vis_list2 %>% filter(grepl('Other', Cohort2) | is.na(Cohort2)) %>%
+ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age, color = old)) +
+  geom_point() +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='Other') 
+```
+
+
+## Final tallies
+
+<b>What happened w/ missing visits?</b>  
+Seems that they did not appear in the exported .nas file.  
+```{r echo = TRUE}
+head(ids_to_check)
+vis_list2 %>% 
+  filter(PSCID == ids_to_check$PSCID[1]) %>%
+  dplyr::select(PSCID, session, age, old) 
+```
+
+
+
+When I search for their ID in directory w/ the raw .tsvs, '_04' is not there:
+```{r}
+list.files('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/RawData_DancingLadies_1', pattern='JE000094', no.. = TRUE)
+```
+
+
+How many new kids
+```{r}
+new_vis = vis_list2 %>% filter(old == 'New') 
+old_vis = vis_list2 %>% filter(old == 'Old')
+
+# List of IDs that were not in the manuscript
+new_partic = setdiff(new_vis$PSCID, old_vis$PSCID)
+length(unique(new_partic))
+```
+
+Cohorts the new kids are from 
+```{r}
+# Which cohorts are they from?
+vis_list2 %>%
+  filter(PSCID %in% new_partic) %>%
+  count(Cohort2)
+```
+
+How many new visits
+```{r}
+nrow(new_vis)
+```
+
+Of participants with new visits who were in the old MS, which cohorts are they in?
+```{r}
+new_vis %>%
+  filter(PSCID %in% old_vis$PSCID) %>%
+  count(Cohort2)
+
+```
 

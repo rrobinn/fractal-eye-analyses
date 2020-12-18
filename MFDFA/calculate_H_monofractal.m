@@ -1,4 +1,4 @@
-function [H, r2, h_error] = calculate_H_monofractal(ts, varargin)
+function [H, r2, h_error, scale] = calculate_H_monofractal(ts, varargin)
 %% % Function runs monofractal DFA to check if H is btw 0.2-0.8 (aka if the time-series is noise-like)
 
 %% option to edit settings here
@@ -33,6 +33,7 @@ end
 h_error='NA';
 H=-9999;
 r2=-9999;
+scale=-9999;
 %% check if time series is long enough
 if (length(ts) < settings.minTimeSeriesLength)
     h_error='tooshort';

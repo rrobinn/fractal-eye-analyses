@@ -5,7 +5,7 @@ settings = struct();
 settings.m = 2; %Polynomial order for detrending. m=2 is quadratic
 settings.scres = 8; % Total number of segment sizes, to be looped through
 settings.scmin =8; %Minimum scale size from prev lit
-settings.minTimeSeriesLength = 1000;
+settings.minTimeSeriesLength = 800;
 settings.scmaxDiv = 4;
 settings.q = [-5,-3,-1,0,1,3,5]; %q-order exponents for MFDFA calculation
 settings.r2plot = 1; % flag for plotting & saving r^2 figures
@@ -45,5 +45,7 @@ assert(isnumeric(settings.minTimeSeriesLength), 'Error: minimum time-series leng
 %assert(isnumeric(settings.scmax), 'Error: maximum scale size (scmax) must be numeric');
 %assert(settings.scmax > settings.scmin, 'Error: scmax must be greater than scmin. Check input for scmax and scmaxDiv');
 assert(settings.r2plot == 0 | settings.r2plot == 1, 'Error: r2plot must be 0 or 1');
+assert(settings.MFDFAplot1 == 0 | settings.MFDFAplot1 == 1, 'Error: MFDFA1 plot must be 0 or 1');
+assert(settings.MFDFAplot2 == 0 | settings.MFDFAplot2 == 1, 'Error: MFDFA2 plot must be 0 or 1');
 
 end

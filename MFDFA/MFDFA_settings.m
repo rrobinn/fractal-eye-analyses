@@ -9,6 +9,7 @@ settings.minTimeSeriesLength = 1000;
 settings.scmaxDiv = 4;
 settings.q = [-5,-3,-1,0,1,3,5]; %q-order exponents for MFDFA calculation
 settings.r2plot = 1; % flag for plotting & saving r^2 figures
+settings.MFDFAplot = 1; % flag for plot in MFDFA1()
 
 if length(varargin) > 1
     for v=1:2:length(varargin)
@@ -27,6 +28,8 @@ if length(varargin) > 1
                 settings.r2plot = varargin{v+1};
             case 'scmaxDiv'
                 settings.scmaxDiv = varargin{v+1};
+            case 'MFDFAplot'
+                settings.MFDFAplot = varargin{v+1};
         end
     end
 end

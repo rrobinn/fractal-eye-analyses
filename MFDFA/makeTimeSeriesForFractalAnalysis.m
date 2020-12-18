@@ -72,10 +72,7 @@ for s = 1:length(tsdata)
     specs = [{id} {movie} {segNum} {dateCollected} longestFixDur propInterp propMissing];
     %% Check if time series is long enough
     warning=0;
-    
     if length(amp)<minTsLength
-        fprintf("Warning: Time series too short: ");
-        fprintf([id ' - ' movie ' - ' num2str(segNum) '\n']);
         warning=1;
     end
     specs_out(s,:) = [specs warning];

@@ -6,8 +6,9 @@ data/misc_queries/cohort-2020-12-07.csv
 data/misc_queries/age-2020-12-03.csv
 *.html
 
-processing/dissertation_dissertation_partic_list_files/
-processing/dissertation_dissertation_partic_list_cache/
+processing/dissertation_partic_list_files/
+processing/dissertation_partic_list_cache/
+
 
 .DS_Store
 
@@ -16,6 +17,7 @@ processing/dissertation_dissertation_partic_list_cache/
 .RData
 .Rhistory
 .Rapp.history
+*.html
 # Temporary files
 *~
 ~$*.doc*

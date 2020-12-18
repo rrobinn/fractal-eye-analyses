@@ -33,7 +33,7 @@ To get a list of visits, age at visit, and cohort, the following info must be me
 # Directory where each session has its own sub-directory
 data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
 # LORIS query
-cohort_csv = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
+cohort_csv = '~/Documents/Github/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
 # DOB query
 DOB = read_excel(paste(wdir, "data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx", sep = ''), 
                  sheet = "Clean", col_types = c("text", "numeric", "date"))
@@ -41,6 +41,14 @@ DOB = read_excel(paste(wdir, "data/misc_queries/20201203_Robin_DOBs_Eyetracking.
 - `data_dir`: Location of <b>eye-tracking data</b> (.tsv and .mat files). If a .tsv in `~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED` contains the strings 'CalVer', 'Dancing', 'EU', or 'DL', it will end up with its own subdirectory in `~/AUDIT_PASSED/`.  
 - `cohort_csv`: Participant <b>cohort information</b> queried from LORIS.  
 - `DOB`: Contains each participant's date of birth. The age at a visit is not easily linked to the session ID. To get this information, I pull the date of visit from the tobii file, and calculate the age based on their DOB (which Eli sends me bc PII).  
+
+<b>Path where final list will be stored:</b>
+```{r}
+listname = 'Dissertation_ParticList.csv'
+out_dir = paste(wdir, 'data/', listname, sep ='')
+out_dir
+```
+
 
 
 
@@ -440,5 +448,9 @@ new_vis %>%
   filter(PSCID %in% old_vis$PSCID) %>%
   count(Cohort2)
 
+```
+
+```{r}
+write.csv(x = vis_list2, file = paste(out_dir, sep =''))
 ```
 

@@ -11,7 +11,7 @@ rootDir = pwd;
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-dataDir = [rootDir '/data/'];
+dataDir = [rootDir '/data/individual_data/'];
 figDir = [rootDir '/Figs/'];
 %% Default settings 
 [settings] =  MFDFA_settings();
@@ -33,8 +33,7 @@ if nargin>1
     
 end
 %% temporarily disable polynomial warnings
-w = warning('query','last');
-warning_id = w.identifier;
+warning_id = 'MATLAB:polyfit:RepeatedPointsOrRescale';
 warning('off',warning_id);
 %% 
 try

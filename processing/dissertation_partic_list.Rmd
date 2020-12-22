@@ -12,6 +12,7 @@ library(ggplot2)
 library(knitr)
 library(readxl)
 library(DT)
+
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
 opts_chunk$set(echo=FALSE,
@@ -269,8 +270,12 @@ vis_list = rbind(old_data,
 
 ```
 
-```{r}
+```{r} 
 session_tab = vis_list %>%
+  group_by(PSCID) %>%
+  summarise(n_sess = length(session))
+session_tab_noDSA = vis_list %>%
+  filter(Cohort2!='Other') %>%
   group_by(PSCID) %>%
   summarise(n_sess = length(session))
 ```
@@ -283,14 +288,24 @@ session_tab = vis_list %>%
 count(session_tab, n_sess)
 ```
 
+
+<b>If we exclude DevSocAtt:</b>  
+- `r nrow(session_tab_noDSA)` participants.  
+- `r sum(session_tab_noDSA$n_sess)` visits.  
+
+```{r}
+count(session_tab_noDSA, n_sess)
+```
+
+
+
 <b>Eye-tracking visits</b>:  
 ```{r}
 # Merge session count with vis_list
 vis_list = left_join(vis_list, session_tab, by = 'PSCID')
-datatable(vis_list %>% 
-          filter = 'top', options(digits = 2))
+datatable(vis_list,
+          filter = 'top', options(digits = '2'))
 
-knit_exit()
 ```
 
 
@@ -312,8 +327,7 @@ vis_list %>%
   count(n_visits)
 ```
 
-
-<b>visits with missing cohort info</b>  
+## visits with missing cohort info 
 ```{r}
 vis_list %>% filter(is.na(Cohort2)) %>% dplyr::select(session, Cohort, Cohort2) %>% arrange(session)
 
@@ -430,7 +444,7 @@ vis_list2 %>% filter(grepl('Other', Cohort2) | is.na(Cohort2)) %>%
 ```
 
 
-## Final tallies
+## tallies for old vs new. 
 
 <b>What happened w/ visits that should have been processing in the first batch?</b>  
 Seems that they did not appear in the exported .nas file.  
@@ -485,7 +499,9 @@ vis_list2=left_join(vis_list2, cohort %>% dplyr::select(PSCID, CandID) %>% disti
 ```
 
 
-# Determien who has RS data
+# Determine who has RS data
+
+Directories on mesabi
 ```{r}
 listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
 
@@ -498,9 +514,21 @@ listofpconns = listofpconns %>%
          vis = as.numeric(id_nums)%%as.numeric(CandID)) %>%
   dplyr::select(-c(id_nums))
 
+datatable(listofpconns, colnames=c('Directory name', '.pconn exists/missing', 'CandID', 'Visit'), filter='top')
+```
+
+Visits with/without .pconn
+```{r}
+count(listofpconns, exists)
+```
+
+
+```{r}
+# Determine which eye-tracking visits have scans
 visit = c()
 scan_name = c()
 has_scan = c()
+# For every visit in list of eye-tracking visits 
 for (s in vis_list2$session) {
   a=vis_list2 %>% filter(session == s)
   id = a$CandID
@@ -544,7 +572,6 @@ for (s in vis_list2$session) {
 }
 
 scan_info = data.frame(session = visit, has_scan=has_scan, scan_name = scan_name)
-
 ```
 
 ```{r}
@@ -552,24 +579,90 @@ scan_info = data.frame(session = visit, has_scan=has_scan, scan_name = scan_name
 vis_list2=left_join(vis_list2, scan_info, by = 'session')
 ```
 
-Visits with RS data
+Eye-tracking visits <b>with</b> RS data
 ```{r}
 datatable(vis_list2 %>% 
             filter(has_scan=='exists') %>%
-            dplyr::select(session, Cohort, age, CandID, scan_name)
+            dplyr::select(session, Cohort2, age, CandID, scan_name),
+          filter='top'
           )
+
 ```
 
-Visits without RS data
+Eye-tracking visits <b>without</b> RS data
 ```{r}
 datatable(vis_list2 %>% 
             filter(has_scan=='missing') %>%
-            dplyr::select(session, Cohort, age, CandID, scan_name)
+            dplyr::select(session, Cohort2, age, CandID, scan_name),
+          filter = 'top', options = list(digits=2)
           )
 ```
 
+## Visualize visits with eye-tracking & RS data
+```{r bslerp_et_rs_fig}
+vis_list2 %>%
+  filter(Cohort2=='BSLERP') %>%
+  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
+  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(color = has_scan), size=1) +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
+
+```
+
+```{r bcpA_bcpB_et_rs_fig}
+vis_list2 %>%
+  filter(Cohort2=='BCP_A' | Cohort2=='BCP_B') %>%
+  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
+  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(color = has_scan), size=1) +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-A & BCP-B') 
+```
+
+```{r bcpC_bcpD_et_rs_fig}
+vis_list2 %>%
+  filter(Cohort2=='BCP_C' | Cohort2=='BCP_D' | Cohort2 == 'BCP_E' | Cohort2=='BCP_ELISON') %>%
+  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
+  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
+  geom_point(aes(color = has_scan), size=1) +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-C, D, E') 
+```
+
+Kids w/ no RS data for any visit (all BSLERP & DevSocAtt kids)
+```{r}
+# Determine who has no RS data 
+temp = vis_list2 %>%
+  group_by(PSCID) %>%
+  summarise(visit_count = n(),
+            noscan_count = sum(has_scan=='missing'),
+            no_RS = ifelse(visit_count == noscan_count, 1, 0)) 
+
+vis_list2=left_join(vis_list2, temp %>% dplyr::select(PSCID, noscan_count, no_RS), by = 'PSCID')
+
+```
+
+```{r}
+datatable(vis_list2 %>%
+            filter(no_RS==1) %>%
+            dplyr::select(PSCID, Cohort,Cohort2, n_sess) %>%
+            distinct(),
+           filter= 'top')
+
+```
+
+
 List of visits to prioritize for segmentation
 ```{r echo = TRUE}
+knit_exit()
+
 min_dat = read_csv(min_data_check_file)
 min_dat = min_dat %>%
   # Only consider for priority if they have at least 2 time series 
@@ -590,14 +683,15 @@ priority = vis_list2 %>%
 
   
   
-<b>Scans to prioritize for segmentation, in order of most to least visits</b>
 ```{r}
-datatable(priority)
+#b>Scans to prioritize for segmentation, in order of most to least visits</b>
+
+#datatable(priority)
 ```
 
 
 ```{r}
 write.csv(x = vis_list2, file = paste(out_dir, sep =''))
-write.csv(x = priority, file =  paste(wdir, 'data/segmentation_priority.csv', sep =''))
+#write.csv(x = priority, file =  paste(wdir, 'data/segmentation_priority.csv', sep =''))
 ```
 

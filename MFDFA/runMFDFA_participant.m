@@ -35,6 +35,13 @@ end
 %% temporarily disable polynomial warnings
 warning_id = 'MATLAB:polyfit:RepeatedPointsOrRescale';
 warning('off',warning_id);
+%% column names for ouput
+header = {'id', 'movie', 'seg', 'date', 'longestFixDur', 'propInterp', 'propMissing', 'warning', ... % specs
+    'h', 'r2', 'h_errors', ... % DFA
+    'M1_Hq', 'M1_tq', 'M1_hq', 'M1_Dq', 'M1_Fq', ... %MFDFA1
+    'M2_Ht', 'M2_Htbin', 'M2_Ph', 'M2_Dh'}; %MFDFA2
+    
+tag = ['_scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
 %%
 try
     particDir=[dataDir id '/'];
@@ -64,7 +71,7 @@ try
     
     
     %display('Calculating H \n');
-    for t=1:4%size(ts_out,1)
+    for t=1:size(ts_out,1)
         ts = ts_out{t};
         
         % Trial info (used to name figs)
@@ -132,7 +139,8 @@ try
     out = horzcat(specs, h, r, h_errors, ...
                   M1_Hq, M1_tq, M1_hq, M1_Dq, M1_Fq, ...
                   M2_Ht, M2_Htbin, M2_Ph, M2_Dh);
-    save([particDir 'h.mat'], 'out', 'settings');
+    
+    save([particDir 'h' tag '.mat'], 'out', 'settings');
     
     %% figures
     if (settings.r2plot | settings.MFDFAplot1 | settings.MFDFAplot2)
@@ -146,6 +154,7 @@ try
             FigName = get(figHandle, 'Name');
             saveas(figHandle, [FolderName, FigName, '.jpg']);
         end
+        save([FolderName 'settings.mat'], 'settings');
         close all
     end
     success = 1;

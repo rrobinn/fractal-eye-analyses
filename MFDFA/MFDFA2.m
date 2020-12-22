@@ -42,7 +42,6 @@ end
 if min(scale)<m+1
    error('The minimum scale must be larger than trend order m+1')
 end
-disp('--please wait for the results--');
 
 %I guess these are pre-set?
 scmin=10;

@@ -92,7 +92,7 @@ try
         
         % Set figure handle
         if (settings.r2plot)
-            figname = [mov '-' seg '_r2plot'];
+            figname = ['r2plot_' mov '-' seg];
             set(gcf, 'Name', figname)
         end
         
@@ -114,7 +114,7 @@ try
         
         % Set figure handle
         if (settings.MFDFAplot1)
-            figname = [mov '-' seg '_MFDFAplot1'];
+            figname = ['MFDFAplot1_' mov '-' seg];
             set(gcf, 'Name', figname);
         end
         clear figname
@@ -126,7 +126,7 @@ try
         
         % Set figure handle
         if (settings.MFDFAplot2)
-            figname = [mov '-' seg '_MFDFAplot2'];
+            figname = ['MFDFAplot2_' mov '-' seg];
             set(gcf, 'Name', figname);
         end
         clear figname

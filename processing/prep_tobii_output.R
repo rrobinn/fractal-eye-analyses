@@ -51,6 +51,10 @@ for (f in files){
   }
   
   dat=read.delim(paste(f, filename, sep = '/'), sep = '\t', stringsAsFactors = FALSE)
+  # Check if it imported as one col
+  if (dim(dat)[2]==1){
+    dat=read.delim(paste(f, filename, sep = '/'), sep = ',', stringsAsFactors = FALSE)
+  }
   
   # Select the columns
   dat = dat %>%

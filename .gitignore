@@ -42,3 +42,10 @@ Figs/
 data/individual_data/.DS_Store
 data/settings/
 data/individual_data/
+data/settings.mat
+settings/settings_scmin4_scres4.mat
+settings/settings_scmin8_scres8.mat
+data/individual_data/.DS_Store
+data/individual_data/.DS_Store
+data/individual_data/JE000053_03_06/h.mat
+data/segmentation_priority.csv

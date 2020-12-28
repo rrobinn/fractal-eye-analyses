@@ -208,6 +208,9 @@ if Fig==1,
     % Create title
     title('q-order Hurst exponent','FontSize',14);
     
+    % Set ylim
+    ylim([0.2 1.8])
+    
     % Create plot
     plot(qstart1,Hqstart1,'Parent',subplot2,'MarkerFaceColor',[1 0 0],...
         'MarkerEdgeColor',[0 0 0],...
@@ -277,7 +280,7 @@ if Fig==1,
         'LineWidth',2,...
         'LineStyle','none',...
         'Color',[1 0 0],...
-        'DisplayName',strcat('Hq(',num2str(min(q)),') = ',num2str(Hq(q==min(q)))));
+        'DisplayName',strcat('tq(',num2str(min(q)),') = ',num2str(Hq(q==min(q))))); % Robin changed legend from Hq() to tq()
     
     % Create plot
     plot(qmid1,tqmid1,'Parent',subplot3,'MarkerFaceColor',[0 0 1],...
@@ -287,7 +290,7 @@ if Fig==1,
         'LineWidth',2,...
         'LineStyle','none',...
         'Color',[0 0 1],...
-        'DisplayName',strcat('Hq(',num2str(q_middle),') = ',num2str(Hq(q==q_middle))));
+        'DisplayName',strcat('tq(',num2str(q_middle),') = ',num2str(Hq(q==q_middle)))); % Robin changed legend from Hq() to tq()
     
     % Create subplot
     subplot4 = subplot(2,2,4,'Parent',figure1,'LineWidth',2,'FontSize',12);
@@ -337,6 +340,9 @@ if Fig==1,
         'LineStyle','none',...
         'Color',[0 0.498 0],...
         'DisplayName',[strcat('Dq(',num2str(max(q)),') = ',num2str(Dq(find(q==max(q))-1))),sprintf('\n'),strcat('hq(',num2str(max(q)),') = ',num2str(hq(find(q==max(q))-1)))]);
+    
+    % ylimits
+    ylim([-.4 1]);
     
     % Create legend
     %legend1 = legend(subplot1,'show');

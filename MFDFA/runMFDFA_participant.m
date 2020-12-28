@@ -15,7 +15,7 @@ dataDir = [rootDir '/data/individual_data/'];
 figDir = [rootDir '/Figs/'];
 %% Default settings
 [settings] =  MFDFA_settings();
-
+settingsMatFile = NaN; 
 %% Override defaults if varargin>0 varargin (settings, and path overriding)
 if nargin>1
     for v=1:2:length(varargin)
@@ -26,12 +26,21 @@ if nargin>1
                 dataDir = varargin{v+1};
             case 'figDir'
                 figDir = varargin{v+1};
+            case 'settingsMatFile'
+                settingsMatFile = varargin{v+1};
             otherwise
                 error(['Input ' varargin{v} 'not recognized']);
         end
     end
     
 end
+
+% Load settings if user specified specific .mat file 
+if ~isnan(settingsMatFile)
+    assert(exist(settingsMatFile, 'file')~=0, 'Settings .mat file does not exist');
+    load(settingsMatFile);
+end
+
 %% temporarily disable polynomial warnings
 warning_id = 'MATLAB:polyfit:RepeatedPointsOrRescale';
 warning('off',warning_id);

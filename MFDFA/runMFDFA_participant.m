@@ -41,7 +41,7 @@ header = {'id', 'movie', 'seg', 'date', 'longestFixDur', 'propInterp', 'propMiss
     'M1_Hq', 'M1_tq', 'M1_hq', 'M1_Dq', 'M1_Fq', ... %MFDFA1
     'M2_Ht', 'M2_Htbin', 'M2_Ph', 'M2_Dh'}; %MFDFA2
     
-tag = ['_scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
+tag = ['scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
 %%
 try
     particDir=[dataDir id '/'];
@@ -140,11 +140,11 @@ try
                   M1_Hq, M1_tq, M1_hq, M1_Dq, M1_Fq, ...
                   M2_Ht, M2_Htbin, M2_Ph, M2_Dh);
     
-    save([particDir 'h' tag '.mat'], 'out', 'settings');
+    save([particDir 'h_' tag '.mat'], 'out', 'settings');
     
     %% figures
     if (settings.r2plot | settings.MFDFAplot1 | settings.MFDFAplot2)
-        FolderName = [figDir id '/'];
+        FolderName = [figDir id '/' tag '/'];
         if ~exist(FolderName)
             mkdir(FolderName);
         end

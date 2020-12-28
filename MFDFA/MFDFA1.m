@@ -129,8 +129,8 @@ if Fig==1,
     q_start=num2str(min(q));
     
     % Create figure
-    figure1 = figure('PaperSize',[20.98 29.68],'Color',[1 1 1]);
-    
+    %figure1 = figure('PaperSize',[20.98 29.68],'Color',[1 1 1]);
+    figure1 = figure('PaperSize',[20.98 29.68],'Color',[1 1 1], 'Position', [440 378 1070 690]);
     scaleInd=floor(min(log2(scale))):ceil(max(log2(scale)));
     for ns=1:length(scaleInd),
         scaletick{ns}=num2str(2^scaleInd(ns));

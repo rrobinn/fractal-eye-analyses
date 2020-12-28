@@ -136,7 +136,7 @@ if Fig==1
     end
 
     % Create figure
-    figure1 = figure('PaperSize',[20.98 29.68],'Color',[1 1 1]);
+    figure1 = figure('PaperSize',[20.98 29.68],'Color',[1 1 1],'Position', [440 378 1070 690]);
 
     % Create axes
     axes1 = axes('Parent',figure1,'XTickLabel',{'','','','','','','','',''},...

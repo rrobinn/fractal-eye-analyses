@@ -3,8 +3,8 @@
 # participants, with a flag of whether the participant has had that visit
 
 # For debugging
-#path_to_session_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/visit_list.txt'
-#path_to_bcpVisitOrder_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/BCP_info.txt'
+# path_to_session_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/visit_list.txt'
+# path_to_bcpVisitOrder_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/BCP_info.txt'
 
 list_of_visits <- function(path_to_session_query, path_to_bcpVisitOrder_query) {
   require(dplyr)

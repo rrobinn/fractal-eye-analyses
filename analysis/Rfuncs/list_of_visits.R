@@ -41,7 +41,9 @@ list_of_visits <- function(path_to_session_query, path_to_bcpVisitOrder_query) {
              b %>% dplyr::select(cohort, Visit_label), 
              by = c('cohort')) %>% # Visit_label = NA for cohorts bcpCFP & bcpOther1
    mutate(Visit_label = ifelse(is.na(Visit_label) & cohort == 'bcpCFP', 'bcpCFP', Visit_label),
-          Visit_label = ifelse(is.na(Visit_label) & cohort == 'bcpOther1', 'bcpCFP', Visit_label))
+          Visit_label = ifelse(is.na(Visit_label) & cohort == 'bcpOther1', 'bcpCFP', Visit_label),
+          Visit_label = ifelse(is.na(Visit_label) & cohort == 'dsaDemo', 'dsaDemo', Visit_label),
+          Visit_label = ifelse(is.na(Visit_label) & cohort == 'ift', 'ift', Visit_label))
  
  # Merge with info on whether the session is intered into LORIS 
  out = left_join(sess_flag, s %>% dplyr::select(-c(cohort)), by = c('CandID', 'Visit_label'))

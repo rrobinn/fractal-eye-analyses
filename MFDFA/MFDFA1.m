@@ -356,12 +356,12 @@ if Fig==1,
     set(legend2,'Position',[0.3414 0.1576 0.1458 0.1714]);
     
     % Create legend
-    legend3 = legend(subplot2,'show');
-    set(legend3,'Position',[0.8171 0.7456 0.1528 0.1714]);
+    %legend3 = legend(subplot2,'show');
+    %set(legend3,'Position',[0.8171 0.7456 0.1528 0.1714]);
     
     % Create legend
-    legend4 = legend(subplot4,'show');
-    set(legend4,'Position',[0.8338 0.2436 0.1354 0.2764]);
+    %legend4 = legend(subplot4,'show');
+    %set(legend4,'Position',[0.8338 0.2436 0.1354 0.2764]);
     
     % Create textbox
     annotation(figure1,'textbox',[0.2726 0.638 0.1111 0.05249],...

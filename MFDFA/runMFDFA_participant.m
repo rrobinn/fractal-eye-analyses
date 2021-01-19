@@ -114,10 +114,10 @@ try
         signal = ts;
         if H<0.2
             signal=cumsum(signal-mean(signal));
-        elseif H==1.2 || H<1.8 && H>1.2
-            signal=diff(timeSeries);
+        elseif H<1.8 && H>=1.2
+            signal=diff(ts);
         elseif H>1.8
-            signal=diff(diff(timeSeries));
+            signal=diff(diff(ts));
         end
         [Hq, tq, hq, Dq, Fq]= MFDFA1(signal, scale, settings.q, settings.m, settings.MFDFAplot1);
         

@@ -487,16 +487,20 @@ et=loris_vis2 %>%
          !is.na(Visit_label)) %>%
   dplyr::select(CandID, PSCID, ageFirstVis,Visit_label_age, Visit_label,
                 DOB, Date_visit, cohort2,
-                et_age, et_collected) %>%
+                et_age, et_collected, cohort) %>%
   mutate(CandID = as.factor(CandID),
          # Scan status
           status = ifelse(!is.na(et_collected), 'Visit=Yes, ET=Yes', ''), 
           status = ifelse(is.na(Date_visit), 'Visit=No', status),
           status = ifelse(!is.na(Date_visit) & is.na(et_collected), 'Visit=Yes, ET=No', status)) %>%
-  # Age for Cross-sectional kids 
+  # Age for BCP-CFP
   mutate(age2 =  Date_visit - as.Date(DOB),
          age2 = as.numeric(age2/30),
- Visit_label_age = ifelse(is.na(Visit_label_age), age2, Visit_label_age)) 
+ Visit_label_age = ifelse(is.na(Visit_label_age), age2, Visit_label_age)) %>%
+  # BCP-CFP are feeding check-ins (not real visits )
+ mutate(remove = ifelse(cohort=='bcpCFP' & is.na(et_collected), 1, 0)) %>%
+  filter(remove ==0) %>%
+  dplyr::select(-c(cohort, remove))
 ```
 
 ```{r}

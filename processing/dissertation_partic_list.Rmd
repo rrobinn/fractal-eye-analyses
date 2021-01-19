@@ -656,7 +656,6 @@ flagged_list = loris_vis2 %>%
                 DOB, Sex, et_collected, rs_collected) %>%
   mutate(et_flag = ifelse(!is.na(et_collected), 1, 0),
          mri_flag = ifelse(!is.na(rs_collected), 1, 0) ) %>%
-  dplyr::select(-c(et_collected, rs_collected)) %>%
   filter(et_flag==1 | mri_flag==1)
 
 write.csv(x = flagged_list, file = out_dir, row.names = FALSE)

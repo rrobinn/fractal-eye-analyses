@@ -29,7 +29,7 @@ source.all(paste(wdir, 'analysis/Rfuncs/', sep =''))
 ```
 
 # About  
-Document generates a list of visits to be included in my dissertation.  
+Document generates a list of visits to be included in my dissertation.  Does not take QA/QC.
 
 ```{r echo = TRUE}
 # Directory where each session has its own sub-directory (excluding sessions that were in MS)
@@ -310,27 +310,6 @@ for (i in 1:nrow(listofpconns)) {
 }
   
 ```
-
-```{r}
-# old_data = old_data %>%
-#   mutate(Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort),
-#          Cohort2 = ifelse(grepl(pattern = 'DevSocAtt', x = Cohort), 'Other', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'ELISON', x = Cohort), 'BSLERP', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'E1', x = Cohort), 'BCP_E', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'A2', x = Cohort) | 
-#                             grepl(pattern = 'A3', x = Cohort) , 'BCP_A', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'B1', x = Cohort) |
-#                             grepl(pattern = 'B2', x = Cohort) |
-#                             grepl(pattern = 'B3', x = Cohort), 'BCP_B', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'C1', x = Cohort) |
-#                             grepl(pattern = 'C2', x = Cohort) |
-#                             grepl(pattern = 'C3', x = Cohort), 'BCP_C', Cohort2),
-#          Cohort2 = ifelse(grepl(pattern = 'D1', x = Cohort) |
-#                             grepl(pattern = 'D2', x = Cohort) |
-#                             grepl(pattern = 'D3', x = Cohort), 'BCP_D', Cohort2)) 
-```
-
-
 
 
 # Final
@@ -667,275 +646,28 @@ et_mri_tally = loris_vis2 %>%
 - `r sum(et_mri_tally$n)` visits from `r nrow(et_mri_tally)` individuals
 
 ```{r}
+# Make final list of participants (et, mri, et+mri)
+flagged_list = loris_vis2 %>% 
+  dplyr::select(CandID, PSCID, cohort, cohort2,Visit_label, VisitNo, Date_visit,
+                DOB, Sex, et_collected, rs_collected) %>%
+  mutate(et_flag = ifelse(!is.na(et_collected), 1, 0),
+         mri_flag = ifelse(!is.na(rs_collected), 1, 0) ) %>%
+  dplyr::select(-c(et_collected, rs_collected)) %>%
+  filter(et_flag==1 | mri_flag==1)
+
+write.csv(x = flagged_list, file = out_dir, row.names = FALSE)
+```
+
+
+
+```{r}
 knit_exit()
 ```
 
 
 
-# Old shit 
 
-```{r} 
-session_tab = vis_list %>%
-  group_by(PSCID) %>%
-  summarise(n_sess = length(session))
-session_tab_noDSA = vis_list %>%
-  filter(Cohort2!='Other') %>%
-  group_by(PSCID) %>%
-  summarise(n_sess = length(session))
-```
-<b>The final list of potential eye-tracking sessions includes:</b>  
-- `r nrow(session_tab)` participants.  
-- `r sum(session_tab$n_sess)` visits.  
 
-<b>Session counts</b>  
-```{r}
-count(session_tab, n_sess)
-```
 
 
-<b>If we exclude DevSocAtt:</b>  
-- `r nrow(session_tab_noDSA)` participants.  
-- `r sum(session_tab_noDSA$n_sess)` visits.  
-
-```{r}
-count(session_tab_noDSA, n_sess)
-```
-
-
-
-<b>Eye-tracking visits</b>:  
-```{r}
-# Merge session count with vis_list
-vis_list = left_join(vis_list, session_tab, by = 'PSCID')
-datatable(vis_list,
-          filter = 'top', options(digits = '2'))
-
-```
-
-
-How many visits do DevSocAtt kids have? 
-```{r}
-DSA_ids = vis_list %>% filter(Cohort2 == 'Other') %>% dplyr::select(PSCID) %>% unique()
-vis_list %>%
-  filter(PSCID %in% DSA_ids$PSCID) %>%
-  dplyr::select(PSCID, Cohort) %>%
-  group_by(PSCID) %>%
-  summarise(n_visits = n()) %>%
-  ungroup() %>%
-  count(n_visits)
-```
-
-## visits with missing cohort info 
-```{r}
-vis_list %>% filter(is.na(Cohort2)) %>% dplyr::select(session, Cohort, Cohort2) %>% arrange(session)
-
-```
-
-
-```{r}
-# Add age at first visit to help w/ plotting
-vis_list2 = vis_list %>%
-  group_by(PSCID) %>%
-  # Add number of visits (n), and ageFirstVis
-  summarise(ageFirstVis = min(age)) %>%
-  left_join(., vis_list, by='PSCID') %>%
-  ungroup() %>%
-  mutate(old = ifelse(old==1, 'Old', 'New'))
-
-```
-
-## Visualize visits
-
-### BSLERP
-```{r bslerp_longitfig}
-vis_list2 %>% filter(Cohort2=='BSLERP') %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(color = old), size=1) +
-  geom_line() +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
-
-```
-
-
-```{r}
-# Make df where each PSCID is a row, and New=Oldest age at newly processed vis, Old=Oldest age at visit already processed 
-age_flag = vis_list2 %>%
-  dplyr::select(PSCID, age, old) %>% 
-  group_by(PSCID, old) %>%
-  summarise(oldestVis = max(age)) %>%
-  spread(key=old, value=oldestVis) %>%
-  # If they only were processed in the first OR second batch, don't need to check
-  filter(!is.na(New) & !is.na(Old)) %>%
-  # If the oldest age at old=='Old' > oldest age at old=='New', flag 
-  mutate(flag = ifelse(Old > New,1,0))
-
-datatable(age_flag %>% 
-            filter(flag ==1) %>% 
-            dplyr::select(-c(flag)) , 
-          colnames = c('PSCID', 'Max age in new batch', 'Max age in old batch'),
-          caption = 'Cases where we missed a visit in manuscript')
-```
-
-
-
-```{r}
-ids_to_check = age_flag %>% filter(flag ==1) %>% dplyr::select(PSCID) 
-
-vis_list2 %>% 
-  filter(Cohort2=='BSLERP',
-         PSCID %in% ids_to_check$PSCID) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(color = old), size=1) +
-  geom_line() +
-  theme() + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
-
-```
-
-
-
-
-
-### BCP
-```{r bcp_ab_longitfig}
-vis_list2 %>% filter(grepl('BCP_A|BCP_B', Cohort2)) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(shape = old)) +
-  geom_line(aes(color = Cohort2)) +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-A, BCP-B') 
-```
-
-
-
-```{r bcp_cd_longitfig}
-vis_list2 %>% filter(grepl('BCP_C|BCP_D|BCP_E', Cohort2)) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(shape = old)) +
-  geom_line(aes(color = Cohort2)) +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-C, D, E') 
-```
-
-
-We didn't miss any earlier BCP visits in the manuscript
-```{r}
-vis_list2 %>% 
-  filter(grepl('BCP', Cohort2),
-         PSCID %in% ids_to_check$PSCID) 
-```
-
-### DevSocAtt
-```{r other_longitfig}
-vis_list2 %>% filter(grepl('Other', Cohort2) | is.na(Cohort2)) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age, color = old)) +
-  geom_point() +
-  geom_line() +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='Other') 
-```
-
-
-## tallies for old vs new. 
-
-<b>What happened w/ visits that should have been processing in the first batch?</b>  
-Seems that they did not appear in the exported .nas file.  
-```{r echo = TRUE}
-head(ids_to_check)
-vis_list2 %>% 
-  filter(PSCID == ids_to_check$PSCID[1]) %>%
-  dplyr::select(PSCID, session, age, old) 
-```
-
-
-When I search for their ID in directory w/ the raw .tsvs, '_04' is not there:
-```{r}
-list.files('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/Dancing_Ladies/RawData_DancingLadies_1', pattern='JE000094', no.. = TRUE)
-```
-
-
-How many new kids
-```{r}
-new_vis = vis_list2 %>% filter(old == 'New') 
-old_vis = vis_list2 %>% filter(old == 'Old')
-
-# List of IDs that were not in the manuscript
-new_partic = setdiff(new_vis$PSCID, old_vis$PSCID)
-length(unique(new_partic))
-```
-
-Cohorts the new kids are from 
-```{r}
-# Which cohorts are they from?
-vis_list2 %>%
-  filter(PSCID %in% new_partic) %>%
-  count(Cohort2)
-```
-
-How many new visits
-```{r}
-nrow(new_vis)
-```
-
-Of participants with new visits who were in the old MS, which cohorts are they in?
-```{r}
-new_vis %>%
-  filter(PSCID %in% old_vis$PSCID) %>%
-  count(Cohort2)
-```
-
-```{r}
-# Merge CandID 
-vis_list2=left_join(vis_list2, cohort %>% dplyr::select(PSCID, CandID) %>% distinct(), by = 'PSCID')
-
-```
-
-
-
-
-
-
-
-
-List of visits to prioritize for segmentation
-```{r echo = TRUE}
-knit_exit()
-
-min_dat = read_csv(min_data_check_file)
-min_dat = min_dat %>%
-  # Only consider for priority if they have at least 2 time series 
-  filter(`2_timeseries`=='Yes') %>%
-  dplyr::select(ID, session, age, n_vis)
-
-# Priority list
-priority = vis_list2 %>%
-  filter(age<=12,
-         has_scan=='exists',
-         session %in% min_dat$session) %>%
-  dplyr::select(PSCID, session, CandID, Cohort, age,scan_name) %>%
-  # Merge info on # of visits for each kid
-  left_join(min_dat %>% dplyr::select(PSCID =ID, n_vis) %>% distinct(), by = c('PSCID')) %>%
-  arrange(desc(n_vis))
-
-```
-
-  
-  
-```{r}
-#b>Scans to prioritize for segmentation, in order of most to least visits</b>
-
-#datatable(priority)
-```
-
-
-```{r}
-write.csv(x = vis_list2, file = paste(out_dir, sep =''))
-#write.csv(x = priority, file =  paste(wdir, 'data/segmentation_priority.csv', sep =''))
-```
 

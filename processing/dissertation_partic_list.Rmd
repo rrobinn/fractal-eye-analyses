@@ -12,6 +12,7 @@ library(ggplot2)
 library(knitr)
 library(readxl)
 library(DT)
+library(miceadds)
 
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
@@ -24,33 +25,20 @@ opts_chunk$set(echo=FALSE,
                warning=FALSE,
                include=TRUE)
 
-source(paste(wdir, 'processing/helper_functions/get_date_et.R', sep =''))
+source.all(paste(wdir, 'analysis/Rfuncs/', sep =''))
 ```
 
-# About
-To get a list of visits, age at visit, and cohort, the following info must be merged:  
-```{r echo = TRUE}
-# Directory where each session has its own sub-directory
-data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
-# LORIS query
-cohort_csv = '~/Documents/Github/fractal-eye-analyses/data/misc_queries/cohort-2020-12-07.csv'
-# DOB query
-DOB = read_excel(paste(wdir, "data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx", sep = ''), 
-                 sheet = "Clean", col_types = c("text", "numeric", "date"))
+# About  
+Document generates a list of visits to be included in my dissertation.  
 
+```{r echo = TRUE}
+# Directory where each session has its own sub-directory (excluding sessions that were in MS)
+data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
+# 
+pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
 ```
 - `data_dir`: Location of <b>eye-tracking data</b> (.tsv and .mat files). If a .tsv in `~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED` contains the strings 'CalVer', 'Dancing', 'EU', or 'DL', it will end up with its own subdirectory in `~/AUDIT_PASSED/`.  
-- `cohort_csv`: Participant <b>cohort information</b> queried from LORIS.  
-- `DOB`: Contains each participant's date of birth. The age at a visit is not easily linked to the session ID. To get this information, I pull the date of visit from the tobii file, and calculate the age based on their DOB (which Eli sends me bc PII).  
-
-To determine with ET visits have usable rs-fMRI data, the following info is pulled:
-```{r echo = TRUE}
-# List of directories w/ RS .pconn files
-pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
-# Visits w/ enough ET data
-min_data_check_file = paste(wdir, "data/misc_queries/visits_with_atleast_2ts.csv", sep='')
-```
-
+- `pconn_file`: List of directories w/ RS .pconn files.  
 
 <b>Path where final list will be stored:</b>
 ```{r}
@@ -59,12 +47,89 @@ out_dir = paste(wdir, 'data/', listname, sep ='')
 out_dir
 ```
 
+```{r}
+loris_vis <- list_of_visits(path_to_session_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/visit_list.txt', 
+                           path_to_bcpVisitOrder_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/BCP_info.txt') 
+
+# Remove babar
+loris_vis = loris_vis %>%
+  filter(!grepl('babar', cohort))
+```
+
+```{r}
+# Pull Individual-level data 
+# (CandID,PSCID,cohort,DOB,Sex)
+# # # # # # # # # # # # # # # # 
+indiv_dat = loris_vis %>% 
+  dplyr::select(CandID,  PSCID, cohort,DOB, Sex) %>% 
+  filter(!grepl('babar', cohort)) %>%
+  distinct() %>%
+  # For now, remove all rows w/o DOB 
+  mutate(to_remove = ifelse(is.na(DOB), 1, 0))
+
+removed_from_indiv_dat = indiv_dat %>% 
+  filter(to_remove==1) 
+indiv_dat = indiv_dat %>% filter(to_remove==0) 
+
+# Some individuals have multiple cohorts - select the one that says BCP 
+cohort=indiv_dat %>% group_by(CandID) %>%
+  arrange(CandID) %>%
+  group_by(CandID) %>% 
+  mutate(r = row_number()) %>%
+  mutate(r = paste('r',r,sep='')) %>%
+  spread(., r, cohort) %>%
+  # Flag which cohort to use 
+  # IF there is only 1, use that one 
+  mutate(flag = ifelse(is.na(r2) & is.na(r3), 1, NA),
+         # If there is more than one cohort, but the first one is not cross-sectional, then use the first 
+         flag = ifelse(is.na(flag) & !grepl('CFP|ELISON', r1), 1, flag),
+         flag = ifelse(is.na(flag) & !grepl('CFP|ELISON', r2), 2, flag),
+         flag = ifelse(is.na(flag) & is.na(r3), 2, flag)) %>%
+  ungroup() %>%
+    mutate(cohort = ifelse(flag==1, r1, NA),
+         cohort = ifelse(flag==2, r2, cohort),
+         cohort = ifelse(flag==3, r3, cohort)) %>%
+  dplyr::select(CandID, cohort)
+
+# Update cohort with the correct one to use (should be 585 rows)
+indiv_dat= left_join(indiv_dat, cohort, by = c('CandID')) %>%
+  mutate(cohort2 = cohort.y) %>% 
+  dplyr::select(-c(cohort.x, cohort.y)) %>%
+  distinct()
+```
+
+```{r clean_cohort}
+
+# Clean up cohort
+loris_vis = loris_vis %>%
+  left_join(indiv_dat %>% dplyr::select(CandID, cohort2), by = 'CandID') %>%
+mutate(cohort2 = ifelse(grepl(pattern = 'bcpBSLERP', x = cohort2, ignore.case = TRUE), 'BSLERP', cohort2), 
+  cohort2 = ifelse(grepl(pattern = 'BCPA', x = cohort2, ignore.case = TRUE), 'BCP_A', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BCPB', x = cohort2, ignore.case = TRUE), 'BCP_B', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BCPC', x = cohort2, ignore.case = TRUE), 'BCP_C', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BCPD', x = cohort2, ignore.case = TRUE), 'BCP_D', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BCPELISON', x = cohort2, ignore.case = TRUE), 'BCP_ELISON', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BCPE', x = cohort2, ignore.case = TRUE) & cohort2!='BCP_ELISON', 'BCP_E', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'BSLERP', x = cohort2, ignore.case = TRUE), 'BSLERP', cohort2),
+         cohort2 = ifelse(grepl(pattern = 'DSA', x = cohort2, ignore.case = TRUE), 'other', cohort2)) %>%
+  # Pull visit_label_age
+  mutate(Visit_label_age = lapply(strsplit(Visit_label, 'x'), '[', 2),
+         Visit_label_age = unlist(Visit_label_age),
+         Visit_label_age = gsub(pattern = 'm', replacement = '', Visit_label_age),
+         Visit_label_age = ifelse(Visit_label_age == 'Birth2wk', "0.5", Visit_label_age),
+         Visit_label_age = as.numeric(Visit_label_age)) 
+  
+```
 
 
-# Merge eye-tracking info 
+# Steps for getting list of ET data  
+0. Use session table from LORIS to get list of visits for each participant (`list_of_visits.R`). Use this generate `indiv-dat` (DOB, cohort, sex).
+1. Get date of visit for newly-processed .tsv files  
+2. Merge `indiv_dat`. Calculate age at visit.  
+3. For eachc potential visit in `loris_vis` find the closest matching eye-tracking visit that occurred (if at all. )
 
+```{r getDateOfVisitFromTobii, cache = TRUE}
 ## Get date of visit from tobii .tsv
-```{r getDateOfVisit, cache = TRUE}
 files = list.dirs(data_dir)
 # Get date of scan for calculating DOBs from raw tobii file
 ids = c()
@@ -86,7 +151,6 @@ visit_dates = data.frame(session = ids,
                          month = unlist(lapply(date_split, '[', 1)) ,
                          day = unlist(lapply(date_split, '[', 2) ))
 
-
 # Format visit date 
 visit_dates = visit_dates %>%
   mutate(session = as.character(session)) %>%
@@ -98,86 +162,13 @@ visit_dates = visit_dates %>%
          year = year + 2000) %>%
   mutate(month = as.numeric(as.character(month)),
          day = as.numeric(as.character(day))) %>%
-  mutate(visit_date = paste(year,month,day, sep = '-')) 
-
+  mutate(visit_date = paste(year,month,day, sep = '-')) %>%
+  # get rid of first row
+  filter(session!='New_Sessions') %>%
+  dplyr::select(PSCID, session,visit_date)
 ```
 
-```{r}
-head(visit_dates)
-```
-
-
-## Get DOB
-```{r}
-DOB = DOB %>% dplyr::select(PSCID, DOB)
-head(DOB)
-```
-
-
-## Get cohort info 
-```{r}
-cohort = read.csv(cohort_csv, stringsAsFactors = FALSE)
-cohort = cohort %>%
-  dplyr::select(CandID = demographics.CandID,
-                Cohort = demographics.Cohort,
-                PSCID = demographics.PSCID) %>%
-  filter(Cohort != 'BCP_CFP') %>% # Feeding visit (not a real vis)
-  distinct() 
-# Add row number for IDs w/ multiple cohorts 
-cohort = cohort %>% group_by(PSCID) %>% mutate(rownum = row_number())
-head(cohort)
-```
-
-## Merge eye-tracking meta-data 
-```{r}
-# Merge DOB and Cohort info with list of new visits 
-visits = list.dirs(data_dir)
-visits = basename(visits)
-visits = visits[2:length(visits)]
-
-# Get ID
-temp = strsplit(visits, '_')
-ids = paste(lapply(temp, '[', 1), lapply(temp, '[', 2), sep = '_')
-
-# Make data.frame
-visits = data.frame(session = visits, PSCID = ids, stringsAsFactors=FALSE) # 213 
-
-# Merge DOB
-visits = left_join(visits, DOB, by = 'PSCID') # 213
-
-# Merge cohort info
-visits$rownum = 1 # Only pull the first cohort for an individual
-visits = left_join(visits, cohort, by = c('PSCID', 'rownum'))
-
-# Merge visit dates 
-visits = left_join(visits, visit_dates %>% dplyr::select(session, visit_date), by = 'session')
-
-```
-
-
-```{r}
-# Calculate age at visits
-visits = visits %>%
-  mutate(age = as.Date(visit_date) - as.Date(DOB),
-         age = as.numeric(age),
-         age = age/30.42)
-
-# Clean up cohort
-visits = visits %>%
-  mutate(Cohort2 = ifelse(grepl(pattern = 'BCP_A', x = Cohort), 'BCP_A', Cohort),
-         Cohort2 = ifelse(grepl(pattern = 'BCP_B', x = Cohort), 'BCP_B', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'BCP_C', x = Cohort), 'BCP_C', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'BCP_D', x = Cohort), 'BCP_D', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'BCP_ELISON', x = Cohort), 'BCP_ELISON', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'BCP_E', x = Cohort) & Cohort2!='BCP_ELISON', 'BCP_E', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'DSA', x = Cohort), 'Other', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'Infant_Face_Tracking', x = Cohort), 'Other', Cohort2)) # DevSocAtt, Infant Face Tracking
-
-```
-
-
-```{r}
+```{r crosscheck_ms}
 # Data from ms (to see who we already have)
 # List of id_sessions & their ages to include to analyses (DOB is identifying info) 
 particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
@@ -185,90 +176,503 @@ particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
 # Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
 h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
 
-# Calibration precision spreadsheet  
-AvgPrecision <- read.csv( paste(wdir, 'data/et_precision.csv', sep=''), stringsAsFactors = FALSE )
-```
-
-```{r ms_participants, cache = TRUE}
-min_age = 0
-max_age = 40
 h = h %>%
   # Create variable for Participant ID (currently combined with session #)
   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
   left_join(particList, by='id') %>%
-  # Create Dummies for CalVer & Pixelated
-  mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
-         Pix=ifelse(grepl('S', movie), 1, 0)) %>%
   # Variable to keep track of if theyre in participant list
   mutate(particList = ifelse(id %in% particList$id, 1, 0))
 
-#  Merge precision data
-h2= h %>% left_join(AvgPrecision, by='id') 
-h2 = h2 %>% mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
-
-# Merge age range
-h2 = h2 %>% mutate(remove_age = ifelse(age>=min_age & age<=max_age, 0,1))
-
-# Merge prop interp
-h2 = h2 %>% mutate(remove_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0))
-
-# Merge too short
-h2 = h2 %>% mutate(remove_tooshort = ifelse(h==-9999,1,0))
-
-h2 = h2 %>% 
-  mutate(excl1 = ifelse(remove_precision==1 | remove_age == 1 | remove_propInterp ==1 | remove_tooshort == 1, 1, 0),
-         excl2 = ifelse(remove_precision==1 | remove_age == 1 | remove_propInterp ==1, 1, 0))
-```
-
-List of visits from manucript should include those who were excluded.  
-```{r echo = TRUE}
-dim(h2)
-dim(h2 %>% filter(excl1 == 0)) # Exclusionary criteris from 2020 ms
-```
-
-```{r echo=TRUE}
-old_data = h2 %>%
-  filter(excl1 ==0) %>%
-  dplyr::select(session = id, Cohort = cohort, PSCID = Participant, age, visit_date=date) %>%
+old_data = h %>% 
+  dplyr::select(session=id, date, PSCID = Participant, age) %>%
   distinct()
 ```
 
 
 ```{r}
+# Merge individual-level data with visit_dates 
+visit_dates = visit_dates %>% 
+  left_join(indiv_dat, by = 'PSCID') %>%
+    mutate(age = as.Date(visit_date) - as.Date(DOB),
+           age = as.numeric(age),
+           age = age/30.42)
+
+# Make date for old_data y-m-d
+d=strsplit(old_data$date, '/')
+month = unlist(lapply(d, '[[', 1))
+day =  unlist(lapply(d, '[[', 2))
+year = unlist(lapply(d, '[[', 3))
+old_data$date = paste(year, month, day, sep = '-' )
+
+# Merge individual-level data w/ old data & calculate age 
 old_data = old_data %>%
-  mutate(Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort),
-         Cohort2 = ifelse(grepl(pattern = 'DevSocAtt', x = Cohort), 'Other', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'ELISON', x = Cohort), 'BSLERP', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'E1', x = Cohort), 'BCP_E', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'A2', x = Cohort) | 
-                            grepl(pattern = 'A3', x = Cohort) , 'BCP_A', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'B1', x = Cohort) |
-                            grepl(pattern = 'B2', x = Cohort) |
-                            grepl(pattern = 'B3', x = Cohort), 'BCP_B', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'C1', x = Cohort) |
-                            grepl(pattern = 'C2', x = Cohort) |
-                            grepl(pattern = 'C3', x = Cohort), 'BCP_C', Cohort2),
-         Cohort2 = ifelse(grepl(pattern = 'D1', x = Cohort) |
-                            grepl(pattern = 'D2', x = Cohort) |
-                            grepl(pattern = 'D3', x = Cohort), 'BCP_D', Cohort2)) 
+  dplyr::select(PSCID, session, visit_date = date, age) %>%
+  left_join(indiv_dat, by = 'PSCID') %>%
+  # Fix DOB
+  mutate(age = as.Date(visit_date) -  as.Date(DOB),
+         age = as.numeric(age)/30.42)
+  
+
+# Combine old & new visits 
+et_visits = rbind(visit_dates %>% mutate(batch = 'New'), 
+                  old_data %>% mutate(batch = 'Old')) %>% 
+  mutate(visit_date = as.Date(visit_date)) %>%
+  arrange(PSCID)
+```
+
+## Check who we are missing info for  
+`et_visits`: list of eye-tracking visits from `data_dir` and spreadsheet that has the data that were potentially included in *Scientific Reports* ms.  
+```{r echo = TRUE}
+et_visits %>% filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex))
+```
+Looks like DSA individuals in LORIS with no visits registered yet.  
+
+## Merge eye tracking data with loris_vis
+```{r find_closest_et_vis}
+# For each eye-tracking visit, find closest visit in loris_vis and add flag
+loris_vis$Date_visit = as.Date(loris_vis$Date_visit)
+loris_vis$et_collected = NA
+loris_vis$et_age = NA
+
+for (i in c(1:nrow(et_visits))) {
+  temp = et_visits[i,]
+  # Find closest date
+  date_array = loris_vis %>% 
+    filter(PSCID == temp$PSCID) %>%
+    pull(Date_visit) %>%
+  as.Date()
+  
+   closest_ind = which.min(as.numeric(abs(date_array - temp$visit_date)))
+   closest_date = date_array[closest_ind]
+  
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_collected'] = temp$session
+        loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
+  }
 ```
 
 
-# Final eye-tracking visit list  
-Includes visits that were ultimately excluded.  
+# Steps for getting list of RS data
+## 1. Read .pconn file (contains paths to all .pconns)
+```{r pconns_mesabi}
+# Directories on mesabi
+listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
+
+listofpconns = listofpconns %>%
+  dplyr::select(fname = V1, exists=V2) %>%
+  # remove file names that arent sub-123456_ses-XXmo_corr
+  filter(grepl('sub-', fname)) %>%
+  mutate(id_nums = gsub("\\D+", "", fname),
+         CandID = substring(id_nums, 1, 6),
+         vis = as.numeric(id_nums)%%as.numeric(CandID),
+         CandID = as.numeric(CandID)) %>%
+  dplyr::select(-c(id_nums)) %>%
+  # Get rid of duplicates (m_corr vs mo_corr)
+  mutate(fname = gsub(x = fname, pattern = 'mo', replacement='m')) %>%
+  distinct()
+
+datatable(listofpconns, colnames=c('Directory name', '.pconn exists/missing', 'CandID', 'Visit'), filter='top')
+```
+
+Visits with/without .pconn
+```{r}
+count(listofpconns, exists)
+```
+
+## 2. Merge whether scan happened with loris_vis
+```{r}
+loris_vis$rs_collected = NA
+loris_vis$pconn_exists = NA
+
+# For every visit in list of pconns
+for (i in 1:nrow(listofpconns)) {
+  temp = listofpconns[i, ]
+  id = temp$CandID
+  age= temp$vis
+  
+  # Pull all visits for this CandID
+  vis = loris_vis %>% 
+    filter(CandID == id) %>%
+    mutate(temp_age = Date_visit - as.Date(DOB),
+            temp_age = as.numeric(temp_age)/30.42)
+  
+  # If there is an exact visit age match 
+  if (age %in% vis$Visit_label_age) {
+    closest_age = age
+    loris_vis[compareNA(id, loris_vis$CandID) & compareNA(age, loris_vis$Visit_label_age), 'rs_collected'] = temp$fname
+    loris_vis[compareNA(id, loris_vis$CandID) & compareNA(age, loris_vis$Visit_label_age), 'pconn_exists'] = temp$exists
+  } else { 
+    # Otherwise, find the closest one
+    min_ind = which.min(abs(vis$temp_age - age))
+    closest_vis = vis[min_ind, 'Visit_label']
+    loris_vis[compareNA(id, loris_vis$CandID) & loris_vis$Visit_label == closest_vis, 'rs_collected'] = temp$fname
+    loris_vis[compareNA(id, loris_vis$CandID) & loris_vis$Visit_label == closest_vis, 'pconn_exists'] = temp$exists
+  }
+}
+  
+```
 
 ```{r}
-old_data$old = 1
-visits$old = 0
+# old_data = old_data %>%
+#   mutate(Cohort2 = ifelse(grepl(pattern = 'BSLERP', x = Cohort), 'BSLERP', Cohort),
+#          Cohort2 = ifelse(grepl(pattern = 'DevSocAtt', x = Cohort), 'Other', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'ELISON', x = Cohort), 'BSLERP', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'E1', x = Cohort), 'BCP_E', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'A2', x = Cohort) | 
+#                             grepl(pattern = 'A3', x = Cohort) , 'BCP_A', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'B1', x = Cohort) |
+#                             grepl(pattern = 'B2', x = Cohort) |
+#                             grepl(pattern = 'B3', x = Cohort), 'BCP_B', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'C1', x = Cohort) |
+#                             grepl(pattern = 'C2', x = Cohort) |
+#                             grepl(pattern = 'C3', x = Cohort), 'BCP_C', Cohort2),
+#          Cohort2 = ifelse(grepl(pattern = 'D1', x = Cohort) |
+#                             grepl(pattern = 'D2', x = Cohort) |
+#                             grepl(pattern = 'D3', x = Cohort), 'BCP_D', Cohort2)) 
+```
 
-# List of sessions that show up in both
-to_remove_from_new = intersect(old_data$session, visits$session)
-visits = visits %>% filter(!(session %in% to_remove_from_new))
 
-vis_list = rbind(old_data, 
-                 visits %>% dplyr::select(session, Cohort, PSCID, visit_date, Cohort, Cohort2, age, old))
+
+
+# Final
+```{r}
+# Determine who has at least one scan OR one et visit
+et_scan_flag = loris_vis %>%
+  group_by(CandID) %>%
+  summarize(n_et = sum(!is.na(et_collected)),
+            n_scan = sum(!is.na(rs_collected)) ) %>%
+  ungroup()
+
+# Only keep CandIDs that have at least one scan or one et visit 
+loris_vis2 = loris_vis %>%
+  left_join(et_scan_flag, by = 'CandID') %>%
+  filter(n_et>0 | n_scan>0)
 
 ```
+
+
+```{r}
+datatable(loris_vis2 %>%
+            mutate(CandID = as.factor(CandID)) %>%
+            dplyr::select(CandID, PSCID, cohort, cohort2,
+                          Visit_label, Visit_label_age, VisitNo,
+                          Scan_done, et_collected, rs_collected,pconn_exists ), 
+          filter=c('top'))
+```
+
+## Tallies
+```{r message=FALSE,warning=FALSE}
+# Add age at first visit to help w/ plotting
+loris_vis2=loris_vis2 %>%
+  group_by(CandID) %>%
+  # Add number of visits (n), and ageFirstVis
+  summarise(ageFirstVis = min(Visit_label_age, na.rm = TRUE)) %>%
+  left_join(., loris_vis2, by='CandID') %>%
+  ungroup() 
+```
+
+### Scan
+```{r}
+scan_tally=loris_vis2 %>%
+  filter(n_scan >0) %>%
+  dplyr::select(CandID, PSCID, ageFirstVis,Visit_label_age, Visit_label,
+                DOB, Date_visit, Scan_done, cohort2,
+                rs_collected, pconn_exists) %>%
+  mutate(CandID = as.factor(CandID),
+         # Scan status
+         status = ifelse(is.na(rs_collected), 'No RS Dir', ''),
+         status = ifelse(compareNA(pconn_exists, 'missing'), 'RS Dir', status),
+         status = ifelse(compareNA(pconn_exists, 'exists'), 'RS Dir + pconn', status)) %>%
+  # Age for Cross-sectional kids 
+  mutate(age2 =  Date_visit - as.Date(DOB),
+         age2 = as.numeric(age2/30),
+ Visit_label_age = ifelse(is.na(Visit_label_age), age2, Visit_label_age))
+```
+
+```{r}
+rs = scan_tally %>%
+  filter(!is.na(rs_collected)) %>%
+  group_by(CandID) %>%
+  summarize(n=n())
+
+rs_and_pconn = scan_tally %>%
+  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
+  group_by(CandID) %>%
+  summarize(n=n())
+```
+- `r sum(rs_and_pconn$n)` visits on MSI with pconns, from `r nrow(rs_and_pconn)` indidividuals.  
+
+```{r scan_cohort}
+# Numbe of individuals in each cohort
+scan_tally %>%
+  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
+  dplyr::select(CandID, cohort2) %>%
+  distinct() %>%
+  count(cohort2, name = 'Number of individuals')
+
+# Numbe of scans from each cohort
+scan_tally %>%
+  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
+  count(cohort2, name = 'Number of scans')
+```
+
+
+
+```{r bcp_bslerp_scan_fig, cache=TRUE}
+plot_dat = scan_tally %>% 
+  filter(cohort2=='BSLERP') %>%
+  filter(Visit_label_age!=18 & Visit_label_age!=30)
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  scale_x_continuous(breaks = unique(plot_dat$Visit_label_age)) + 
+  labs(x = 'Scan Age (months)', y = 'Individual', title='BSLERP') 
+```
+
+```{r bcp_ab_scan_fig, cache=TRUE}
+plot_dat = scan_tally %>% 
+  filter(cohort2=='BCP_A' | cohort2 == 'BCP_B') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  labs(x = 'Scan Age (months)', y = 'Individual', title='BCP-A, BCP-B') 
+```
+
+```{r bcp_cd_scan_fig, cache=TRUE}
+plot_dat = scan_tally %>% 
+  filter(cohort2=='BCP_C' | cohort2 == 'BCP_D') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  theme(axis.text.y=element_blank()) + 
+  scale_y_discrete()+
+  #scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  labs(x = 'Scan Age (months)', y = 'Individual', title='BCP-C, BCP-D') 
+```
+
+```{r bcp_e_scan_fig, cache=TRUE}
+plot_dat = scan_tally %>% 
+  filter(cohort2=='BCP_E' | cohort2 == 'BCP_ELISON') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  theme(axis.text.y=element_blank()) + 
+  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  scale_y_discrete()+
+  #scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  labs(x = 'Scan Age (months)', y = 'Individual', title='BCP-E') 
+```
+
+
+```{r bcp_clean_scan_fig, cache=TRUE}
+# Figure that shows how many scans we do have 
+scan_tally %>%
+  filter(!is.na(rs_collected)) %>%
+  filter(compareNA(pconn_exists, 'exists')) %>%
+  filter(cohort2!='BCP_D' & cohort2!='BCP_E' & cohort2!='BCP_ELISON') %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Scan Age (months)', y = 'Individual', title='Visits with .pconn on MSI') 
+
+scan_tally %>%
+  filter(!is.na(rs_collected)) %>%
+  filter(compareNA(pconn_exists, 'exists')) %>%
+  filter(cohort2=='BCP_D' | cohort2=='BCP_E' | cohort2=='BCP_ELISON') %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Scan Age (months)', y = 'Individual', title='Visits with .pconn on MSI') 
+```
+
+
+## Eye-tracking
+```{r}
+et=loris_vis2 %>%
+  filter(n_et >0,
+         !is.na(Visit_label)) %>%
+  dplyr::select(CandID, PSCID, ageFirstVis,Visit_label_age, Visit_label,
+                DOB, Date_visit, cohort2,
+                et_age, et_collected) %>%
+  mutate(CandID = as.factor(CandID),
+         # Scan status
+          status = ifelse(!is.na(et_collected), 'Visit=Yes, ET=Yes', ''), 
+          status = ifelse(is.na(Date_visit), 'Visit=No', status),
+          status = ifelse(!is.na(Date_visit) & is.na(et_collected), 'Visit=Yes, ET=No', status)) %>%
+  # Age for Cross-sectional kids 
+  mutate(age2 =  Date_visit - as.Date(DOB),
+         age2 = as.numeric(age2/30),
+ Visit_label_age = ifelse(is.na(Visit_label_age), age2, Visit_label_age)) 
+```
+
+```{r}
+et_indiv = et %>%
+  filter(!is.na(et_collected)) %>%
+  group_by(CandID) %>%
+  summarize(n=n())
+```
+- `r sum(et_indiv$n)` eye-tracing visits from `r nrow(et_indiv)` individuals. 
+
+```{r}
+# Numbe of individuals in each cohort
+et %>%
+  filter(!is.na(et_collected)) %>%
+  dplyr::select(CandID, cohort2) %>%
+  distinct() %>%
+  count(cohort2, name = 'Number of individuals')
+
+# Numbe of individuals from each cohort
+et %>%
+  filter(!is.na(et_collected)) %>%
+  count(cohort2, name = 'Number of visit')
+```
+
+```{r et_bslerp_fig, cache=TRUE, fig.width=12, fig.height=10}
+plot_dat1 = et %>% 
+  filter(cohort2=='BSLERP')  %>%
+  filter(Visit_label_age!=18,
+         ageFirstVis < 5)
+
+plot_dat2 = et %>% 
+  filter(cohort2=='BSLERP')  %>%
+  filter(Visit_label_age!=18,
+         ageFirstVis >= 5)
+
+ggplot(data = plot_dat1, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('black', 'red', 'springgreen4')) +
+  scale_x_continuous(breaks = c(3, 4, 6, 7, 9, 10, 12, 13, 24, 30, 36))+
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='BSLERP - 1') 
+
+ggplot(data = plot_dat2, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('black', 'red', 'springgreen4')) +
+  scale_x_continuous(breaks = c(5,8, 11, 14,24, 30, 36))+
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='BSLERP - 2') 
+
+```
+
+```{r etfig_bcpab, fig.width = 12,fig.height = 10}
+plot_dat = et %>% 
+filter(cohort2=='BCP_A' | cohort2 == 'BCP_B') 
+
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('black', 'red', 'springgreen4')) +
+  scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='BCP-A, BCP-B') 
+```
+
+```{r etfig_bcpcd, fig.width = 12,fig.height = 10}
+plot_dat = et %>% 
+filter(cohort2=='BCP_C' | cohort2 == 'BCP_D') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('black', 'red', 'springgreen4')) +
+  scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='BCP-C, BCP-D') 
+```
+
+```{r etfig_bcp_e, fig.width = 12,fig.height = 10, cache=TRUE}
+plot_dat = et %>% 
+filter(cohort2=='BCP_E' | cohort2 == 'BCP_ELISON') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_color_manual(values = c('black', 'red', 'springgreen4')) +
+  scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='BCP-E, BCP-ELISON') 
+```
+
+```{r etfig_other, fig.width = 12,fig.height = 10, cache=TRUE}
+plot_dat = et %>% 
+filter(cohort2=='other' | cohort2 == 'ift') 
+
+ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+  geom_point(aes(color=status), size=1.1) +
+  geom_line() +
+  scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
+  scale_y_discrete()+
+  labs(x = 'ET Age (months)', y = 'Individual', title='IFT, DSA') 
+```
+
+```{r clean_et}
+et %>%
+  filter(!is.na(et_collected)) %>%
+  filter(cohort2=='BCP_A' | cohort2=='BCP_B' | cohort2=='BCP_C') %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with et data') 
+
+et %>%
+  filter(!is.na(et_collected)) %>%
+  filter(cohort2!='BCP_A' & cohort2!='BCP_B' & cohort2!='BCP_C') %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with et data') 
+```
+
+
+## ET & RS
+```{r}
+loris_vis2 %>% 
+  filter(!is.na(rs_collected) & !is.na(et_collected)) %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with .pconn & ET data') 
+```
+
+```{r}
+et_mri_tally = loris_vis2 %>% 
+  filter(!is.na(rs_collected) & !is.na(et_collected)) %>%
+  group_by(CandID) %>%
+  summarize(n=n())
+```
+- `r sum(et_mri_tally$n)` visits from `r nrow(et_mri_tally)` individuals
+
+```{r}
+knit_exit()
+```
+
+
+
+# Old shit 
 
 ```{r} 
 session_tab = vis_list %>%
@@ -308,12 +712,6 @@ datatable(vis_list,
 
 ```
 
-
-
-<b>List of Cohorts</b>
-```{r}
-unique(vis_list$Cohort2)
-```
 
 How many visits do DevSocAtt kids have? 
 ```{r}
@@ -499,164 +897,10 @@ vis_list2=left_join(vis_list2, cohort %>% dplyr::select(PSCID, CandID) %>% disti
 ```
 
 
-# Determine who has RS data
-
-Directories on mesabi
-```{r}
-listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
-
-listofpconns = listofpconns %>%
-  dplyr::select(fname = V1, exists=V2) %>%
-  # remove file names that arent sub-123456_ses-XXmo_corr
-  filter(grepl('sub-', fname)) %>%
-  mutate(id_nums = gsub("\\D+", "", fname),
-         CandID = substring(id_nums, 1, 6),
-         vis = as.numeric(id_nums)%%as.numeric(CandID)) %>%
-  dplyr::select(-c(id_nums))
-
-datatable(listofpconns, colnames=c('Directory name', '.pconn exists/missing', 'CandID', 'Visit'), filter='top')
-```
-
-Visits with/without .pconn
-```{r}
-count(listofpconns, exists)
-```
 
 
-```{r}
-# Determine which eye-tracking visits have scans
-visit = c()
-scan_name = c()
-has_scan = c()
-# For every visit in list of eye-tracking visits 
-for (s in vis_list2$session) {
-  a=vis_list2 %>% filter(session == s)
-  id = a$CandID
-  age=a$age
-  
-  visit = c(visit, a$session)
-  if (id %in% listofpconns$CandID) {
-    
-    # Determine if there is a usable RS 
-    temp = listofpconns %>% 
-      filter(CandID == id) %>%
-      mutate(age_diff = abs(vis - age)) %>%
-      filter(age_diff == min(age_diff))
-    
-    s_name = temp$fname[1]
-    
-    closest_match = temp %>% 
-      # Some filenames are slightly different (e.g. 9m and 9mo) but it's the same visist
-      dplyr::select(exists,CandID, vis, age_diff) %>%
-      distinct()
-    
-    if (nrow(closest_match)>1) { # only the case for one 
-      closest_match = closest_match[1,]
-    }
-    
-    if (closest_match$age_diff <= 1){
-      scan_name = c(scan_name, s_name)
-      has_scan = c(has_scan, closest_match$exists)
-    } else{
-      scan_name = c(scan_name, 'None')
-      has_scan = c(has_scan, 'missing')
-    }
-    
-  }
-  else {
-    scan_name = c(scan_name, 'None')
-    has_scan=c(has_scan, 'missing')
-  }
-  
-  
-}
 
-scan_info = data.frame(session = visit, has_scan=has_scan, scan_name = scan_name)
-```
 
-```{r}
-# Merge scan info
-vis_list2=left_join(vis_list2, scan_info, by = 'session')
-```
-
-Eye-tracking visits <b>with</b> RS data
-```{r}
-datatable(vis_list2 %>% 
-            filter(has_scan=='exists') %>%
-            dplyr::select(session, Cohort2, age, CandID, scan_name),
-          filter='top'
-          )
-
-```
-
-Eye-tracking visits <b>without</b> RS data
-```{r}
-datatable(vis_list2 %>% 
-            filter(has_scan=='missing') %>%
-            dplyr::select(session, Cohort2, age, CandID, scan_name),
-          filter = 'top', options = list(digits=2)
-          )
-```
-
-## Visualize visits with eye-tracking & RS data
-```{r bslerp_et_rs_fig}
-vis_list2 %>%
-  filter(Cohort2=='BSLERP') %>%
-  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(color = has_scan), size=1) +
-  geom_line() +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BSLERP') 
-
-```
-
-```{r bcpA_bcpB_et_rs_fig}
-vis_list2 %>%
-  filter(Cohort2=='BCP_A' | Cohort2=='BCP_B') %>%
-  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(color = has_scan), size=1) +
-  geom_line() +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-A & BCP-B') 
-```
-
-```{r bcpC_bcpD_et_rs_fig}
-vis_list2 %>%
-  filter(Cohort2=='BCP_C' | Cohort2=='BCP_D' | Cohort2 == 'BCP_E' | Cohort2=='BCP_ELISON') %>%
-  mutate(has_scan = factor(has_scan, c('missing', 'exists'))) %>%
-  ggplot(data = ., aes(y = reorder(PSCID, ageFirstVis), x = age)) +
-  geom_point(aes(color = has_scan), size=1) +
-  geom_line() +
-  theme(axis.text.y=element_blank()) + 
-  scale_y_discrete()+
-  labs(x = 'Dancing Ladies Age (months)', y = 'Individual', title='BCP-C, D, E') 
-```
-
-Kids w/ no RS data for any visit (all BSLERP & DevSocAtt kids)
-```{r}
-# Determine who has no RS data 
-temp = vis_list2 %>%
-  group_by(PSCID) %>%
-  summarise(visit_count = n(),
-            noscan_count = sum(has_scan=='missing'),
-            no_RS = ifelse(visit_count == noscan_count, 1, 0)) 
-
-vis_list2=left_join(vis_list2, temp %>% dplyr::select(PSCID, noscan_count, no_RS), by = 'PSCID')
-
-```
-
-```{r}
-datatable(vis_list2 %>%
-            filter(no_RS==1) %>%
-            dplyr::select(PSCID, Cohort,Cohort2, n_sess) %>%
-            distinct(),
-           filter= 'top')
-
-```
 
 
 List of visits to prioritize for segmentation

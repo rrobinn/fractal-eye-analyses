@@ -155,6 +155,7 @@ participant_distances = [] # will contain part. name + calculated mean distance 
 
 # Choose folder with all cvs's in it
 dirname = askdirectory()
+#dirname = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/calver/'
 print("Using " + dirname)
 print("Printing a script summary to <%s>." %(dirname+'_summary.txt'))
 print("Printing results to file <%s>." %(dirname+'_output.csv'))

@@ -63,12 +63,21 @@ for t = 1:size(PrefBin.MovieListAsPresented,1)
             segInd(s) = indexOfMin;
         end
         segInd(end) = size(data,1); % last frame
+
         %% Segment the trial & pull relevant data
         for s = 1:length(segInd)-1
             %% Pull data for segment
             % Select rows from original data, interpolated data, and
             % aoi-hit data
             tempData = data(segInd(s):segInd(s+1)-1, :);
+            
+            % If there are fewer than 100 rows of data in this segment
+            % chunk, skip (trial was cut short)
+            if size(tempData,1) < 100
+                continue
+            end
+            
+            
             tempData_interp = data_interp(segInd(s):segInd(s+1)-1, :);
             tempData_aoi = data_aoi(segInd(s):segInd(s+1)-1, :);
             % pull time, and (x,y) coordinates from original data 

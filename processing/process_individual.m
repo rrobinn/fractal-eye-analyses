@@ -76,7 +76,7 @@ try
     % Save  data
     disp('Save data & interpolated data & aoi data');
     save([inFilePath id '/' id '_Parsed'], 'ParticData', 'PrefBin');
-    %% Segment the data
+    %% dl time series
     disp('Create time series');
     [segmentedData,segSummaryCol]  = generate_timeseries(ParticData, PrefBin, dataCol);
     disp('Saving segmented data');
@@ -91,7 +91,8 @@ try
     success = 1; 
     disp([id ' finished!']);
 catch ME
-    disp(['Could not find RawData.mat for ' id]);
+    disp([ME.identifier ' ' id])
+    %disp(['Could not find RawData.mat for ' id]);
     return
 end
 

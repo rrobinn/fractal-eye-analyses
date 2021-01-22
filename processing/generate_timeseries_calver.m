@@ -46,6 +46,11 @@ for t = 1:size(PrefBin.MovieListAsPresented,1)
         data = ParticData.Data{t,1};
         data_interp = ParticData.Data{t,2};
         
+        % If trial cut short, continue
+        if size(data,1) < 10
+            continue
+        end
+        
         trialName = PrefBin.MovieListAsPresented{t};
         % Subtract off first time stamp so that the first time stamp = 0
         time = cell2mat(data(:, dataCol.timestamp));

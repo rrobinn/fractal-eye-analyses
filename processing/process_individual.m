@@ -8,7 +8,6 @@ function [success] = process_individual(id, varargin)
 success = 0;
 
 
-
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
 [s, e]=regexp(pwd, 'fractal-eye-analyses');

@@ -1,13 +1,14 @@
 clear all
 close all
 % set wdir
-wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses';
+wdir = '/Users/sifre002/Documents/Github/fractal-eye-analyses';
 cd([wdir '/MFDFA/'])
 
 %%
-folder = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/'; % Folder w/ individual data, where concatenated output will be written
+folder = '~/Documents/GitHub/fractal-eye-analyses/data/individual_data_dissertation/'; % Folder w/ individual data, where concatenated output will be written
 outputFileName = 'h_out.txt'; % Name for output file with concatenated data
-header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, warning, h, r2, scmin, scmaxDiv, scres'; 
+matFileName = 'h_scres8_scmin8.mat'; % Name of .mat file to load and concatenate into one data structure
+header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, warning, h, r2, Hq-5, Hq-3, Hq-1, Hq0, Hq+1, Hq+3, Hq+5, scmin, scmaxDiv, scres';
 %%
 files = dir(folder);
 dirFlags = [files.isdir];
@@ -18,15 +19,15 @@ readErrors= {};
 fid = fopen([folder outputFileName], 'w');
 fprintf(fid, '%s \n', header);
 for f = 1:size(files,1)
-   try
-       % Read in .mat file w/ DFA output
+    try
+        % Read in .mat file w/ DFA output
         disp(['Attempting to read in data for ' files(f).name]);
-        load([folder files(f).name '/h.mat']);
+        load([folder files(f).name '/' matFileName]);
         
-        % Pull settings to save 
+        % Pull settings to save
         scmin = settings.scmin;
         scres = settings.scres;
-        try 
+        try
             scmaxDiv = settings.scmaxDiv;
         catch  ME
             scmaxDiv = -999;
@@ -42,19 +43,30 @@ for f = 1:size(files,1)
         
         % write trial info into separate file
         for s = 1:size(out,1)
-           temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
-               ',',num2str(out{s,5}),',', num2str(out{s,6}), ',' , num2str(out{s,7}), ...
-               ',',num2str(out{s,8}), ',' , num2str(out{s,9}), ',',num2str(out{s,10}), ...
-               ',',num2str(scmin), ',', num2str(scmaxDiv), ',',num2str(scres)];
-           fprintf(fid, '%s \n', temp);
+            if out{s,8} == 1 % 8th column is flagged w/ 1 if the time series was too short. Replace spectrum widths with -9999
+                 temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
+                    ',',num2str(out{s,5}),',', num2str(out{s,6}), ',' , num2str(out{s,7}), ...
+                    ',',num2str(out{s,8}), ',' , num2str(out{s,9}), ',',num2str(out{s,10}), ...
+                    ',-9999,-9999,-9999,-9999,-9999,-9999,-9999' ...    
+                    ',',num2str(scmin), ',', num2str(scmaxDiv), ',',num2str(scres)];
+            else
+                temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
+                    ',',num2str(out{s,5}),',', num2str(out{s,6}), ',' , num2str(out{s,7}), ...
+                    ',',num2str(out{s,8}), ',' , num2str(out{s,9}), ',',num2str(out{s,10}), ...
+                    ',',num2str(out{s,12}(1)), ',',num2str(out{s,12}(2)), ',',num2str(out{s,12}(3)), ...
+                    ',',num2str(out{s,12}(4)), ',',num2str(out{s,12}(5)), ',',num2str(out{s,12}(6)), ...
+                    ',',num2str(out{s,12}(7)), ...
+                    ',',num2str(scmin), ',', num2str(scmaxDiv), ',',num2str(scres)];
+            end
+            fprintf(fid, '%s \n', temp);
         end
         
-     
         
-   catch ME
+        
+    catch ME
         readErrors = horzcat(readErrors, ME.message);
-        disp(['ERROR Did not find file for ' files(f).name]);
-   end
+        disp([files(f).name ':' ME.message]);
+    end
 end
 readErrors=readErrors';
 %%

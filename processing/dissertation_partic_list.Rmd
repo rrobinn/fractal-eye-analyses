@@ -33,7 +33,7 @@ Document generates a list of visits to be included in my dissertation.  Does not
 
 ```{r echo = TRUE}
 # Directory where each session has its own sub-directory (excluding sessions that were in MS)
-data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/New_Sessions/'
+data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Sessions/'
 # 
 pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
 ```
@@ -47,7 +47,7 @@ out_dir = paste(wdir, 'data/', listname, sep ='')
 out_dir
 ```
 
-```{r}
+```{r loris_vis}
 loris_vis <- list_of_visits(path_to_session_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/visit_list.txt', 
                            path_to_bcpVisitOrder_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/BCP_info.txt') 
 
@@ -56,7 +56,7 @@ loris_vis = loris_vis %>%
   filter(!grepl('babar', cohort))
 ```
 
-```{r}
+```{r indiv_metadata}
 # Pull Individual-level data 
 # (CandID,PSCID,cohort,DOB,Sex)
 # # # # # # # # # # # # # # # # 
@@ -128,6 +128,9 @@ mutate(cohort2 = ifelse(grepl(pattern = 'bcpBSLERP', x = cohort2, ignore.case = 
 2. Merge `indiv_dat`. Calculate age at visit.  
 3. For eachc potential visit in `loris_vis` find the closest matching eye-tracking visit that occurred (if at all. )
 
+## List of visits from `data_dir`
+- `data_dir=` `r data_dir`:  
+
 ```{r getDateOfVisitFromTobii, cache = TRUE}
 ## Get date of visit from tobii .tsv
 files = list.dirs(data_dir)
@@ -168,24 +171,51 @@ visit_dates = visit_dates %>%
   dplyr::select(PSCID, session,visit_date)
 ```
 
-```{r crosscheck_ms}
-# Data from ms (to see who we already have)
-# List of id_sessions & their ages to include to analyses (DOB is identifying info) 
-particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
+```{r}
+datatable(visit_dates, filter = c('top'))
+```
 
-# Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
-h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
+Date distribution
+```{r}
 
-h = h %>%
-  # Create variable for Participant ID (currently combined with session #)
-  mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-  left_join(particList, by='id') %>%
-  # Variable to keep track of if theyre in participant list
-  mutate(particList = ifelse(id %in% particList$id, 1, 0))
+```
 
-old_data = h %>% 
-  dplyr::select(session=id, date, PSCID = Participant, age) %>%
-  distinct()
+
+```{r crosscheck_ms, echo = TRUE, cache=TRUE}
+## List of visits from MS 
+
+
+
+# # Data from ms (to see who we already have)
+# # List of id_sessions & their ages to include to analyses (DOB is identifying info) 
+# particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
+# 
+# # Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
+# h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
+# 
+# h = h %>%
+#   # Create variable for Participant ID (currently combined with session #)
+#   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
+#   left_join(particList, by='id') %>%
+#   # Variable to keep track of if theyre in participant list
+#   mutate(particList = ifelse(id %in% particList$id, 1, 0))
+```
+
+```{r}
+# old_data = h %>% 
+#   dplyr::select(session=id, date, PSCID = Participant, age) %>%
+#   distinct()
+# datatable(old_data, filter = c('top'))
+```
+
+```{r cache=TRUE}
+#Check sessions in old_data - are they in `Elab_ET_Data/BCP_BSLERP`?
+
+# f1=list.files(path = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED/', pattern = '.tsv',
+#              no.. = TRUE, full.names = FALSE, include.dirs = FALSE,
+#              recursive = TRUE)
+# 
+# f2=list.files(path = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_FAILED/', no.. = TRUE, recursive = TRUE)
 ```
 
 
@@ -198,27 +228,32 @@ visit_dates = visit_dates %>%
            age = age/30.42)
 
 # Make date for old_data y-m-d
-d=strsplit(old_data$date, '/')
-month = unlist(lapply(d, '[[', 1))
-day =  unlist(lapply(d, '[[', 2))
-year = unlist(lapply(d, '[[', 3))
-old_data$date = paste(year, month, day, sep = '-' )
-
-# Merge individual-level data w/ old data & calculate age 
-old_data = old_data %>%
-  dplyr::select(PSCID, session, visit_date = date, age) %>%
-  left_join(indiv_dat, by = 'PSCID') %>%
-  # Fix DOB
-  mutate(age = as.Date(visit_date) -  as.Date(DOB),
-         age = as.numeric(age)/30.42)
-  
+# d=strsplit(old_data$date, '/')
+# month = unlist(lapply(d, '[[', 1))
+# day =  unlist(lapply(d, '[[', 2))
+# year = unlist(lapply(d, '[[', 3))
+# old_data$date = paste(year, month, day, sep = '-' )
+# 
+# # Merge individual-level data w/ old data & calculate age 
+# old_data = old_data %>%
+#   dplyr::select(PSCID, session, visit_date = date, age) %>%
+#   left_join(indiv_dat, by = 'PSCID') %>%
+#   # Fix DOB
+#   mutate(age = as.Date(visit_date) -  as.Date(DOB),
+#          age = as.numeric(age)/30.42)
+#   
 
 # Combine old & new visits 
-et_visits = rbind(visit_dates %>% mutate(batch = 'New'), 
-                  old_data %>% mutate(batch = 'Old')) %>% 
-  mutate(visit_date = as.Date(visit_date)) %>%
+# et_visits = rbind(visit_dates %>% mutate(batch = 'New'), 
+#                   old_data %>% mutate(batch = 'Old')) %>% 
+#   mutate(visit_date = as.Date(visit_date)) %>%
+#   arrange(PSCID)
+
+et = visit_dates %>%
+    mutate(visit_date = as.Date(visit_date)) %>%
   arrange(PSCID)
 ```
+
 
 ## Check who we are missing info for  
 `et_visits`: list of eye-tracking visits from `data_dir` and spreadsheet that has the data that were potentially included in *Scientific Reports* ms.  
@@ -228,12 +263,14 @@ et_visits %>% filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex))
 Looks like DSA individuals in LORIS with no visits registered yet.  
 
 ## Merge eye tracking data with loris_vis
-```{r find_closest_et_vis}
-# For each eye-tracking visit, find closest visit in loris_vis and add flag
+```{r}
 loris_vis$Date_visit = as.Date(loris_vis$Date_visit)
 loris_vis$et_collected = NA
 loris_vis$et_age = NA
+```
 
+```{r find_closest_et_vis, echo = TRUE, cache=TRUE}
+# For each eye-tracking visit, find closest visit in loris_vis and add flag
 for (i in c(1:nrow(et_visits))) {
   temp = et_visits[i,]
   # Find closest date
@@ -249,6 +286,8 @@ for (i in c(1:nrow(et_visits))) {
         loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
   }
 ```
+
+
 
 
 # Steps for getting list of RS data

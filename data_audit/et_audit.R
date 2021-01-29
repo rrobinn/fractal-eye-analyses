@@ -1,23 +1,6 @@
-
-
-
-
-
-
-particList = read_csv(file = '~/Documents/Github/fractal-eye-analyses/data/participantList.csv')
-h <- read_csv(file = '~/Documents/Github/fractal-eye-analyses/data/h_out.txt')
-
-investigate = h %>% 
-  filter(id %in% missing) %>%
-  select(id,date) %>% distinct()
-
-
-investigate$date = as.Date(investigate$date, format = '%m/%d/%Y')
-hist(investigate$date, breaks = 'months')
-
-############### 
-# IDs in ~/AUDIT_PASSED/
-############### 
+############################### 
+# Audit the files in ~/AUDIT_PASSED/
+############################### 
 audit_dir = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED/'
 ids = list.dirs(audit_dir, full.names = TRUE, recursive = FALSE) # All parent directories (individuals)
 
@@ -44,7 +27,7 @@ task = unlist(lapply(strsplit(vis_list, '/'), '[', 2))
 audit_passed = data.frame(vis, task, stringsAsFactors = FALSE)
 
 ############### 
-# Are all of the DL visits in Sessions? (yes)
+# Are all of the DL visits in Sessions? 
 ############### 
 session = list.dirs('/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Session/')
 session = basename(session)

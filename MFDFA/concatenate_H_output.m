@@ -64,7 +64,7 @@ for f = 1:size(files,1)
         
         
     catch ME
-        readErrors = horzcat(readErrors, ME.message);
+        readErrors = horzcat(readErrors, [files(f).name ':' ME.message]);
         disp([files(f).name ':' ME.message]);
     end
 end

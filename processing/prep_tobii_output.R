@@ -6,11 +6,26 @@ library(assertr)
 mydir='/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Session'
 files = list.dirs(mydir)
 
+# Columns needed for analysis
+necessary_cols = c('RecordingTimestamp', 'ParticipantName', 'RecordingResolution',
+  'GazePointLeftX..ADCSpx.','GazePointLeftY..ADCSpx.','PupilLeft','ValidityLeft',
+  'GazePointRightX..ADCSpx.', 'GazePointRightY..ADCSpx.', 'PupilRight', 'ValidityRight',
+  'MediaName', 'RecordingDate')
+
+all_cols = c('RecordingTimestamp','ParticipantName','RecordingResolution','GazePointLeftX..ADCSpx.',
+'GazePointLeftY..ADCSpx.','DistanceLeft','PupilLeft','ValidityLeft',
+'GazePointRightX..ADCSpx.','GazePointRightY..ADCSpx.',
+'DistanceRight','PupilRight','ValidityRight',
+'FixationIndex','GazePointX..ADCSpx.','GazePointY..ADCSpx.','GazeEventDuration',
+'GazeEventType','SaccadeIndex','SaccadicAmplitude',
+# Info about trials
+'MediaName','StudioProjectName','RecordingResolution','RecordingDate')
+
 dir_list = c()
 actions = c()
 
 count = 0
-
+overwrite = 1
 for (f in files){
   count=count+1
   id = basename(f)
@@ -45,74 +60,44 @@ for (f in files){
   }
   
   # Check if the .txt file already exists 
-  if ( file.exists(paste(f, '/',id,'.txt', sep='')) ) {
+  if ( file.exists(paste(f, '/',id,'.txt', sep='')) & overwrite==0 ) {
     actions[count] = '.txt file already exists - skipped'
     next
   }
   
+  # Read data 
   dat=read.delim(paste(f, filename, sep = '/'), sep = '\t', stringsAsFactors = FALSE)
   # Check if it imported as one col
   if (dim(dat)[2]==1){
     dat=read.delim(paste(f, filename, sep = '/'), sep = ',', stringsAsFactors = FALSE)
   }
   
-  # Select the columns
-  dat = dat %>%
-    dplyr::select(
-                  RecordingTimestamp,
-                  ParticipantName,
-                  RecordingResolution,
-                  GazePointLeftX = GazePointLeftX..ADCSpx.,
-                  GazePointLeftY = GazePointLeftY..ADCSpx.,
-                  DistanceLeft,
-                  PupilLeft,
-                  ValidityLeft,
-                  GazePointRightX = GazePointRightX..ADCSpx.,
-                  GazePointRightY = GazePointRightY..ADCSpx.,
-                  DistanceRight,
-                  PupilRight,
-                  ValidityRight,
-                  FixationIndex,
-                  GazePointX = GazePointX..ADCSpx.,
-                  GazePointY = GazePointY..ADCSpx.,
-                  GazeEventDuration,
-                  GazeEventType,
-                  SaccadeIndex,
-                  SaccadicAmplitude,
-                  # Info about trials
-                  MediaName,
-                  StudioProjectName,
-                  RecordingResolution,
-                  RecordingDate) %>%
-    # Take care of empty media name for matlab import
-    mutate(RecordingTimestamp = ifelse(is.na(RecordingTimestamp), -9999, RecordingTimestamp),
-           Participant = ifelse(ParticipantName=='', '-9999', ParticipantName),
-           # Left eye data 
-           GazePointLeftX = ifelse(is.na(GazePointLeftX),-9999,GazePointLeftX),
-           GazePointLeftY = ifelse(is.na(GazePointLeftY),-9999,GazePointLeftY),
-           DistanceLeft = ifelse(is.na(DistanceLeft),-9999,DistanceLeft),
-           PupilLeft = ifelse(is.na(PupilLeft), -9999, PupilLeft),
-           ValidityLeft = ifelse(is.na(ValidityLeft), -9999, ValidityLeft),
-           # Right eye 
-           GazePointRightX = ifelse(is.na(GazePointRightX),-9999,GazePointRightX),
-           GazePointRightY = ifelse(is.na(GazePointRightY),-9999,GazePointRightY),
-           DistanceRight = ifelse(is.na(DistanceRight),-9999,DistanceRight),
-           PupilRight = ifelse(is.na(PupilRight), -9999, PupilRight),
-           ValidityRight = ifelse(is.na(ValidityRight),-9999,ValidityRight),
-           # Eye data
-           FixationIndex = ifelse(is.na(FixationIndex),-9999,FixationIndex),
-           GazePointX = ifelse(is.na(GazePointX), -9999, GazePointX),
-           GazePointY = ifelse(is.na(GazePointY), -9999, GazePointY),
-           GazeEventDuration = ifelse(is.na(GazeEventDuration), -9999, GazeEventDuration),
-           GazeEventType = ifelse(GazeEventType=='', '-9999', GazeEventType),
-           SaccadeIndex = ifelse(is.na(SaccadeIndex), -9999, SaccadeIndex),
-           SaccadicAmplitude = ifelse(is.na(SaccadicAmplitude), -9999, SaccadicAmplitude),
-           # Session info
-           MediaName = ifelse(MediaName=='', '-9999', MediaName),
-           StudioProjectName = ifelse(StudioProjectName=='', '-9999', StudioProjectName),
-           RecordingResolution = ifelse(RecordingResolution=='', '-9999', RecordingResolution),
-           RecordingDate = ifelse(RecordingDate=='', '-9999', RecordingDate)
-           ) 
+  # Check if it has all the headers needed
+  missing_cols = necessary_cols[!necessary_cols %in% colnames(dat)]
+  if (length(missing_cols)>0) {
+    missing_cols = paste(missing_cols, collapse = ',')
+    actions[count] = paste('misisng cols: ', missing_cols)
+    next
+  }
+  
+  dat2 = dat %>% 
+    dplyr::select(intersect(colnames(dat), all_cols)) %>%
+    rename(GazePointLeftX = GazePointLeftX..ADCSpx.,
+           GazePointLeftY = GazePointLeftY..ADCSpx.,
+           GazePointRightX = GazePointRightX..ADCSpx.,
+           GazePointRightY = GazePointRightY..ADCSpx.)
+  
+  # Handle empty cols
+  for (c in colnames(dat2)) {
+    if ( is.character(dat2[, c]) ) {
+      dat2[, c] = ifelse(dat2[, c] == '', '-9999', dat2[, c])
+    }
+    if (is.numeric(dat2[, c])) {
+      dat2[, c] = ifelse(is.na(dat2[,c]), -9999, dat2[, c])
+    }
+  }
+  
+
 
   # Generate text to write to .txt file 
   colnames = paste(colnames(dat), collapse = ',')

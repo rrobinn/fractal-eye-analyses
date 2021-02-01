@@ -80,12 +80,12 @@ for (f in files){
     next
   }
   
+  # Select the columns that you do have 
   dat2 = dat %>% 
-    dplyr::select(intersect(colnames(dat), all_cols)) %>%
-    rename(GazePointLeftX = GazePointLeftX..ADCSpx.,
-           GazePointLeftY = GazePointLeftY..ADCSpx.,
-           GazePointRightX = GazePointRightX..ADCSpx.,
-           GazePointRightY = GazePointRightY..ADCSpx.)
+    dplyr::select(intersect(colnames(dat), all_cols))
+  # Get rid of .. in colnames
+  colnames(dat2) = gsub(pattern = '\\.', replacement='', colnames(dat2))
+
   
   # Handle empty cols
   for (c in colnames(dat2)) {

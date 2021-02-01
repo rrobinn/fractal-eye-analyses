@@ -1,6 +1,7 @@
 ############################### 
 # Audit the files in ~/AUDIT_PASSED/
 ############################### 
+wdir = '~/Documents/GitHub/fractal-eye-analyses/data_audit/'
 audit_dir = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED/'
 ids = list.dirs(audit_dir, full.names = TRUE, recursive = FALSE) # All parent directories (individuals)
 
@@ -14,8 +15,10 @@ for (i in ids) {
   
   # list visits with E-AIMS or Calibration
   vis=vis[grepl('EU-AIMS|Calibration', vis)] 
+  
   # Format so ID is JE123456_03_03
   vis=gsub(pattern='v0', replacement = '_0', vis)
+  # Concatenate i, so that even if there are no EU-Aims/Calirbation files, ID will show up in vis_list with <NA> for task
   vis=paste(basename(i), vis, sep='')
   
   vis_list = c(vis_list,vis)
@@ -23,75 +26,87 @@ for (i in ids) {
 
 #Generate df of vis_list in AUDIT_PASSED/
 vis = unlist(lapply(strsplit(vis_list, '/'), '[[', 1))
-task = unlist(lapply(strsplit(vis_list, '/'), '[', 2))
-audit_passed = data.frame(vis, task, stringsAsFactors = FALSE)
+task = unlist(lapply(strsplit(vis_list, '/'), '[', 2)) # Name of task (if EU-Aims/Calibration)
+audit_passed = data.frame(vis, task, source='AUDIT_PASSED', stringsAsFactors = FALSE)
+
+#########################
+# Failed bc of column, but should be copied 
+########################
+# Read error log 
+fail = read_delim('~/Documents/Github/fractal-eye-analyses/data_audit/error_log.txt', delim='\n', col_names = FALSE)
+id = sapply(strsplit(fail$X1, split='\\t'), '[',1)
+e = sapply(strsplit(fail$X1, split='\\t'), '[', 2)
+# n = sapply(strsplit(fail$X1, split='\\t'), '[', 3)
+
+errors = data.frame(id, e, stringsAsFactors = FALSE)
+errors = errors %>%
+  filter(!grepl('Already in sorted', e),
+         !is.na(e))
+
+# List that failed the column check AND are DL or Calver
+col_errors = errors %>%
+  filter(e=='Failed column check' | e=='Failed column check (Studio)') %>%
+  mutate(dl_flag = ifelse(grepl('EU-AIM|Dancing|Cal', id, ignore.case = TRUE), 1, 0),
+         dl_flag = ifelse(grepl('practice|test', id, ignore.case = TRUE), 0, dl_flag))
+
+col_errors2 = col_errors %>% 
+  filter(dl_flag==1) %>%
+  # Keep only BSLERP/BCP
+  mutate(JE_id = ifelse(grepl('JE',id, ignore.case=TRUE), 1, 0),
+         BCP_id = ifelse(grepl('BCP', id, ignore.case=TRUE), 1, 0)) %>%
+  filter(JE_id==1 | BCP_id ==1) %>%
+  # Maek visit variable 
+  mutate(str_start = str_locate(toupper(id), 'JE|MN')[,1]) %>%
+    mutate(str_end= ifelse(JE_id == 1, str_start + 13, str_start+16)) %>%
+  mutate(vis = str_sub(id, start=str_start, end=str_end)) %>%
+  # Make task variable
+  # mutate(str_start = str_end+2) %>%
+  # mutate(str_end = nchar(id) - 4) %>%
+  # mutate(task = str_sub(id,start=str_start, end=str_end))
+  mutate(task = ifelse(grepl('eu', id, ignore.case = TRUE), 'EU-AIMS', ''),
+          task = ifelse(grepl('calib', id, ignore.case = TRUE), 'Calibration', task))
+
+col_errors3 = col_errors2 %>%
+  dplyr::select(vis, task) %>%
+  mutate(source = 'AUDIT_FAILED-COL ERROR')
+
+
+audit_passed= rbind(audit_passed, col_errors3)
 
 ############### 
-# Are all of the DL visits in Sessions? 
+# Are all of the DL visits from AUDIT_PASSED in Sessions? 
 ############### 
-session = list.dirs('/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Session/')
-session = basename(session)
-
-# Separate DL and CalVer visits 
-dl_vis = audit_passed %>% 
-  filter(grepl('EU-AIMS', task)) %>% 
-  pull(vis)
-cal_vis =  audit_passed %>% 
-  filter(grepl('Calibration', task)) %>% 
-  pull(vis)
-
-setdiff(dl_vis, session)
-setdiff(cal_vis, session)
-
-#####################
-# MSI?
-###################
-msi = list.dirs('/Users/sifre002/Documents/GitHub/fractal-eye-analyses/data/individual_data_dissertation/')
-msi=basename(msi)
-
-missing = setdiff(msi, dl_vis)
-
-#####################
-# .NAS
-####################
-nas = list.dirs('/Users/sifre002/Box/DancingLadiesshare/tsvs_OG_exports_fromTobii', full.names = TRUE, recursive = FALSE) # All parent directories (individuals)
-nas=nas[grepl('nas', nas)]
-
-nas_files = c()
-for (i in nas) {
-  print(basename(i))
-  nas_files = c(nas_files, list.files(i, recursive = TRUE, full.names = TRUE))
-  
+# Make list of files in ~/Session/
+session = list.dirs('~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Session/')
+files = c()
+for (s in session) {
+  print(s)
+  files = c(files, paste(basename(s), list.files(s, '.tsv')))
 }
+f = data.frame(vis=sapply(strsplit(files, ' '), '[', 1),
+               task=sapply(strsplit(files, ' '), '[', 2),
+               stringsAsFactors = FALSE)
+# Separate DL and CalVer visits that are in ~/Session/
+dl_vis = f %>%
+  filter(grepl('danc|eu', task, ignore.case = TRUE)) %>%
+  pull(vis)
+cal_vis = f %>%
+  filter(grepl('cal', task, ignore.case = TRUE)) %>%
+  pull(vis)
 
-# Check if the missing files are in these .nas exports 
-nas_files=gsub(pattern='/Users/sifre002/Box/DancingLadiesshare/tsvs_OG_exports_fromTobii/', replacement  ='', nas_files)
-#missing = data.frame(missing_from_audit = missing, stringsAsFactors = FALSE)
-
-dirs_with_data = c()
-id= c()
-for (m in missing) {
-  temp=nas_files[(grepl(m, nas_files, ignore.case = TRUE))]
-  if (length(temp)!=0) {
-    dirs_with_data = c(dirs_with_data,dirname(temp))
-    id = c(id, rep(m, length(temp)))
-  }
-}
-
-to_check = data.frame(id, dirs_with_data, stringsAsFactors = FALSE)
+audit_passed = audit_passed %>%
+  # Retain task that is DL or Calver
+  filter(!is.na(task)) %>% 
+  # Flag is the file is in the session directory
+  mutate(in_sessiondir = ifelse(grepl('EU-AIMS', task, ignore.case = TRUE) & vis %in% dl_vis, 1, 0),
+         in_sessiondir = ifelse(grepl('Calibration', task, ignore.case = TRUE & vis %in% cal_vis), 1, in_sessiondir))
+         
+temp=audit_passed %>% filter(in_sessiondir==0)
+temp
+write.csv(x = audit_passed, file = paste(wdir, 'files_in_AUDIT_PASSED.csv', sep ='') )
 
 
 
-# f = list.files('/Users/sifre002/Box/Elab_ET_Data/BCP_BSLERP/robin/')
-# 
-# r = f[grepl('\\(2\\)', f)]
-# 
-# for (temp in r) {
-#   
-#   temp2 = gsub(' \\(2\\)', '', temp)
-#   if (file.exists(paste('/Users/sifre002/Box/Elab_ET_Data/BCP_BSLERP/robin/', temp2, sep =''))) {
-#     file.remove(paste('/Users/sifre002/Box/Elab_ET_Data/BCP_BSLERP/robin/', temp, sep =''))
-#   }
-#   
-# }
-#       
+
+
+

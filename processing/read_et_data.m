@@ -113,32 +113,33 @@ for f=1:length(folderNames)
     
     %% Save in right columns 
     data = cell(size(t,1), numel(fieldnames(txtCol))); % pre-allocate output
-    data(:,1) = t(:, txtCol.timestamp);
-    data(:,2) = t(:, txtCol.id);
-    data(:,3) = t(:, txtCol.date);
-    data(:,4) = t(:, txtCol.gazeLx);
-    data(:,5) = t(:, txtCol.gazeLy);
-    data(:,6) = t(:, txtCol.pupL);
-    data(:,7) = t(:, txtCol.distL);
-    data(:,8) = t(:, txtCol.validityL);
     
-    data(:,9) = t(:, txtCol.gazeRx);
-    data(:,10) = t(:, txtCol.gazeRy);
-    data(:,11) = t(:, txtCol.pupR);
-    data(:,12) = t(:, txtCol.validityR);
-    data(:,13) = t(:, txtCol.distR);
+    if ~isempty(txtCol.timestamp) data(:,1) = t(:, txtCol.timestamp); end;
+    if ~isempty(txtCol.id) data(:,2) = t(:, txtCol.id); end;
+    if ~isempty(txtCol.date) data(:,3) = t(:, txtCol.date); end;
+    if ~isempty(txtCol.gazeLx) data(:,4) = t(:, txtCol.gazeLx);end;
+    if ~isempty(txtCol.gazeLy) data(:,5) = t(:, txtCol.gazeLy);end;
+    if ~isempty(txtCol.pupL) data(:,6) = t(:, txtCol.pupL);end;
+    if ~isempty(txtCol.distL) data(:,7) = t(:, txtCol.distL);end;
+    if ~isempty(txtCol.validityL)  data(:,8) = t(:, txtCol.validityL);end;
+    
+    if ~isempty(txtCol.gazeRx) data(:,9) = t(:, txtCol.gazeRx);end;
+    if ~isempty(txtCol.gazeRy) data(:,10) = t(:, txtCol.gazeRy);end;
+    if ~isempty(txtCol.pupR) data(:,11) = t(:, txtCol.pupR);end;
+    if ~isempty(txtCol.validityR) data(:,12) = t(:, txtCol.validityR);end;
+    if ~isempty(txtCol.distR) data(:,13) = t(:, txtCol.distR);end;
     %
-    data(:,14) = t(:, txtCol.fixIdx);
-    data(:,15) = t(:, txtCol.gazeX);
-    data(:,16) = t(:, txtCol.gazeY);
+    if ~isempty(txtCol.fixIdx) data(:,14) = t(:, txtCol.fixIdx); end;
+    if ~isempty(txtCol.gazeX) data(:,15) = t(:, txtCol.gazeX); end;
+    if ~isempty(txtCol.gazeY) data(:,16) = t(:, txtCol.gazeY); end;
     
-    data(:,17) = t(:, txtCol.media);
-    data(:,18) = t(:, txtCol.gazeEventType);
-    data(:,19) = t(:, txtCol.gazeEventDur);
-    data(:,20) = t(:, txtCol.saccIdx);
-    data(:,21) = t(:, txtCol.saccAmp);
-    data(:,22) = t(:, txtCol.project);
-    data(:,23) = t(:, txtCol.recordingres);
+    if ~isempty(txtCol.media) data(:,17) = t(:, txtCol.media); end;
+    if ~isempty(txtCol.gazeEventType) data(:,18) = t(:, txtCol.gazeEventType); end;
+    if ~isempty(txtCol.gazeEventDur) data(:,19) = t(:, txtCol.gazeEventDur); end;
+    if ~isempty(txtCol.saccIdx) data(:,20) = t(:, txtCol.saccIdx); end;
+    if ~isempty(txtCol.saccAmp) data(:,21) = t(:, txtCol.saccAmp); end;
+    if ~isempty(txtCol.project) data(:,22) = t(:, txtCol.project); end;
+    if ~isempty(txtCol.recordingres) data(:,23) = t(:, txtCol.recordingres); end;
     
     %% Make struct of datacols to save in .mat file
     dataCol = struct();

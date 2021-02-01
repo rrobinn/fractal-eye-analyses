@@ -98,10 +98,9 @@ for (f in files){
   }
   
 
-
   # Generate text to write to .txt file 
-  colnames = paste(colnames(dat), collapse = ',')
-  to_print=col_concat(dat, sep = ',')
+  colnames = paste(colnames(dat2), collapse = ',')
+  to_print=col_concat(dat2, sep = ',')
   
   write.csv(x=to_print, file = paste(f, '/', id, '.txt', sep='' ), row.names = FALSE, eol = '\n')  
   write.csv(x=colnames, file = paste(f, '/colnames.txt', sep =''), row.names=FALSE)

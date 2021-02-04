@@ -49,6 +49,76 @@ col_errors = errors %>%
   mutate(dl_flag = ifelse(grepl('EU-AIM|Dancing|Cal', id, ignore.case = TRUE), 1, 0),
          dl_flag = ifelse(grepl('practice|test', id, ignore.case = TRUE), 0, dl_flag))
 
+
+#############################
+library(readr)
+# Pull date from the ones w col errors
+fail_dir = audit_dir = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_FAILED/'
+
+recdates = c()
+ids = c()
+for (i in col_errors2$id) {
+  # read first line of the file
+  f = paste(fail_dir, i, sep='')
+  temp = read_tsv(f, n_max = 1, col_types = cols() )
+  # pull date & id
+  recdates = c(recdates, temp$RecordingDate)
+  ids = c(ids, temp$ParticipantName)
+}
+
+bad_exp_date = data.frame(id = ids, date = recdates, stringsAsFactors = FALSE)
+write_csv(x = bad_exp_date, path = '~/Desktop/dates_bad_tobii_col.csv')
+
+bad_exp_date=bad_exp_date %>%
+  mutate(date2 = as.POSIXct(date, format = c('%m/%d/%Y')),
+         date3 = as.Date(date, format = c('%m/%d/%Y')))
+d = bad_exp_date$date2
+d=d[d!="0015-07-16 LMT"]
+
+hist(x=d, breaks = 'months', freq=TRUE, xlab = 'Date of .tsv filse with exporting issue')
+
+# pull dates from files in AUDIT_PASSED
+#############################
+audit_dir = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED/'
+audit_ids = list.dirs(audit_dir, full.names = TRUE, recursive = FALSE) # All parent directories (individuals)
+
+recdates = c()
+ids = c()
+for (i in audit_ids) {
+  print(i)
+  # list sessions
+  sessions = list.dirs(i, full.names = TRUE, recursive=FALSE)
+  for (s in sessions) {
+    # List tasks, only pull date from one task
+    tasks = list.dirs(s, full.names=TRUE, recursive = FALSE)
+    f = list.files(tasks[1], full.names = TRUE)
+    temp = read_tsv(f, n_max = 1, col_types = cols() )
+    # pull date & id
+    recdates = c(recdates, temp$RecordingDate)
+    ids = c(ids, temp$ParticipantName)
+  }  
+}
+passed_audit = data.frame(id = ids, date = recdates, stringsAsFactors = FALSE)
+passed_audit = passed_audit %>%
+  mutate(date2 = as.POSIXct(date, format = c('%m/%d/%Y')),
+       date3 = as.Date(date, format = c('%m/%d/%Y')))
+d = passed_audit$date2
+
+d1 = d[d < as.POSIXct("2016-06-01 CDT")]
+d2 = d[d>=as.POSIXct("2016-06-01 CDT") & d<=as.POSIXct("2018-05-01 CDT")]
+d3 = d[d>=as.POSIXct("2018-05-01 CDT")]
+
+par(mfrow=c(3,1))
+hist(x=d1, breaks = 'months', freq=TRUE, xlab = 'Date of .tsv filse that passed AUDIT -1')
+hist(x=d2, breaks = 'months', freq=TRUE, xlab = 'Date of .tsv filse that passed AUDIT -2')
+hist(x=d3, breaks = 'months', freq=TRUE, xlab = 'Date of .tsv filse that passed AUDIT -3')
+
+write_csv(x = passed_audit, path = '~/Desktop/passed_audit.csv')
+
+
+
+#############################
+
 col_errors2 = col_errors %>% 
   filter(dl_flag==1) %>%
   # Keep only BSLERP/BCP
@@ -59,6 +129,9 @@ col_errors2 = col_errors %>%
   mutate(str_start = str_locate(toupper(id), 'JE|MN')[,1]) %>%
     mutate(str_end= ifelse(JE_id == 1, str_start + 13, str_start+16)) %>%
   mutate(vis = str_sub(id, start=str_start, end=str_end)) %>%
+  # Make nas variable
+  #mutate(str_end = str_locate(toupper(id), 'EU|CAL')[,1]) %>%
+  mutate(nas = str_sub(id, start=1, end=str_start-2)) %>%
   # Make task variable
   # mutate(str_start = str_end+2) %>%
   # mutate(str_end = nchar(id) - 4) %>%
@@ -69,6 +142,8 @@ col_errors2 = col_errors %>%
 col_errors3 = col_errors2 %>%
   dplyr::select(vis, task) %>%
   mutate(source = 'AUDIT_FAILED-COL ERROR')
+
+
 
 
 audit_passed= rbind(audit_passed, col_errors3)
@@ -99,10 +174,11 @@ audit_passed = audit_passed %>%
   filter(!is.na(task)) %>% 
   # Flag is the file is in the session directory
   mutate(in_sessiondir = ifelse(grepl('EU-AIMS', task, ignore.case = TRUE) & vis %in% dl_vis, 1, 0),
-         in_sessiondir = ifelse(grepl('Calibration', task, ignore.case = TRUE & vis %in% cal_vis), 1, in_sessiondir))
+         in_sessiondir = ifelse(grepl('Calibration', task, ignore.case = TRUE) & vis %in% cal_vis, 1, in_sessiondir))
          
 temp=audit_passed %>% filter(in_sessiondir==0)
 temp
+
 write.csv(x = audit_passed, file = paste(wdir, 'files_in_AUDIT_PASSED.csv', sep ='') )
 
 

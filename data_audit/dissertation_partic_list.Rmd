@@ -36,14 +36,17 @@ Document generates a list of visits to be included in my dissertation.  Does not
 data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Sessions/'
 # 
 pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
+#
+visit_date_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/visit_dates.csv'
 ```
 - `data_dir`: Location of <b>eye-tracking data</b> (.tsv and .mat files). If a .tsv in `~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED` contains the strings 'CalVer', 'Dancing', 'EU', or 'DL', it will end up with its own subdirectory in `~/AUDIT_PASSED/`.  
 - `pconn_file`: List of directories w/ RS .pconn files.  
+- `visit_date_file`: .csv of visit dates pulled from .tsvs on MSI.  
 
 <b>Path where final list will be stored:</b>
 ```{r}
 listname = 'Dissertation_ParticList.csv'
-out_dir = paste(wdir, 'data/', listname, sep ='')
+out_dir = paste(wdir, 'data_audit/', listname, sep ='')
 out_dir
 ```
 
@@ -124,52 +127,13 @@ mutate(cohort2 = ifelse(grepl(pattern = 'bcpBSLERP', x = cohort2, ignore.case = 
 
 # Steps for getting list of ET data  
 0. Use session table from LORIS to get list of visits for each participant (`list_of_visits.R`). Use this generate `indiv-dat` (DOB, cohort, sex).
-1. Get date of visit for newly-processed .tsv files  
+1. Get date of visit for .tsv files on mesabi. 
 2. Merge `indiv_dat`. Calculate age at visit.  
 3. For eachc potential visit in `loris_vis` find the closest matching eye-tracking visit that occurred (if at all. )
 
 ## List of visits from `data_dir`
 - `data_dir=` `r data_dir`:  
 
-```{r getDateOfVisitFromTobii, cache = TRUE}
-## Get date of visit from tobii .tsv
-files = list.dirs(data_dir)
-# Get date of scan for calculating DOBs from raw tobii file
-ids = c()
-date_of_vis = c()
-
-for (f in files){
-  ids = c(ids, basename(f))
-  date_of_vis = c(date_of_vis, get_date_et(f))
-}
-
-# Years are not entered in consistent way - fix this. 
-date_of_vis = unlist(date_of_vis)
-date_split = strsplit(date_of_vis, '/')
-
-# Data.frame to store visit dates 
-visit_dates = data.frame(session = ids, 
-                         date = as.character(date_of_vis),
-                         year = unlist(lapply(date_split, '[', 3)),
-                         month = unlist(lapply(date_split, '[', 1)) ,
-                         day = unlist(lapply(date_split, '[', 2) ))
-
-# Format visit date 
-visit_dates = visit_dates %>%
-  mutate(session = as.character(session)) %>%
-  mutate(PSCID = paste(lapply(strsplit(session, '_'), '[[', 1),
-                       lapply(strsplit(session, '_'), '[[', 2), sep = '_') ) %>%
-  # Fix years
-  mutate(year = as.numeric(as.character(year)),
-         year = year%%2000,
-         year = year + 2000) %>%
-  mutate(month = as.numeric(as.character(month)),
-         day = as.numeric(as.character(day))) %>%
-  mutate(visit_date = paste(year,month,day, sep = '-')) %>%
-  # get rid of first row
-  filter(session!='New_Sessions') %>%
-  dplyr::select(PSCID, session,visit_date)
-```
 
 ```{r}
 datatable(visit_dates, filter = c('top'))

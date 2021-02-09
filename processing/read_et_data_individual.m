@@ -161,6 +161,8 @@ data(:, dataCol.gazeX) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gaz
 data(:, dataCol.gazeY) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeY)) );
 data(:, dataCol.gazeLx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeLx)) );
 data(:, dataCol.gazeRx) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeRx)) );
+data(:, dataCol.gazeLy) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeLy)) );
+data(:, dataCol.gazeRy) =  num2cell( cellfun(@(x) str2num(x), data(:, dataCol.gazeRy)) );
 %% Remove rows where media = 999 (padding bw trials)
 
 save([id '_RawData.mat'], 'data', 'dataCol');

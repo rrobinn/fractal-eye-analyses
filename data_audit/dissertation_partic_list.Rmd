@@ -6,13 +6,14 @@ output:
     self_contained: true
 ---
 
-```{r warning=FALSE, comment = FALSE, message = FALSE, echo = FALSE}
+```{r warning=FALSE, results ='hide', message = FALSE, echo = FALSE}
 library(tidyverse)
 library(ggplot2)
 library(knitr)
 library(readxl)
 library(DT)
 library(miceadds)
+library(stringr)
 
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
@@ -28,20 +29,19 @@ opts_chunk$set(echo=FALSE,
 source.all(paste(wdir, 'analysis/Rfuncs/', sep =''))
 ```
 
-# About  
-Document generates a list of visits to be included in my dissertation.  Does not take QA/QC.
+# About
+
+Document generates a list of visits to be included in my dissertation. Does not take QA/QC into account
 
 ```{r echo = TRUE}
-# Directory where each session has its own sub-directory (excluding sessions that were in MS)
-data_dir = '~/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20201112data/Sessions/'
-# 
+# List of .tsvs on mesabi 
+data_list_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/list_et_files.csv'
+# List of visit dates 
+visit_date_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/dates_of_et.txt'
+# List of pconns 
 pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
-#
-visit_date_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/visit_dates.csv'
 ```
-- `data_dir`: Location of <b>eye-tracking data</b> (.tsv and .mat files). If a .tsv in `~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED` contains the strings 'CalVer', 'Dancing', 'EU', or 'DL', it will end up with its own subdirectory in `~/AUDIT_PASSED/`.  
-- `pconn_file`: List of directories w/ RS .pconn files.  
-- `visit_date_file`: .csv of visit dates pulled from .tsvs on MSI.  
+
 
 <b>Path where final list will be stored:</b>
 ```{r}
@@ -50,6 +50,10 @@ out_dir = paste(wdir, 'data_audit/', listname, sep ='')
 out_dir
 ```
 
+# Steps for getting list of ET data
+
+## 0. Use session table from LORIS to get list of visits for each participant (`list_of_visits.R`). 
+Use this generate `indiv-dat` (DOB, cohort, sex).
 ```{r loris_vis}
 loris_vis <- list_of_visits(path_to_session_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/visit_list.txt', 
                            path_to_bcpVisitOrder_query = '~/Documents/GitHub/fractal-eye-analyses/data/misc_queries/BCP_info.txt') 
@@ -67,6 +71,8 @@ indiv_dat = loris_vis %>%
   dplyr::select(CandID,  PSCID, cohort,DOB, Sex) %>% 
   filter(!grepl('babar', cohort)) %>%
   distinct() %>%
+  # Format DOB as dat
+  mutate(DOB = as.Date(DOB)) %>%
   # For now, remove all rows w/o DOB 
   mutate(to_remove = ifelse(is.na(DOB), 1, 0))
 
@@ -102,7 +108,6 @@ indiv_dat= left_join(indiv_dat, cohort, by = c('CandID')) %>%
 ```
 
 ```{r clean_cohort}
-
 # Clean up cohort
 loris_vis = loris_vis %>%
   left_join(indiv_dat %>% dplyr::select(CandID, cohort2), by = 'CandID') %>%
@@ -121,141 +126,132 @@ mutate(cohort2 = ifelse(grepl(pattern = 'bcpBSLERP', x = cohort2, ignore.case = 
          Visit_label_age = gsub(pattern = 'm', replacement = '', Visit_label_age),
          Visit_label_age = ifelse(Visit_label_age == 'Birth2wk', "0.5", Visit_label_age),
          Visit_label_age = as.numeric(Visit_label_age)) 
-  
 ```
 
-
-# Steps for getting list of ET data  
-0. Use session table from LORIS to get list of visits for each participant (`list_of_visits.R`). Use this generate `indiv-dat` (DOB, cohort, sex).
-1. Get date of visit for .tsv files on mesabi. 
-2. Merge `indiv_dat`. Calculate age at visit.  
-3. For eachc potential visit in `loris_vis` find the closest matching eye-tracking visit that occurred (if at all. )
-
-## List of visits from `data_dir`
-- `data_dir=` `r data_dir`:  
-
-
-```{r}
-datatable(visit_dates, filter = c('top'))
-```
-
-Date distribution
-```{r}
-
-```
-
-
-```{r crosscheck_ms, echo = TRUE, cache=TRUE}
-## List of visits from MS 
-
-
-
-# # Data from ms (to see who we already have)
-# # List of id_sessions & their ages to include to analyses (DOB is identifying info) 
-# particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
-# 
-# # Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
-# h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
-# 
-# h = h %>%
-#   # Create variable for Participant ID (currently combined with session #)
-#   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-#   left_join(particList, by='id') %>%
-#   # Variable to keep track of if theyre in participant list
-#   mutate(particList = ifelse(id %in% particList$id, 1, 0))
-```
-
-```{r}
-# old_data = h %>% 
-#   dplyr::select(session=id, date, PSCID = Participant, age) %>%
-#   distinct()
-# datatable(old_data, filter = c('top'))
-```
-
-```{r cache=TRUE}
-#Check sessions in old_data - are they in `Elab_ET_Data/BCP_BSLERP`?
-
-# f1=list.files(path = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_PASSED/', pattern = '.tsv',
-#              no.. = TRUE, full.names = FALSE, include.dirs = FALSE,
-#              recursive = TRUE)
-# 
-# f2=list.files(path = '~/Box/Elab_ET_Data/BCP_BSLERP/AUDIT_FAILED/', no.. = TRUE, recursive = TRUE)
+```{r echo=TRUE}
+unique(loris_vis$cohort)
 ```
 
 
 ```{r}
-# Merge individual-level data with visit_dates 
-visit_dates = visit_dates %>% 
+datatable(loris_vis, filter = c('top'))
+```
+
+## 1. Get date of visit for .tsv files on mesabi.  
+Includes directories that have Calver only (not DL).  Used to calculate age at visit & match with the visits in `loris_vis`
+```{r echo=TRUE}
+visit_dates = read.csv(file = visit_date_file, stringsAsFactors = FALSE)
+```
+
+```{r}
+# Use visit date to calculate age at visit 
+visit_dates = visit_dates %>%
+  select(visit_date=dates, ids) %>%
+  filter(ids!='data') %>%
+  mutate(PSCID=paste(sapply(strsplit(ids, '_'), '[', 1), sapply(strsplit(ids, '_'), '[', 2), sep='_')) %>% 
+  # format date
+  mutate(visit_date = as.Date(visit_date, format='%m/%d/%Y')) %>%
+  # Merge indiv_dat with visit_dates & calc age at visit 
   left_join(indiv_dat, by = 'PSCID') %>%
-    mutate(age = as.Date(visit_date) - as.Date(DOB),
+    mutate(age = visit_date - DOB,
            age = as.numeric(age),
            age = age/30.42)
-
-# Make date for old_data y-m-d
-# d=strsplit(old_data$date, '/')
-# month = unlist(lapply(d, '[[', 1))
-# day =  unlist(lapply(d, '[[', 2))
-# year = unlist(lapply(d, '[[', 3))
-# old_data$date = paste(year, month, day, sep = '-' )
-# 
-# # Merge individual-level data w/ old data & calculate age 
-# old_data = old_data %>%
-#   dplyr::select(PSCID, session, visit_date = date, age) %>%
-#   left_join(indiv_dat, by = 'PSCID') %>%
-#   # Fix DOB
-#   mutate(age = as.Date(visit_date) -  as.Date(DOB),
-#          age = as.numeric(age)/30.42)
-#   
-
-# Combine old & new visits 
-# et_visits = rbind(visit_dates %>% mutate(batch = 'New'), 
-#                   old_data %>% mutate(batch = 'Old')) %>% 
-#   mutate(visit_date = as.Date(visit_date)) %>%
-#   arrange(PSCID)
-
-et = visit_dates %>%
-    mutate(visit_date = as.Date(visit_date)) %>%
-  arrange(PSCID)
 ```
 
+```{r}
+visit_dates = visit_dates %>% arrange(PSCID)
+```
 
-## Check who we are missing info for  
-`et_visits`: list of eye-tracking visits from `data_dir` and spreadsheet that has the data that were potentially included in *Scientific Reports* ms.  
+### Check who we are missing demographic info for
+`visit_dates`: List of eye-tracking visits on MSI.  
+
 ```{r echo = TRUE}
-et_visits %>% filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex))
+visit_dates %>% filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex)) %>% datatable()
 ```
-Looks like DSA individuals in LORIS with no visits registered yet.  
 
-## Merge eye tracking data with loris_vis
+Looks like DSA individuals in LORIS with no visits registered yet.
+
+
+## 2. Get list of ET files on MSI  
+Flag who has DL & Calver & merge with visit_dates 
+```{r echo=TRUE}
+tsv_list=read.csv(data_list_file, header = FALSE, stringsAsFactors = FALSE)
+```
+
+```{r}
+head(tsv_list)
+```
+
+```{r}
+tsv_list = tsv_list %>%
+  mutate(id=paste(sapply(strsplit(V1, '_'), '[', 1),
+                  sapply(strsplit(V1, '_'), '[', 2),
+                  sapply(strsplit(V1, '_'), '[', 3), sep='_'),
+        task = str_remove(V1, id), 
+        DL_flag = ifelse(grepl('danc|eu', task, ignore.case = TRUE), 1, 0),
+               CAL_flag = ifelse(grepl('cal', task, ignore.case = TRUE), 1, 0))
+
+# One row per visit
+tsv_list=tsv_list %>%
+  select(id, DL_flag, CAL_flag) %>%
+  group_by(id) %>%
+  summarize(DL = sum(DL_flag),
+            CAL = sum(CAL_flag)) %>%
+  ungroup()
+```
+
+```{r}
+# Merge DL/Cal flag with visit_dates
+visit_dates = visit_dates %>%
+  rename(id=ids) %>%
+  left_join(tsv_list,by=c('id'))
+```
+
+
+
+## 2. Merge eye tracking meta-data with loris_vis
+
 ```{r}
 loris_vis$Date_visit = as.Date(loris_vis$Date_visit)
 loris_vis$et_collected = NA
+loris_vis$et_date = NA
+loris_vis$et_date = as.Date(loris_vis$et_date)
 loris_vis$et_age = NA
 ```
 
 ```{r find_closest_et_vis, echo = TRUE, cache=TRUE}
 # For each eye-tracking visit, find closest visit in loris_vis and add flag
-for (i in c(1:nrow(et_visits))) {
-  temp = et_visits[i,]
-  # Find closest date
+for (i in c(1:nrow(visit_dates))) {
+  temp = visit_dates[i,]
+  
+  # Find visit in LORIS that has the closest date to when data were collected
   date_array = loris_vis %>% 
     filter(PSCID == temp$PSCID) %>%
-    pull(Date_visit) %>%
-  as.Date()
-  
+    pull(Date_visit)
    closest_ind = which.min(as.numeric(abs(date_array - temp$visit_date)))
    closest_date = date_array[closest_ind]
   
-   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_collected'] = temp$session
-        loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
+   # Update loris_vis with the name of this eye-tracking session & date it was collected 
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_collected'] = temp$id
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_date'] = temp$visit_date
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
   }
 ```
 
+```{r}
+datatable(loris_vis %>% dplyr::select(CandID, PSCID, DOB, Sex, cohort, cohort2, Date_visit, VisitNo, et_collected, et_age, et_date),
+            filter = c('top'), rownames = FALSE)
+```
 
 
+```{r}
+knit_exit()
+```
 
 # Steps for getting list of RS data
+
 ## 1. Read .pconn file (contains paths to all .pconns)
+
 ```{r pconns_mesabi}
 # Directories on mesabi
 listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
@@ -277,11 +273,13 @@ datatable(listofpconns, colnames=c('Directory name', '.pconn exists/missing', 'C
 ```
 
 Visits with/without .pconn
+
 ```{r}
 count(listofpconns, exists)
 ```
 
 ## 2. Merge whether scan happened with loris_vis
+
 ```{r}
 loris_vis$rs_collected = NA
 loris_vis$pconn_exists = NA
@@ -314,8 +312,8 @@ for (i in 1:nrow(listofpconns)) {
   
 ```
 
-
 # Final
+
 ```{r}
 # Determine who has at least one scan OR one et visit
 et_scan_flag = loris_vis %>%
@@ -331,7 +329,6 @@ loris_vis2 = loris_vis %>%
 
 ```
 
-
 ```{r}
 datatable(loris_vis2 %>%
             mutate(CandID = as.factor(CandID)) %>%
@@ -342,6 +339,7 @@ datatable(loris_vis2 %>%
 ```
 
 ## Tallies
+
 ```{r message=FALSE,warning=FALSE}
 # Add age at first visit to help w/ plotting
 loris_vis2=loris_vis2 %>%
@@ -353,6 +351,7 @@ loris_vis2=loris_vis2 %>%
 ```
 
 ### Scan
+
 ```{r}
 scan_tally=loris_vis2 %>%
   filter(n_scan >0) %>%
@@ -381,7 +380,8 @@ rs_and_pconn = scan_tally %>%
   group_by(CandID) %>%
   summarize(n=n())
 ```
-- `r sum(rs_and_pconn$n)` visits on MSI with pconns, from `r nrow(rs_and_pconn)` indidividuals.  
+
+-   `r sum(rs_and_pconn$n)` visits on MSI with pconns, from `r nrow(rs_and_pconn)` indidividuals.
 
 ```{r scan_cohort}
 # Numbe of individuals in each cohort
@@ -396,8 +396,6 @@ scan_tally %>%
   filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
   count(cohort2, name = 'Number of scans')
 ```
-
-
 
 ```{r bcp_bslerp_scan_fig, cache=TRUE}
 plot_dat = scan_tally %>% 
@@ -456,7 +454,6 @@ ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_ag
   labs(x = 'Scan Age (months)', y = 'Individual', title='BCP-E') 
 ```
 
-
 ```{r bcp_clean_scan_fig, cache=TRUE}
 # Figure that shows how many scans we do have 
 scan_tally %>%
@@ -482,8 +479,8 @@ scan_tally %>%
     labs(x = 'Scan Age (months)', y = 'Individual', title='Visits with .pconn on MSI') 
 ```
 
-
 ## Eye-tracking
+
 ```{r}
 et=loris_vis2 %>%
   filter(n_et >0,
@@ -512,7 +509,8 @@ et_indiv = et %>%
   group_by(CandID) %>%
   summarize(n=n())
 ```
-- `r sum(et_indiv$n)` eye-tracing visits from `r nrow(et_indiv)` individuals. 
+
+-   `r sum(et_indiv$n)` eye-tracing visits from `r nrow(et_indiv)` individuals.
 
 ```{r}
 # Numbe of individuals in each cohort
@@ -631,8 +629,8 @@ et %>%
     labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with et data') 
 ```
 
-
 ## ET & RS
+
 ```{r}
 loris_vis2 %>% 
   filter(!is.na(rs_collected) & !is.na(et_collected)) %>%
@@ -650,7 +648,8 @@ et_mri_tally = loris_vis2 %>%
   group_by(CandID) %>%
   summarize(n=n())
 ```
-- `r sum(et_mri_tally$n)` visits from `r nrow(et_mri_tally)` individuals
+
+-   `r sum(et_mri_tally$n)` visits from `r nrow(et_mri_tally)` individuals
 
 ```{r}
 # Make final list of participants (et, mri, et+mri)
@@ -664,16 +663,6 @@ flagged_list = loris_vis2 %>%
 write.csv(x = flagged_list, file = out_dir, row.names = FALSE)
 ```
 
-
-
 ```{r}
 knit_exit()
 ```
-
-
-
-
-
-
-
-

@@ -57,7 +57,11 @@ By using this program you agree that:
 ################################################################################
 
 verbose = False # turn to False if you want it to print less.
-
+import csv
+import os
+import math
+import datetime
+import sys
 # Locations of all stimulus. The user can change these.
 locations = {#"Fix.jpg": [960.0, 540.0],
 "TopLeft_converted.avi": [480.0, 270.0],
@@ -80,25 +84,28 @@ header = [
   'Precision RMS Y']
 
 ################################################################################
+## Check if user inputted path
+################################################################################
+if len(sys.argv) >1:
+  dirname = sys.argv[1]
+else:
+  from tkinter import Tk
+  try:
+    from tkinter.filedialog import askdirectory
+  except:
+    print("Error! Run this script with Python3 (e.g. python3.4).\nExiting.\n")
+    exit()
+
+  # Make sure the TK() window doesn't appear, and doesn't keep the askdirectory up
+  root = Tk()
+  root.withdraw()
+  root.update()
+
+print(__doc__)
+################################################################################
 ## Import libraries; define functions.
 ################################################################################
-from tkinter import Tk
-try:
-  from tkinter.filedialog import askdirectory
-except:
-  print("Error! Run this script with Python3 (e.g. python3.4).\nExiting.\n")
-  exit()
 
-# Make sure the TK() window doesn't appear, and doesn't keep the askdirectory up
-#root = Tk()
-#root.withdraw()
-#root.update()
-
-import csv
-import os
-import math
-import datetime
-print(__doc__)
 
 def find_degree(scriptpix, tobiimm, userpix, usermm):
   """ For converting number of pixels to degree of visual angle.  The user
@@ -155,7 +162,7 @@ participant_distances = [] # will contain part. name + calculated mean distance 
 
 # Choose folder with all cvs's in it
 #dirname = askdirectory()
-dirname = '/Users/sifre002/Documents/GitHub/fractal-eye-analyses/data_for_calver/data_c'
+# dirname = '/Users/sifre002/Documents/GitHub/fractal-eye-analyses/data_for_calver/data_c'
 print("Using " + dirname)
 print("Printing a script summary to <%s>." %(dirname+'_summary.txt'))
 print("Printing results to file <%s>." %(dirname+'_output.csv'))
@@ -164,6 +171,7 @@ print("Printing results to file <%s>." %(dirname+'_output.csv'))
 mm_height, mm_width = -1., -1.
 pix_height, pix_width = -1., -1.
 usesame = False
+
 
 try:
   with open("./calibrationvalues.txt", 'r') as oldvals:
@@ -289,7 +297,7 @@ for file in dirList:
 
 
   if -1 in [MediaName, RecordingTimestamp, FixationIndex, GazeEventDuration,
-      GazePointX, GazePointY, DistanceLeft, DistanceRight]:
+      GazePointX, GazePointY, DistanceLeft, DistanceRight, ValidityLeft, ValidityRight]:
     print("************************* ERROR ************************* \n\
 I didn't find some of the headers I was looking for. \
 Please check that your headers include these: \
@@ -308,13 +316,13 @@ DistanceLeft, DistanceRight))
     print("Skipping file %s." %filename)
     continue
 
-  if -1 in [ValidityLeft, ValidityRight]:
-    print("************************* ERROR ************************* \n \
-I didn't see columns for ValidityLeft or ValidityRight. If you have those,\n\
-please re-export your data with those columns.  This script will continue,\
-but I must assume\n\
-all the data you've exported is considered valid for one / both eyes.\n")
-    hasvalidity = False
+#if -1 in [ValidityLeft, ValidityRight]:
+#    print("************************* ERROR ************************* \n \
+#I didn't see columns for ValidityLeft or ValidityRight. If you have those,\n\
+#please re-export your data with those columns.  This script will continue,\
+#but I must assume\n\
+#all the data you've exported is considered valid for one / both eyes.\n")
+#    hasvalidity = False
 
   if verbose:
     print("Finding participant's average distance from screen...")
@@ -365,7 +373,7 @@ all the data you've exported is considered valid for one / both eyes.\n")
   # Find first non-blank one (I assume you don't start immediately with a stim
   # on the screen).
   for i in range(1, len(d)):
-    if d[i][MediaName] != '':
+    if d[i][MediaName] != '' and d[i][MediaName] != '-9999':
       currentMedia = d[i][MediaName] 
       currentFixevent = d[i][FixationIndex]
       line = i
@@ -397,16 +405,12 @@ all the data you've exported is considered valid for one / both eyes.\n")
   # Every time you hit a new FixationIndex, store that information for the Leak list.
   for i in range(line, len(d)):
     if currentFixevent != d[i][FixationIndex]:
-      # grab the line that changed.  The blank ones will contain timestamps we want.
-      if hasvalidity:
-        leakLines.append([i, d[i][MediaName], d[i][RecordingTimestamp],
-          d[i][FixationIndex], d[i][GazeEventDuration],
-          d[i][GazePointX], d[i][GazePointY], d[i][ValidityLeft],
-          d[i][ValidityRight]])
-      else:
-        leakLines.append([i, d[i][MediaName], d[i][RecordingTimestamp],
-          d[i][FixationIndex], d[i][GazeEventDuration],
-          d[i][GazePointX], d[i][GazePointY]])
+    # grab the line that changed.  The blank ones will contain timestamps we want.
+      leakLines.append([i, d[i][MediaName], d[i][RecordingTimestamp],
+        d[i][FixationIndex], d[i][GazeEventDuration],
+        d[i][GazePointX], d[i][GazePointY], d[i][ValidityLeft],
+        d[i][ValidityRight]])
+
       currentFixevent = d[i][FixationIndex] # and update fixation event.
 
 
@@ -434,24 +438,23 @@ all the data you've exported is considered valid for one / both eyes.\n")
     print("I didn't find any fixations.  Skipping file: \n%s." %filename)
     continue
 
-  if leakLines[0][3] == '':
+  if leakLines[0][3] == '-9999':
     print("First line in leakLines was bad; removing.")
     leakLines.pop(0)
 
-  for i in range(0, len(leakLines), 2):
+  for i in range(0, len(leakLines)-1, 2): # Changed max to len(leakLines)-1 [was len(leakLines)
     # If you STARTED at a blank line, move on.  I don't care if they are
     # both blank because that is included in the case where the first line
     # is blank.
-    if leakLines[i][1] == '':# and leakLines[i+1][1] == '':
+    if leakLines[i][1] == '-9999' and leakLines[i+1][1] == '-9999':
       continue
       
     # Ignore if this duration had invalid eye marks.
-    if hasvalidity:
-      if (leakLines[i][-1] != '0' and leakLines[i][-2] != '0'):
-        print("Invalid eye markers in this line; ignoring that as a \
+    if (leakLines[i][-1] != '0' and leakLines[i][-2] != '0'):
+      print("Invalid eye markers in this line; ignoring that as a \
 potential longest-duration: ")
-        print(leakLines[i])
-        continue
+      print(leakLines[i])
+      continue
       
     # Calculate each potential longest duration.
     templine = []
@@ -463,12 +466,20 @@ potential longest-duration: ")
     
     # Compare to the existing longest duration and update if needed.
     curKey = leakLines[i][1] # e.g. TopRight.avi
-    if curKey not in l_dur.keys():
-      print("Key not found! I am looking for <%s> and couldn't it in \
-your list of stimuli:" %curKey)
-      print(list(l_dur.keys()))
-    else: # else keep track because later I'll need to sort by fixation length AND degrees accuracy
+
+    if curKey in l_dur.keys():
+      # else keep track because later I'll need to sort by fixation length AND degrees accuracy
       l_dur[leakLines[i][1]][fixNumber] = templine
+      # if templine[-1] > l_dur[leakLines[i][1]][-1]:
+      #    l_dur[leakLines[i][1]] = templine
+
+   # if curKey not in l_dur.keys():
+      #print("Key not found! I am looking for <%s> and couldn't it in \your list of stimuli:" %curKey)
+      #print(list(l_dur.keys()))
+
+    # Do nothing
+    #else: # else keep track because later I'll need to sort by fixation length AND degrees accuracy
+      #l_dur[leakLines[i][1]][fixNumber] = templine
       #if templine[-1] > l_dur[leakLines[i][1]][-1]:
       #    l_dur[leakLines[i][1]] = templine
 

@@ -223,7 +223,6 @@ print(dirList)
 for file in dirList:
 
   print("*********************************************************")
-  file = 'JE000192_03_07_DancingLadies2.tsv'
   # build filename, open, and read...
   filename = dirname + "/" + file
   if(filename[-3:] != "csv" and filename[-3:] != "tsv"):

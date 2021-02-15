@@ -1,14 +1,12 @@
 
 # Certain data 
-data/misc_queries/.DS_Store
-data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx
-data/misc_queries/cohort-2020-12-07.csv
-data/misc_queries/age-2020-12-03.csv
+
+
 *.html
 
-processing/dissertation_partic_list_files/
-processing/dissertation_partic_list_cache/
-data/Dissertation_ParticList.csv
+
+
+data_for_calver/
 
 .DS_Store
 
@@ -37,15 +35,29 @@ data/Dissertation_ParticList.csv
 out/
 
 # data directories
-data/misc_queries/*
 Figs/
 data/individual_data/.DS_Store
 data/settings/
 data/individual_data/
 data/settings.mat
+data/Dissertation_ParticList.csv
+data/dev
+data/*.txt
+data/*.mat
+
 settings/settings_scmin4_scres4.mat
 settings/settings_scmin8_scres8.mat
 data/individual_data/.DS_Store
-data/individual_data/.DS_Store
 data/individual_data/JE000053_03_06/h.mat
-data/segmentation_priority.csv
+
+data/misc_queries/*
+data/misc_queries/.DS_Store
+data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx
+data/misc_queries/cohort-2020-12-07.csv
+data/misc_queries/age-2020-12-03.csv
+
+data_audit/*_files/
+data_audit/*_cache/
+data_audit/slurm_out_preptobii.R
+data_audit/FileAudit
+data_audit/*.csv

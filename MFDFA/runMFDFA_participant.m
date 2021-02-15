@@ -112,13 +112,13 @@ try
         
         %% MFDFA1 (indirect)
         signal = ts;
-        if H<0.2
-            signal=cumsum(signal-mean(signal));
-        elseif H<1.8 && H>=1.2
-            signal=diff(ts);
-        elseif H>1.8
-            signal=diff(diff(ts));
-        end
+%         if H<0.2
+%             signal=cumsum(signal-mean(signal));
+%         elseif H>=0.2 && H<1.8 % This was if H>=1.2
+%             signal=diff(ts);
+%         elseif H>1.8
+%             signal=diff(diff(ts));
+%         end
         [Hq, tq, hq, Dq, Fq]= MFDFA1(signal, scale, settings.q, settings.m, settings.MFDFAplot1);
         
         % Set figure handle

@@ -223,7 +223,7 @@ print(dirList)
 for file in dirList:
 
   print("*********************************************************")
-
+  file = 'JE000192_03_07_DancingLadies2.tsv'
   # build filename, open, and read...
   filename = dirname + "/" + file
   if(filename[-3:] != "csv" and filename[-3:] != "tsv"):
@@ -339,9 +339,9 @@ DistanceLeft, DistanceRight))
   newR = []
   for i in range(len(distLefts)):
     try:
-      if distLefts[i] in ['', ' ', '0']:
+      if distLefts[i] in ['', ' ', '0', '-9999']:
         pass
-      elif distRights[i] in ['', ' ', '0']:
+      elif distRights[i] in ['', ' ', '0', '-9999']:
         pass
       else:
         newL.append(float(distLefts[i]))

@@ -18,11 +18,21 @@ clean_calver <- function(precisionInfo) {
     avg_prec=precisionInfo2
   } else{
     
+    
     precisionInfo2 = precisionInfo %>%
       filter(!is.na(CoordX)) %>% # If missing info for X, always missing for Y as well
-      mutate(Precision_RMS_X_Y=(PrecRMSx+PrecRMSy)/2) %>%
-      dplyr::select(id=X, Precision_RMS_X_Y, Stimulus,Order) %>%
-      distinct()
+      mutate(Precision_RMS_X_Y=(PrecRMSx+PrecRMSy)/2) 
+    
+    if ( length(intersect(colnames(precisionInfo2), 'Order')) != 0 ) { 
+      precisionInfo2 = precisionInfo2 %>%
+        dplyr::select(id=X, Precision_RMS_X_Y, Stimulus,Order) %>%
+        distinct()
+    }else {
+      precisionInfo2 = precisionInfo2 %>%
+        dplyr::select(id=X, Precision_RMS_X_Y, Stimulus) %>%
+        distinct()
+      }
+    
     
     #Establish threshold for acceptable precision value based on 2 SDs above sample mean
     cutoff=mean(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)+2*sd(precisionInfo2$Precision_RMS_X_Y, na.rm=TRUE)

@@ -424,7 +424,8 @@ DistanceLeft, DistanceRight))
   ##### Find all potential markers for leak, duration
   # Every time you hit a new FixationIndex, store that information for the Leak list.
   for i in range(line, len(d)): # For each row from the first row of data till the end of the session
-    if currentFixevent != d[i][FixationIndex] and (d[i][FixationIndex]!='' and d[i][FixationIndex]!='-9999'):
+    #if currentFixevent != d[i][FixationIndex] and (d[i][FixationIndex]!='' and d[i][FixationIndex]!='-9999'):
+    if currentFixevent != d[i][FixationIndex]:
     # grab the line that changed.  The blank ones will contain timestamps we want.
       leakLines.append([i, d[i][MediaName], d[i][RecordingTimestamp],
         d[i][FixationIndex], d[i][GazeEventDuration],
@@ -462,7 +463,7 @@ DistanceLeft, DistanceRight))
     print("First line in leakLines was bad; removing.")
     leakLines.pop(0)
 
-  for i in range(0, len(leakLines), 2): # Changed max to len(leakLines)-1 [was len(leakLines)
+  for i in range(0, len(leakLines)-1, 2): # Changed max to len(leakLines)-1 [was len(leakLines)
     # If you STARTED at a blank line, move on.  I don't care if they are
     # both blank because that is included in the case where the first line
     # is blank.

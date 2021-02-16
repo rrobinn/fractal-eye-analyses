@@ -323,16 +323,37 @@ DistanceLeft, DistanceRight))
 #all the data you've exported is considered valid for one / both eyes.\n")
 #    hasvalidity = False
 
+  # If this is an older version of the task, need to remove rows with the same recording time stamp
+
+
   if verbose:
     print("Finding participant's average distance from screen...")
 
-  distLefts = []
-  distRights = []
   # Can't use Pandas to import; it floats() them too hard, e.g. 123.01
   # becomes 123.0000000001.
+
+  # Handle versions with key events (duplicate time stamps)
+  i = 1
+  time = d[1][RecordingTimestamp]
+  while i < len(d)-1: # Remove row with dup time stamp
+    temp = d[i][RecordingTimestamp]
+    if temp=='-9999' or temp=='':
+      i =+1
+    elif temp != time:
+      time = temp # update time
+      i += 1
+    else: # If this row is the same time stamp as the one before, remove it
+      r = d.pop(i)
+      i +=1
+
+
+  distLefts = []
+  distRights = []
+
   for i in range(1, len(d)):
     distLefts.append(d[i][DistanceLeft])
     distRights.append(d[i][DistanceRight])
+
   
   newL = []
   newR = []
@@ -371,8 +392,8 @@ DistanceLeft, DistanceRight))
 
   # Find first non-blank one (I assume you don't start immediately with a stim
   # on the screen).
-  for i in range(1, len(d)):
-    if d[i][MediaName] != '' and d[i][MediaName] != '-9999':
+  for i in range(1, len(d)): # for each row in the data
+    if d[i][MediaName]!='' and d[i][MediaName]!='-9999':
       currentMedia = d[i][MediaName] 
       currentFixevent = d[i][FixationIndex]
       line = i
@@ -399,18 +420,17 @@ DistanceLeft, DistanceRight))
     # which is
     # [start line, end line, calculated duration]
 
-  print("Done.\nFinding all possible duration locations...")
+  #print("Done.\nFinding all possible duration locations...")
   ##### Find all potential markers for leak, duration
   # Every time you hit a new FixationIndex, store that information for the Leak list.
-  for i in range(line, len(d)):
-    if currentFixevent != d[i][FixationIndex]:
+  for i in range(line, len(d)): # For each row from the first row of data till the end of the session
+    if currentFixevent != d[i][FixationIndex] and (d[i][FixationIndex]!='' and d[i][FixationIndex]!='-9999'):
     # grab the line that changed.  The blank ones will contain timestamps we want.
       leakLines.append([i, d[i][MediaName], d[i][RecordingTimestamp],
         d[i][FixationIndex], d[i][GazeEventDuration],
         d[i][GazePointX], d[i][GazePointY], d[i][ValidityLeft],
         d[i][ValidityRight]])
-
-      currentFixevent = d[i][FixationIndex] # and update fixation event.
+    currentFixevent = d[i][FixationIndex] # and update fixation event.
 
 
   ##### Find all potential markers for non leak, duration
@@ -437,24 +457,26 @@ DistanceLeft, DistanceRight))
     print("I didn't find any fixations.  Skipping file: \n%s." %filename)
     continue
 
-  if leakLines[0][3] == '-9999':
+ # Check recording time stamps
+  if leakLines[0][3] == '-9999' or leakLines[0][3]=='':
     print("First line in leakLines was bad; removing.")
     leakLines.pop(0)
 
-  for i in range(0, len(leakLines)-1, 2): # Changed max to len(leakLines)-1 [was len(leakLines)
+  for i in range(0, len(leakLines), 2): # Changed max to len(leakLines)-1 [was len(leakLines)
     # If you STARTED at a blank line, move on.  I don't care if they are
     # both blank because that is included in the case where the first line
     # is blank.
-    if leakLines[i][1] == '-9999' and leakLines[i+1][1] == '-9999':
+    if (leakLines[i][1]=='-9999' and leakLines[i+1][1]=='-9999') or (leakLines[i][1]=='' and leakLines[i+1][1]==''):
       continue
       
     # Ignore if this duration had invalid eye marks.
     if (leakLines[i][-1] != '0' and leakLines[i][-2] != '0'):
-      print("Invalid eye markers in this line; ignoring that as a \
-potential longest-duration: ")
-      print(leakLines[i])
       continue
-      
+
+    # Ignore if the media name is not a calver trial
+    if leakLines[i][1] not in locations.keys():
+      continue
+
     # Calculate each potential longest duration.
     templine = []
     # line order: event line start, event line end, time.
@@ -465,22 +487,10 @@ potential longest-duration: ")
     
     # Compare to the existing longest duration and update if needed.
     curKey = leakLines[i][1] # e.g. TopRight.avi
-
-    if curKey in l_dur.keys():
-      # else keep track because later I'll need to sort by fixation length AND degrees accuracy
-      l_dur[leakLines[i][1]][fixNumber] = templine
-      # if templine[-1] > l_dur[leakLines[i][1]][-1]:
-      #    l_dur[leakLines[i][1]] = templine
-
-   # if curKey not in l_dur.keys():
-      #print("Key not found! I am looking for <%s> and couldn't it in \your list of stimuli:" %curKey)
-      #print(list(l_dur.keys()))
-
-    # Do nothing
-    #else: # else keep track because later I'll need to sort by fixation length AND degrees accuracy
-      #l_dur[leakLines[i][1]][fixNumber] = templine
-      #if templine[-1] > l_dur[leakLines[i][1]][-1]:
-      #    l_dur[leakLines[i][1]] = templine
+    #l_dur[leakLines[i][1]][fixNumber] = templine
+    # curFixDur =list(l_dur[curKey].values())[0][-1] # Get the current longest fixation duration
+    #if templine[-1] > curFixDur:
+    l_dur[leakLines[i][1]][fixNumber] = templine # keep track because later I'll need to sort by fixation length AND degrees accuracy
 
   # At this point, the dictionaries contain stuff like:
   # 'TopLeft.avi': {'4': [6155, 6177, 73], '2': [5444, 5469, 84], '3': [6077, 6101, 80]},
@@ -496,7 +506,7 @@ potential longest-duration: ")
   remKeys = [] # to store datapoints I'll need to remove.
   for eachstimulus in l_dur:
     for eachfixation in l_dur[eachstimulus]:
-      l_dur[eachstimulus][eachfixation].append([]) # this empty list is about to hold all the (x,y) coordinates.
+      l_dur[eachstimulus][eachfixation].append([])# this empty list is about to hold all the (x,y) coordinates.
       for i in range(l_dur[eachstimulus][eachfixation][0], l_dur[eachstimulus][eachfixation][1]):
         if hasvalidity:
           if (d[i][ValidityLeft] == '0') or (d[i][ValidityRight] == '0'):
@@ -513,7 +523,7 @@ potential longest-duration: ")
                 exit()
             elif verbose:
               print("The line contained negative values: %i, %i" %(int(d[i][GazePointX]), int(d[i][GazePointY])))
-
+        #TODO remove this part of the code - must have validity
         else: # no Validity columns, but still check that it's within specified width and height.
           if 0 < int(d[i][GazePointX]) < int(pix_width) and 0 < int(d[i][GazePointY]) < int(pix_height):
             try:
@@ -693,7 +703,7 @@ potential longest-duration: ")
   averageRMSD_y = []
 
   for stim in stims:
-    if 'N/A' in l_dur[stim]: 
+    if 'N/A' in l_dur[stim]:
       groupdata.append([stim, 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A'])
     else:
       ## for min euclid distance:

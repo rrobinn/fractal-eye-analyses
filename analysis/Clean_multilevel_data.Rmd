@@ -9,14 +9,14 @@ output: html_document
 # User parameters
 min_age = 0
 max_age = 40
-wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses/'
-cleaned_precision_dat = 1 # Are you using precision data that have already been cleaned?
+wdir = '~/Documents/Github/fractal-eye-analyses/'
+cleaned_precision_dat = 0 # Are you using precision data that have already been cleaned?
 ```
 
 # Where do you want to save data?
 ```{r}
 out_dir = paste(wdir, 'data/', sep = '')
-file_name = '20200803_cleaned_multilevel_data'
+file_name = paste(format(Sys.time(), "%Y %b %d"), 'cleaned_multilevel_data', sep = '-')
 ```
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
@@ -26,44 +26,66 @@ library(ggplot2)
 
 # Read data
 ```{r}
-# List of id_sessions & their ages to include to analyses (DOB is identifying info) 
-particList = read_csv(file = paste(wdir, 'data/participantList.csv', sep = ''))
+# List of ET sessions linked with DOB, Sex, etc. 
+particList = read_csv(file = paste(wdir, 'data_audit/Dissertation_ParticList.csv', sep=''))
 
 # Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
 h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
 
 # Calibration precision spreadsheet  
-AvgPrecision <- read.csv( paste(wdir, 'data/et_precision.csv', sep=''), stringsAsFactors = FALSE )
+precision_info <- read.csv( paste(wdir, 'data_for_calver/data_d_output_reformatted.csv', sep=''), stringsAsFactors = FALSE )
 
 # Face-looking data 
 aoi_data<- read.csv( paste(wdir, 'data/face_out.txt', sep ='') )
+```
 
-# DOB (not queriable from database)
-# dob = read_csv('/Users/sifre002/Box/sifre002/9_ExcelSpreadsheets/09_MRI_metdata/20200408_BCP_DOB.csv')
+```{r}
+particList = particList %>% 
+  select(CandID, PSCID, DOB, Sex, et_collected, et_age, et_date, cohort2)
 ```
 
 
 # Format DFA output
 ```{r}
-# Format DFA output 
+# Generate variables to help with analysis
+h=h %>%
+  # Create variable for Participant ID (currently combined with session #)
+  mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
+  relocate(Participant, .after=id) %>% 
+  # Create Dummies for CalVer & Pixelated
+  mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
+         Pix=ifelse(grepl('S', movie), 1, 0)) %>%
+  mutate(use_h = ifelse(r2>=0.9, 1, 0)) 
+  
+  
+# Calculate spectrum width for each row (id, movie, seg)
+h = h %>%
+  gather(hq, hq_val, contains('Hq')) %>%
+  group_by(id, movie, seg) %>%
+  mutate(min_hq = min(hq_val, na.rm=TRUE),
+         max_hq = max(hq_val, na.rm = TRUE),
+         spect_width = max_hq-min_hq) %>%
+  spread(hq, hq_val) %>%
+  ungroup() %>%
+  # re-order the Hq columns  [-5 -3 -1 0 3 5] 
+ relocate(`Hq-5`, .before = `Hq-1`) %>%
+ relocate(Hq0, .after =`Hq-3`)
+
+# Merge w/ participant info 
 h = h %>%
   # Create variable for Participant ID (currently combined with session #)
   mutate(Participant = paste(lapply(strsplit(id, '_'), '[', 1), lapply(strsplit(id, '_'), '[', 2), sep='_')) %>%
-  left_join(particList, by='id') %>%
-    # Create Dummies for CalVer & Pixelated
-  mutate(CalVer=ifelse(grepl('Center|Left|Right', movie), 1, 0),
-         Pix=ifelse(grepl('S', movie), 1, 0)) %>%
+  left_join(particList, by=c('id'='et_collected')) %>%
  # Variable to keep track of if theyre in participant list
-  mutate(particList = ifelse(id %in% particList$id, 1, 0))
+  mutate(particList = ifelse(Participant %in% particList$PSCID, 1, 0)) 
+```
 
+Participants in `h_out.txt` not in the participant list. 
+```{r}
 # Log who was removed 
-removed_h = h %>%
-  dplyr::select(Participant, id) %>%
-  mutate(partic_list = ifelse(id %in% particList$id, 0, 1)) %>%
-  filter(particList == 1)
-
-# Filter if they are not in the participant list 
-h = h%>% filter(particList == 0) 
+h = h %>%
+  mutate(remove = ifelse(particList==0, 1, 0),
+         reason = 'Not in participant list')
 ```
 
 
@@ -78,33 +100,54 @@ if (cleaned_precision_dat==0) {
   AvgPrecision=calver[[2]]
 }
 # Merge Precision data with H data 
-h2= h %>% left_join(AvgPrecision, by='id') 
+h= h %>% left_join(AvgPrecision, by='id') 
+```
+
+Casses missing calver 
+```{r echo=TRUE}
+h %>% 
+  filter(AvgPrecision == 999) %>%
+  pull(id) %>%
+  unique()
+```
+
+Wonkly calver 
+```{r}
+h %>% 
+  filter(AvgPrecision < 0) %>%
+  select(id, AvgPrecision) %>%
+  distinct()
+
 ```
 
 
 # Flow on exclusion
 ## Outside of age-range
 ```{r}
-h2 = h2 %>% mutate(remove_age = ifelse(age>=min_age & age<=max_age, 0,1))
+h = h %>% 
+  mutate(remove = ifelse(et_age<min_age | et_age>max_age, 1, remove),
+         reason = ifelse(et_age<min_age | et_age>max_age, 1, 'Age Range'))
+
 # How many ppl were outside age-range?
-h2 %>%
-  filter(remove_age == 1) %>%
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg = n())
+# h2 %>%
+#   filter(remove_age == 1) %>%
+#   summarize(n_partic = length(unique(Participant)),
+#             n_sess = length(unique(id)),
+#             n_seg = n())
 ```
 
-This left us with:  
-```{r}
-h2 = h2 %>% filter(remove_age==0)
-```
-<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
+<!-- This left us with:   -->
+<!-- ```{r} -->
+<!-- h2 = h2 %>% filter(remove_age==0) -->
+<!-- ``` -->
+<!-- <b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b> -->
 
 ## Precision  
 
 We removed the following data for  <b>poor calver precision</b>:  
 ```{r}
-h2 = h2 %>% mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
+h = h %>% 
+  mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
 
 # Remove for precision
 removed_calver = h2 %>%

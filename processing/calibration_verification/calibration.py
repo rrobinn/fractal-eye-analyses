@@ -353,9 +353,9 @@ all the data you've exported is considered valid for one / both eyes.\n")
     newR = []
     for i in range(len(distLefts)):
         try:
-            if distLefts[i] in ['', ' ', '0']:
+            if distLefts[i] in ['', ' ', '0', '-9999']:
                 pass
-            elif distRights[i] in ['', ' ', '0']:
+            elif distRights[i] in ['', ' ', '0', '-9999']:
                 pass
             else:
                 newL.append(float(distLefts[i]))
@@ -493,12 +493,11 @@ potential longest-duration: ")
 
         # Compare to the existing longest duration and update if needed.
         curKey = leakLines[i][1]  # e.g. TopRight.avi
-        if curKey not in l_dur.keys():
-            print("Key not found! I am looking for <%s> and couldn't it in \
-your list of stimuli:" % curKey)
+        if curKey in l_dur.keys():
+            #print("Key not found! I am looking for <%s> and couldn't it in \ your list of stimuli:" % curKey)
             #print(list(l_dur.keys()))
-        else:  # else keep track because later I'll need to sort by fixation length AND degrees accuracy
             l_dur[leakLines[i][1]][fixNumber] = templine
+        #else:  # else keep track because later I'll need to sort by fixation length AND degrees accuracy
             # if templine[-1] > l_dur[leakLines[i][1]][-1]:
             #    l_dur[leakLines[i][1]] = templine
 

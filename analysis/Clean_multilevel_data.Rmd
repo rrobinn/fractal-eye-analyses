@@ -6,6 +6,8 @@ output: html_document
 ---
 
 ```{r}
+knitr::opts_chunk$set(echo = FALSE)
+
 # User parameters
 min_age = 0
 max_age = 40
@@ -14,18 +16,26 @@ cleaned_precision_dat = 0 # Are you using precision data that have already been 
 ```
 
 # Where do you want to save data?
+
 ```{r}
 out_dir = paste(wdir, 'data/', sep = '')
 file_name = paste(format(Sys.time(), "%Y %b %d"), 'cleaned_multilevel_data', sep = '-')
 ```
 
+```{r}
+out_dir
+```
+
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 library(tidyverse)
 library(ggplot2)
+library(knitr)
+source('/Users/sifre002/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
 ```
 
 # Read data
-```{r}
+
+```{r warnings=FALSE,message=FALSE}
 # List of ET sessions linked with DOB, Sex, etc. 
 particList = read_csv(file = paste(wdir, 'data_audit/Dissertation_ParticList.csv', sep=''))
 
@@ -44,8 +54,14 @@ particList = particList %>%
   select(CandID, PSCID, DOB, Sex, et_collected, et_age, et_date, cohort2)
 ```
 
-
 # Format DFA output
+
+Don't remove rows until the very end
+
+```{r echo=TRUE}
+nrow(h)
+```
+
 ```{r}
 # Generate variables to help with analysis
 h=h %>%
@@ -80,14 +96,19 @@ h = h %>%
   mutate(particList = ifelse(Participant %in% particList$PSCID, 1, 0)) 
 ```
 
-Participants in `h_out.txt` not in the participant list. 
+# Flag time series for exclusion
+
+Flag participants in `h_out.txt` who are a) not in the participant list, and b) not in age-range
+
 ```{r}
 # Log who was removed 
 h = h %>%
   mutate(remove = ifelse(particList==0, 1, 0),
-         reason = 'Not in participant list')
+         reason = ifelse(particList==0, 'Not in participant list', ''),
+         remove = ifelse(et_age<min_age | et_age>max_age, 1, remove),
+         reason = ifelse((et_age<min_age | et_age>max_age) & reason=='', 'Age range', reason)) %>% # Only update reason if it was not already flagged
+  mutate(reason = ifelse(is.na(reason), '', reason))
 ```
-
 
 ```{r}
 #Creates precisionInfo dataframe of average calibration XY precision information for each kid who made it through CalVer processing.
@@ -95,123 +116,235 @@ h = h %>%
 # SKIP THIS PART IF YOU USING CALVER DATA THAT ALREADY HAVE BEEN CLEANED
 if (cleaned_precision_dat==0) {
   source(paste(wdir, 'processing/clean_calver.R', sep = ''))
-  calver=clean_calver(precisionInfo)
+  calver=clean_calver(precision_info)
   calver_thresh=calver[[1]]
   AvgPrecision=calver[[2]]
 }
+
+# Clean AvgPrecision
+AvgPrecision = AvgPrecision %>%
+  mutate(id= paste(sapply(strsplit(id, '_'), '[', 1), sapply(strsplit(id, '_'), '[', 2), sapply(strsplit(id, '_'), '[', 3), sep = '_'))
+
+
 # Merge Precision data with H data 
 h= h %>% left_join(AvgPrecision, by='id') 
 ```
 
-Casses missing calver 
+Flag participants in `h_out.txt` who are a) missing calver or b) have bad calver
+
 ```{r echo=TRUE}
-h %>% 
-  filter(AvgPrecision == 999) %>%
-  pull(id) %>%
-  unique()
+h = h %>% 
+  mutate(remove = ifelse(compareNA(AvgPrecision, 999), 1, remove),
+         reason = ifelse(compareNA(AvgPrecision, 999) & reason=='', 'Bad Calver', reason),
+         remove = ifelse(is.na(AvgPrecision), 1, remove),
+         reason = ifelse(is.na(AvgPrecision) & reason=='', 'Missing Calver', reason)) 
+
 ```
 
-Wonkly calver 
+Check for Wonky calver
+
 ```{r}
 h %>% 
   filter(AvgPrecision < 0) %>%
   select(id, AvgPrecision) %>%
   distinct()
+```
+
+Flag row in `h_out.txt` for high interpolation
+
+From manuscript:\
+\> After visualizing the distribution, the 80th quantile threshold for the sample's proportion interpolated was calculated (0.115) and segments with a proportion exceeding that value were excluded from analyses
+
+```{r echo=TRUE}
+interp_thresh = h %>%
+  # Calculate 80th percentile of time series from visits that have good calibration 
+  filter(compareNA(remove,0)) %>%
+  pull(propInterp) %>%
+  quantile(c(.8))
+interp_thresh
+```
+
+```{r}
+h = h %>%
+  mutate(remove = ifelse(propInterp > interp_thresh[1], 1, remove),
+         reason = ifelse(propInterp > interp_thresh[1] & reason=='', 'propInterp', reason))
+```
+
+Flag row in `h_out.txt` if the residual missing data was more than the 80th percentile threshold
+```{r}
+missing_thresh = h %>%
+  filter(compareNA(remove,0)) %>%
+  pull(propMissing)%>%
+  quantile(c(.8))
+missing_thresh
+```
+
+```{r}
+h = h %>% 
+  mutate(remove = ifelse(propMissing > missing_thresh[1], 1, remove),
+         reason = ifelse(propMissing > missing_thresh[1] & reason=='', 'propMissing', reason))
+```
+
+
+Flag row in `h_out.txt` if the time series was too short (\<800 frames, which is roughly `r 800*3.33` ms)
+
+```{r}
+min_dur = 800*3.33
+
+h = h %>%
+  mutate(remove = ifelse(longestFixDur<min_dur, 1, remove),
+         reason = ifelse(longestFixDur<min_dur & reason=='', 'Fixation too short', reason))
 
 ```
 
+Flag row in `h_out.txt` if the the $r^2$ indicated that there was non-linear scaling function
+
+```{r}
+h = h %>%
+  mutate(remove = ifelse(r2<0.9, 1, remove),
+         reason = ifelse(r2<0.9 & reason=='', 'Bad R2', reason))
+```
+
+Reasons a row was removed
+
+```{r}
+h %>% filter(remove==1) %>% pull(reason) %>% unique()
+```
 
 # Flow on exclusion
-## Outside of age-range
-```{r}
-h = h %>% 
-  mutate(remove = ifelse(et_age<min_age | et_age>max_age, 1, remove),
-         reason = ifelse(et_age<min_age | et_age>max_age, 1, 'Age Range'))
-
-# How many ppl were outside age-range?
-# h2 %>%
-#   filter(remove_age == 1) %>%
-#   summarize(n_partic = length(unique(Participant)),
-#             n_sess = length(unique(id)),
-#             n_seg = n())
+Note - start with full sample only including those with the right age-range. These were removed: 
+```{r echo = TRUE}
+h %>% filter(reason=='Age range') %>% select(id, et_age) %>% arrange(id) %>% distinct()
+h = h%>%filter(reason!='Age range')
 ```
 
-<!-- This left us with:   -->
-<!-- ```{r} -->
-<!-- h2 = h2 %>% filter(remove_age==0) -->
-<!-- ``` -->
-<!-- <b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b> -->
-
-## Precision  
-
-We removed the following data for  <b>poor calver precision</b>:  
 ```{r}
-h = h %>% 
-  mutate( remove_precision = ifelse(is.na(Precision_RMS_X_Y),1,0) )
-
-# Remove for precision
-removed_calver = h2 %>%
-  filter(remove_precision ==1)%>%
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg =n())
-
-removed_calver
+removed = h %>% filter(remove==1)
+h_clean = h %>% filter(remove==0)
 ```
 
-This left us with:  
+
 ```{r}
-h2 = h2 %>% filter(remove_precision==0)
+n_females = h %>% select(Participant, Sex) %>% distinct() %>% pull(Sex) 
+n_females = sum(n_females=='female')
+
+age_summ = h %>% select(id, et_age)  %>% distinct() %>% 
+   summarize(mean_age = mean(et_age),
+             min_age = min(et_age),
+             max_age = max(et_age))
+             
 
 ```
-<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
 
-## Interpolation  
-We removed the following data for  <b>% interp</b>:  
+<b>Original Sample</b>.  `r nrow(h)` time-series of eye-tracking data were collected from `r length(unique(h$Participant))` `r round(age_summ$min_age, 2)`-`r round(age_summ$max_age, 2)`-month-old infants (`r n_females` females, mean age= `r age_summ$mean_age` months) across `r length(unique(h$id))` visits to the lab.  
+
 ```{r}
-
-h2 = h2 %>% mutate(remove_propInterp = ifelse(propInterp>=quantile(propInterp,.8),1,0))
-
-h2 %>%
-  filter(remove_propInterp ==1) %>%
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg =n())
-```
-This left us with:  
-```{r}
-h2 = h2 %>% filter(remove_propInterp==0)
-
-```
-<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments.  </b>
-
-## Too short  
-We removed the following data for  <b>time series that were too short</b>:  
-```{r}
-h2 = h2 %>% mutate(remove_tooshort = ifelse(h==-9999,1,0))
-write.csv(file = '/Users/sifre002/Documents/Code/fractal-eye-analyses/data/cleaned_data_incl_too_short.csv', x = h2)
-# Removed for too short
-h2 %>%
-  filter(remove_tooshort == 1) %>%
-  summarize(n_partic = length(unique(Participant)),
-            n_sess = length(unique(id)),
-            n_seg = n())
+# How many visits per partipants 
+vis = h %>%
+  select(Participant, id) %>%
+  distinct() %>%
+  group_by(Participant) %>%
+  summarize(n=n())
 ```
 
-This left us with: 
+As part of a planned missingness design, children contributed between `r min(vis$n)` and `r max(vis$n)` waves of data across this age span (mean `r round(mean(vis$n),2)` waves) during visits to the lab. 
+
+
+## Outside age-range
+
 ```{r}
-h2 = h2 %>% filter(remove_tooshort==0)
+removed_age = removed  %>%
+  filter(reason=='Age range') %>% 
+  select(id, et_age) %>% distinct()
+removed_age
 ```
-<b> `r h2 %>%dplyr::select(Participant) %>% unique() %>% nrow()` participants, `r h2  %>%dplyr::select(id) %>% unique() %>% nrow()` sessions, and `r h2  %>% nrow()` segments. </b>
 
+##Missing Calver
 
-
-
-
-# Clean AOI data
 ```{r}
-aoi_data2 = aoi_data %>%
-  filter(longestFixDur!=-9999) %>%
+removed_missingcalver = removed %>%
+  filter(reason=='Missing Calver') %>% 
+  select(id) %>% distinct()
+removed_missingcalver
+```
+
+
+
+## Bad Calver
+
+```{r}
+removed_badcalver = removed %>%
+  filter(reason=='Bad Calver') %>% 
+  select(id) %>% distinct()
+removed_badcalver
+```
+<b>Quality-control exclusion criteria</b>. Infants’ eyes were calibrated to the eye-tracking equipment at the beginning of each visit, using the manufacturer’s five-point calibration procedure. Precision, or the distance between repeated samples of gaze points58, was included given that it is a measure of variability and thus is likely to influence DFA calculations that quantify nested patterns of variability. To measure the eye-tracker’s precision throughout the experiment, experimental trials were interleaved with audio-visual attention cues. Precision was included as a quality-control exclusion criterion due to its potential to influence fractal structure, given that it is an index of variation around a target stimulus. Audio-visual attention cues were presented at 3 time-points during each eye-tracking visit: at the beginning, interleaved with the Social and Pixelated movies, and at the end. Infants’ longest contiguous raw eye-tracking data for all available Attention Cue trials were analyzed for precision. Data from eye-tracking sessions with Root Mean Square Error of Approximation (RMSEA) values two standard deviations or more above the sample mean (indicating poor precision) were excluded. As such, data from eye-tracking sessions with an average RMSEA (averaged across X and Y axes for both eyes) greater than `r round(calver_thresh,2)` degrees of visual angle were excluded from analyses. 
+
+As a result, data from `r length(unique(removed_badcalver$Participant))` participants, `r length(unique(removed_badcalver$id))` eye-tracking visits, totaling `r nrow(removed_badcalver)` time-series were excluded from future analyses. For the remaining eye-tracking visits, the average precision was `r mean(h_clean$AvgPrecision)`° of visual angle.
+
+
+
+## High interpolation levels
+
+```{r}
+remove_interp = removed %>%
+  filter(reason == 'propInterp') %>%
+  select(id, movie, seg)
+
+```
+Blinks were identified using a noise-based algorithm. All data missing as a result of blinks (less than 200 ms)
+were linearly interpolated using data from the last valid sample before the start of the blink, and the first valid sample after the end of the blink (mean proportion interpolated = `r round(mean(h_clean$propInterp),2)`, range `r min(h_clean$propInterp)`–`r max(h_clean$propInterp)`). \
+
+## Too much residual missing
+```{r}
+remove_missing = removed %>% 
+  filter(reason == 'propMissing') %>%
+  select(id, Participant, movie, seg)
+```
+
+```{r}
+# Calculate mean % missing for the time series that have not yet been excluded 
+temp = h %>% 
+  filter(!grepl('Calver|participant list|propInterp', reason)) %>%
+  pull(propMissing)
+```
+
+After interpolation, infants had an average proportion of `r mean(temp)` (range `r min(temp)`–`r max(temp)`) residual missing data per segment. Given past work suggesting too much aggregation can bias detrended fluctuation analysis (e.g.,20), we chose a stringent quality control threshold for the permissible proportion interpolated for each segment. 
+
+After visualizing the distribution, the 80th quantile threshold for the sample’s proportion interpolated was calculated (`r round(interp_thresh[1], 3)`) and segments with a proportion exceeding that value were excluded from analyses; data from an additional `r length(unique(remove_missing$Participant))` infant, `r length(unique(remove_missing$id))` eye-tracking session, totaling `r nrow(remove_missing)` time-series were removed from future analyses. The mean proportion of residual missing data for the remaining sample was `r mean(h_clean$propMissing)`. Proportions of interpolated and residual missing data were entered into all models as covariates. 
+
+
+## Fixation too short
+
+```{r}
+removed_fix = removed %>%
+  filter(reason=='Fixation too short') %>% 
+  select(Participant, id, movie, seg) 
+removed_fix
+```
+
+Based on ----, we removed time series with fewer than 800 data points. Accordingly, data from an additional `r length(unique(removed_fix$Participant))` participants, `r length(unique(removed_fix$id))` eye-tracking visits, totaling to `r nrow(removed_fix)` segments were excluded from future analyses
+
+
+## Bad R2
+
+```{r}
+removed_r2 = removed %>%
+  filter(reason=='Bad R2') %>% 
+  select(Participant, id, movie, seg) 
+removed_r2
+```
+
+Finally, .... ata from an additional `r length(unique(removed_r2$Participant))` participants, `r length(unique(removed_r2$id))` eye-tracking visits, totaling to `r nrow(removed_r2)` segments were excluded from future analyses
+
+```{r}
+knit_exit()
+```
+
+# Clean AOI data & Merge with H data
+
+```{r echo=TRUE}
+aoi_data = aoi_data %>%
   dplyr::select(id,
           movie,
           seg,
@@ -219,19 +352,31 @@ aoi_data2 = aoi_data %>%
           faceCount, otherCount) %>%
   mutate(id=as.character(id),
          movie=as.character(movie))
-```
 
-# Merge AOI data with H data 
-```{r}
-h2 = h2 %>%
-  left_join(aoi_data2, by = c('id', 'movie', 'seg')) %>%
+aoi_data2 = aoi_data %>% filter(longestFix_aoi!=-9999) 
+
+
+h = h %>%
+  left_join(aoi_data, by = c('id', 'movie', 'seg')) %>%
   mutate(propFace_seg = faceCount / (faceCount + otherCount))
 ```
 
+# Save output
+
+```{r echo=TRUE}
+today = format(Sys.Date(), format="%Y-%m-%d")
+write.csv(h, paste(out_dir, today, '-clean_h.csv', sep = ''))
+```
+
+```{r}
+knit_exit()
+```
 
 # Create person-, visit-, and movie-centered variables. These are used to parse variance for modelling.
-## Grand means  
-```{r}
+
+## Grand means
+
+```{r echo = TRUE}
 # Get grand mean for average age
 AveAge = h2 %>%
   # Pull age for each person's visit (average age calculated so that their age at each visit is weighted online once)
@@ -249,13 +394,15 @@ avePropFace = mean(h2$propFace_seg, na.rm = TRUE)
 h2=h2%>%
  mutate(Age_centeredGrandmean=as.numeric(age-AveAge$Age)) 
 ```
-* Average age = `r AveAge`  
-* Average longest fix duration = `r aveLongFix`  
-* Average calver precision = `r avePrec`  
-* Average % face-looking = `r avePropFace`  
 
-## Person-level variables 
-```{r}
+-   Average age = `r AveAge`\
+-   Average longest fix duration = `r aveLongFix`\
+-   Average calver precision = `r avePrec`\
+-   Average % face-looking = `r avePropFace`
+
+## Person-level variables
+
+```{r echo = TRUE}
 # Creating level 3 (person) variables:
 # Average age: Participant's average age (weight each visit once)
 # Average Interpolated: mean prop interp
@@ -272,7 +419,8 @@ personLevel_var=h2%>%
             n_person=n())
 ```
 
-# Session-level variables 
+# Session-level variables
+
 ```{r}
 # Session age = Age_centeredGrandmean (no within-session variability)
 # Average interpolated: Mean prop interp, for the session
@@ -289,8 +437,8 @@ sessionLevel_var = h2 %>%
 
 ```
 
-
 # Movie-level
+
 ```{r}
 movieLevel_var = h2 %>%
   group_by(Participant, id, movie) %>%
@@ -374,4 +522,3 @@ h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
 # optional: save output
 write_csv(x = h5, path = paste(out_dir, 'cleaned_data.csv', sep=''))
 ```
-

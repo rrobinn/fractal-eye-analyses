@@ -1,0 +1,429 @@
+---
+title: "DFA Visualizations"
+author: " Robin Sifre"
+date: "feb 2021"
+output: html_document
+---
+
+
+```{r message=FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(readr)
+library(tidyverse)
+library(lme4)
+library(ggplot2)
+#library(MuMIn)
+library(AICcmodavg)
+library(moments) 
+#library(nlme)
+library(sm)
+library(knitr)
+library(DT)
+
+
+wdir = '~/Documents/Github/fractal-eye-analyses/'
+source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
+```
+
+```{r}
+# Read cleaned data
+data = read.csv( paste(wdir, 'data/2021-02-19-clean_h.csv', sep = ''), stringsAsFactors = FALSE )
+
+# Make variables needed for models 
+data$male = ifelse(data$Sex=='Male', 1,0)
+
+clean_dat = data %>% filter(compareNA(remove, 0))
+```
+
+
+# DFA 
+
+Testing for normality 
+```{r message=FALSE, warning=FALSE}
+# The values for asymmetry and kurtosis between -2 and +2 are considered acceptable in order to prove normal univariate distribution (George & Mallery, 2010)
+sm.density(clean_dat$h, xlab="H (Hurst Exponent) of Looking Patterns", model="normal")
+
+qqnorm(clean_dat$h);qqline(clean_dat$h, col = 2)
+```
+
+```{r echo=TRUE}
+skew=skewness(clean_dat$h) #btw -2 and 2 ideally
+kurtosis=kurtosis(clean_dat$h) #3 for a normal distribution
+skew
+kurtosis
+```
+
+Proportion of time series that are considered "pink noise"
+```{r echo=TRUE}
+mean(clean_dat$h) #0.78 (0.12-1.34)
+clean_dat$pink=NA
+clean_dat$pink=ifelse(clean_dat$h>0.69 & clean_dat$h<1.1, 1, 0)
+sum(clean_dat$pink==1)/nrow(clean_dat)
+```
+
+## Cases with poor R2
+Because of exclusion flow, these are time series with poor $R^2$ that were from visits with good calibration precision *and* time series that were above the minimum required data length.  
+```{r echo=TRUE}
+bad_r2 = data %>%
+  filter(reason=='Bad R2') %>%
+  select(id, movie, seg, CalVer, longestFixDur, propInterp, propMissing, r2)
+nrow(bad_r2)
+```
+
+Is the residual missing data higher for these cases?  
+>> Blinks were identified using a noise-based algorithm59. All data missing as a result of blinks (less than 200 ms) were linearly interpolated using data from the last valid sample before the start of the blink, and the first valid sample after the end of the blink (mean proportion interpolated = 0.073, range 0–0.76). After interpolation, infants had an average proportion of 0.15 (range 0–1) residual missing data per segment
+
+
+```{r}
+temp = rbind(bad_r2 %>% select(CalVer, longestFixDur, propInterp, propMissing, movie, r2) %>% mutate(src = 'Bad_r2'),
+             clean_dat %>% select(CalVer, longestFixDur, propInterp, propMissing, movie, r2) %>% mutate(src = 'Clean'))
+
+# ggplot(data = temp, aes(x=longestFixDur, color = src)) + 
+#   geom_histogram(binwidth=500, alpha = .2) 
+
+ggplot(data = temp, aes(x=longestFixDur, color = src)) + 
+  geom_density()
+
+ggplot(data = temp, aes(x=propInterp, color = src)) + 
+  geom_density() 
+
+ggplot(data = temp, aes(x=propMissing, color = src)) + 
+  geom_density() 
+
+```
+
+Bad $R^2$:  
+```{r}
+options(digits=2)
+summary(bad_r2 %>% select(longestFixDur, propInterp, propMissing))
+```
+
+Clean sample:  
+```{r}
+summary(clean_dat %>% select(longestFixDur, propInterp, propMissing))
+```
+
+
+```{r}
+bad_r2 %>%
+  datatable(filter = 'top')
+```
+
+JE000169_04_01  
+JE000107_04_04
+
+```{r}
+knit_exit()
+```
+
+
+# Spectrum Width  
+```{r}
+
+```
+
+
+
+```{r}
+knit_exit()
+```
+
+
+
+Modeling longitudinal data  
+```{r message=FALSE, warning=FALSE}
+
+#Establishing functional form 
+lmer.0=lmer(h~1+(1|Participant)+(1|id)+(1|movie), data=data, REML=FALSE) #int-only w/ nested structures
+
+lmer.1=lmer(h~1+Age_centeredGrandmean+(1|Participant)+(1|id)+(1|movie), data=data, REML=FALSE) #linear age
+
+anova(lmer.0, lmer.1)
+
+lmer.2=lmer(h~1+Age_centeredGrandmean+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE) #linear age
+
+anova(lmer.0, lmer.1)
+# 2 fits better
+mynames <- as.character (c("lmer.1", "lmer.2")) # model numbers as characters
+myaicc  <- ICtab(logLik(lmer.1),
+		     logLik(lmer.2),
+		     type ="AICc",
+		     nobs = nrow(na.omit(data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc
+
+
+lmer.3=lmer(h~1+Age_centeredGrandmean+I(Age_centeredGrandmean^2)+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie),data=data, REML=FALSE) #quad age
+# summary(lmer.0b)
+anova(lmer.1, lmer.3)
+
+options(na.action="na.exclude")
+data$yhat1 = predict(lmer.2, newdata = data, re.form = NA) #baseline model
+# R = cor(x = na.omit(data$h), y =(model.matrix(lmer.0b)%*%fixef(lmer.0b)))
+corrdata=data%>%
+  dplyr::select(yhat1, H, Participant,id)%>%
+  # # group_by(id)%>%
+  # summarize(yhat1=mean(yhat1),
+  #           H=mean(H))%>%
+  dplyr::select(yhat1,H)
+
+R = cor(corrdata$h, corrdata$yhat1, use = "complete.obs")
+R^2 #2.3%
+data=as.data.frame(data)
+
+test=data%>%
+  group_by(Participant)%>%
+  summarize(P_H=mean(H))
+
+lm.2b=lm(P_h~1, data=test) #linear age
+
+residual=0.06
+sdy=sqrt(0.06)
+sdBeta=0.0025952/sdy
+
+
+```
+H increases linearly with age and explains `r R^2` proportion of the variance in H.  
+
+Interpreting beta weights
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+#betaStandardized=beta*sd(X)/sd(Y)
+ageBeta=0.0022*sd(data$Age_centeredGrandmean)/sd(data$h) #=0.20
+#sd H=0.11; mean H = 0.84 ---bounds 0.62 and 1.06
+0.023*sd(data$Pixelated)/sd(data$h)
+#for every 1 SD of change in age, H changes 1/5 of a SD
+min(data$Age_centeredGrandmean)
+```
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+
+lmeControl(maxIter = 200, msMaxIter = 200, niterEM = 50, msMaxEval = 100)
+ctrl <- lmeControl(opt='optim')
+
+```
+
+Modeling covariates and effects of stimulus types:  
+```{r message=FALSE, warning=FALSE}
+data=as.data.frame(data)
+data$cohort=as.factor((data$cohort))
+
+#Adding btw- and w/in- person covariates
+lmer.4=lmer(h~1+Age_centeredGrandmean+
+#segment-level
+propMissing_segment_groupmeancentered+propInterp_segment_groupmeancentered+longestFix_segment_groupmeancentered+
+#movie-level
+propMissing_movie_groupmeancentered+propInterp_movie_groupmeancentered+longestFix_movie_groupmeancentered+
+#session-level
+propInterp_session_groupmeancentered+longestFix_session_groupmeancentered+precision_session_groupmeancentered+pix+nonpix+calver+propMissing_session_groupmeancentered+
+# #person-level
+propMissing_person_grandmeancentered+propInterp_person_grandmeancentered+longestFix_person_grandmeancentered+precision_person_grandmeancentered+factor(cohort)+female+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+#FINAL COVARIATE MODEL
+lmer.4b=lmer(h~1+Age_centeredGrandmean+
+  precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+
+data$yhat2 = predict(lmer.4b, newdata = data, re.form = NA)
+# R = cor(x = na.omit(data$h), y =(model.matrix(lmer.0b)%*%fixef(lmer.0b)))
+corrdata=data%>%
+  dplyr::select(yhat2, H)
+
+R = cor(corrdata$h, corrdata$yhat2, use = "complete.obs")
+R^2 #16% variance explained by covariate model + age #20%
+
+
+#Adding in stimulus predictors; social as reference event
+lmer.5=lmer(h~1+Age_centeredGrandmean+
+Pixelated+CalVer+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+
+
+#LRTs to justify pix and calver separately 
+lmer.5a=lmer(h~1+Age_centeredGrandmean+
+Pixelated+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+anova(lmer.5, lmer.5a)
+
+lmer.5b=lmer(h~1+Age_centeredGrandmean+
+CalVer+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+anova(lmer.5, lmer.5b)
+
+
+#testing pix interaction w/ age
+lmer.6=lmer(h~1+Age_centeredGrandmean+
+Pixelated+CalVer+Age_centeredGrandmean:Pixelated+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+
+#testing calver: age interaction
+lmer.7=lmer(h~1+Age_centeredGrandmean+
+Pixelated+CalVer+Age_centeredGrandmean:CalVer+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+beta(lmer.7)
+anova(lmer.5, lmer.7)
+
+#to test social simp slopes
+lmer.7b=lmer(h~1+Age_centeredGrandmean+
+Pixelated+NonPixelated+Age_centeredGrandmean:NonPixelated+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+
+#needed for type 3 SS tests in R; try running this and then summary to see if df change
+options(contrasts = c("contr.sum","contr.poly")) #will make anova (type 3 SS) and summary (ordinarily type 1 SS) agree
+summary(lmer.7) #by default uses type 1 or sequential SS (instead of type 3 partial SS)
+
+
+#testing both interactions
+lmer.8=lmer(h~1+Age_centeredGrandmean+
+Pixelated+CalVer+Age_centeredGrandmean:CalVer+Age_centeredGrandmean:Pixelated+
+#session-level
+precision_session_groupmeancentered+
+  precision_person_grandmeancentered+AveAge_person+
+# #REs
+(1+Age_centeredGrandmean|Participant)+(1|id)+(1|movie), data=data, REML=FALSE)
+
+
+
+data$yhat = predict(lmer.7, newdata = data, re.form = NA)
+# R = cor(x = na.omit(data$h), y =(model.matrix(lmer.0b)%*%fixef(lmer.0b)))
+corrdata=data%>%
+  dplyr::select(yhat, H)
+
+R = cor(corrdata$h, corrdata$yhat, use = "complete.obs")
+R^2 #
+
+lmeControl(maxIter = 200, msMaxIter = 200, niterEM = 50, msMaxEval = 100)
+
+
+
+```
+
+
+Likelihood ratio tests of model comparison for longitudinal data
+```{r message=FALSE, warning=FALSE, echo=FALSE, results='asis'}
+# anova(lmer.4, lmer.5, lmer.6, lmer.7, lmer.8)
+# anova(lmer.5, lmer.7, lmer.8)
+
+library(texreg)
+htmlreg(list(lmer.0, lmer.1, lmer.2, lmer.4b, lmer.5, lmer.6, lmer.7, lmer.8), digits=3, bold=0.05,include.psuedors=TRUE, doctype = TRUE, caption= "Table of Model Evidence for Predicting Longitudinal H Using Likelihood Ratio Tests: NonPix as Reference", caption.above = TRUE, stars = c(0.001, 0.01, 0.05, 0.1))
+
+```
+
+All AIC's  
+```{r message=FALSE, warning=FALSE, echo=FALSE, results='asis'}
+
+require("bbmle")                              
+
+mynames <- as.character (c("Intercept-only", "Linear age", "Fixed and random age", "Quadratic age",  "Covariates", "Main effects of stim type","Pixelated*Social Interaction", "CalVer*Social Interaction", "Both interactions"))		# model numbers as characters
+myaicc  <- ICtab(logLik(lmer.0), 
+		     logLik(lmer.1), 
+		     logLik(lmer.2),
+		     logLik(lmer.3),
+		     logLik(lmer.4b),
+		     logLik(lmer.5),
+		     logLik(lmer.6),
+		     logLik(lmer.7),
+		     logLik(lmer.8),
+		     type ="AICc",
+		     nobs = nrow(na.omit(data)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,logLik=TRUE,mnames=mynames,base=TRUE)
+
+myaicc
+myaicc$`evidence ratio` <- max(myaicc$weight)/myaicc$weight
+myaicc
+
+class(myaicc) <- "data.frame"
+
+knitr::kable(myaicc, format="html", caption = "Table of Model Evidence for Predicting Coefficent of Variation Using Second-Order Akaike Information Criteria and HR_NA as the Reference Group.
+#                     (LL = Log-Likelihood; K = Model df; $w_i$ = Model
+#                      Probability; ER = Evidence Ratio)", align="c", digits=3, table.attr = "style=width:70%;")
+```
+
+
+Plotting best-fitting model for longitudinal data  
+```{r message=FALSE, warning=FALSE, echo=FALSE, out.width='500px'}
+library(stats)
+data$yhat = predict(lmer.7, newdata = data, re.form = NA)
+
+data$Stim=gsub("CalVer", "Attention Cue", data$Stim)
+names(data)[15]<-"Condition"
+
+
+gg.1=ggplot(data=data, aes(x=as.numeric(Age), y=as.numeric(yhat), group=Condition, color=Condition))+
+  # geom_point(alpha=0.4)+
+  geom_jitter(data=data, aes(x = Age, y =H, group=Condition, color=Condition, alpha=0.01,fill=Condition), show.legend = TRUE, alpha=0.3)+
+  xlab("Age in Months")+
+  # scale_x_continuous(name="Age (mo)", breaks=c(-7.23,2.77,12.77,22.77,32.77), labels=c(10,20,30,40,50))+
+  ylab(expression(alpha))+
+   scale_y_continuous(breaks=c(0.6,0.7,0.8,0.9,1,1.1), limits=c(0.62,1.06))+
+    scale_x_continuous(breaks=c(2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38))+
+  geom_smooth(method="lm", se=TRUE)+
+  theme(legend.text=element_text(size=10))+
+  theme(legend.title=element_text(size=12))
+  # theme(legend.title=element_ blank())+
+  # theme(legend.position='none')
+
+
+
+
+# ggplot(data=data, aes(x=as.numeric(Age), y=as.numeric(yhat), group=Stim, color=Stim))+
+#   # geom_point(alpha=0.4)+
+#   # geom_jitter(data=data, aes(x = Age, y =H, group=Stim, color=Stim, alpha=0.1,fill=Stim), show.legend = FALSE)+
+#   xlab("Age in Months")+
+#   # scale_x_continuous(name="Age (mo)", breaks=c(-7.23,2.77,12.77,22.77,32.77), labels=c(10,20,30,40,50))+ 
+#   ylab("H")+
+#    scale_y_continuous(breaks=c(0.6,0.7,0.8,0.9,1,1.1), limits=c(0.62,1.06))+
+#   geom_smooth(method="lm", se=TRUE)+
+#   theme(legend.title=element_blank())+
+#   theme(legend.position='none')
+
+
+perl_d="/usr/bin/perl"
+setwd("/Users/isabella/Box/DancingLadiesshare/Results images/")
+ggsave("BestModel.jpg",
+ plot = gg.1, # or give ggplot object name as in myPlot,
+ width = 6, height = 3,
+ units = "in", # other options c("in", "cm", "mm"),
+ dpi = 500)
+```
+
+
+
+

@@ -54,6 +54,13 @@ particList = particList %>%
   select(CandID, PSCID, DOB, Sex, et_collected, et_age, et_date, cohort2)
 ```
 
+## Check if missing data in particList
+```{r}
+particList %>%
+  filter(is.na(DOB) | is.na(Sex) | is.na(et_age))
+```
+
+
 # Format DFA output
 
 Don't remove rows until the very end
@@ -95,6 +102,21 @@ h = h %>%
  # Variable to keep track of if theyre in participant list
   mutate(particList = ifelse(Participant %in% particList$PSCID, 1, 0)) 
 ```
+
+## Bin the cohorts (to do)
+```{r}
+
+```
+
+
+## Check is missing participant level data once we merge  
+Missing DOB 
+```{r}
+h %>% filter(is.na(DOB)) %>% select(Participant, id, DOB, et_age, et_date, cohort2) %>% distinct()
+```
+
+
+
 
 # Flag time series for exclusion
 

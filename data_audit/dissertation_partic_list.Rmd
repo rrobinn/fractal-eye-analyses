@@ -63,7 +63,9 @@ loris_vis <- list_of_visits(path_to_session_query = '~/Documents/GitHub/fractal-
 
 # Remove babar
 loris_vis = loris_vis %>%
-  filter(!grepl('babar', cohort))
+  filter(!grepl('babar', cohort)) %>%
+  # Don't count as potential visit if it will happen in the future 
+  filter(!is.na(VisitNo))
 ```
 
 ```{r indiv_metadata}
@@ -257,7 +259,7 @@ missing %>% filter(fam_id %in% indiv_dat$fam_id)
 Visit with missing date? 
 These do have dates, re-run script. 
 ```{r}
-visit_dates %>% filter(is.na(visit_date2))
+visit_dates %>% filter(is.na(visit_date))
 visit_dates = visit_dates %>% arrange(PSCID)
 ```
 
@@ -272,17 +274,7 @@ visit_dates %>%
   filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex)) %>% datatable()
 ```
 
-Looks like it matched w/ file naming errors 
-
-
-
-```{r echo=TRUE}
-tsv_list=read.csv(data_list_file, header = FALSE, stringsAsFactors = FALSE)
-```
-
-
-
-
+Looks like it matches w/ file naming errors 
 
 ## 2. Merge eye tracking meta-data with loris_vis
 
@@ -297,6 +289,7 @@ loris_vis$Cal_flag = NA
 ```
 
 ```{r find_closest_et_vis, echo = TRUE, cache=TRUE}
+no_match = c()
 # For each eye-tracking visit, find closest visit in loris_vis and add flag
 for (i in c(1:nrow(visit_dates))) {
   temp = visit_dates[i,]
@@ -305,6 +298,13 @@ for (i in c(1:nrow(visit_dates))) {
   date_array = loris_vis %>% 
     filter(PSCID == temp$PSCID) %>%
     pull(Date_visit)
+  
+  # If there is no match, log & skip
+  if (length(date_array)==0) {
+    no_match = c(no_match, temp$ids)
+    next
+  }
+  
    closest_ind = which.min(as.numeric(abs(date_array - temp$visit_date)))
    closest_date = date_array[closest_ind]
   
@@ -312,24 +312,39 @@ for (i in c(1:nrow(visit_dates))) {
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_collected'] = temp$id
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_date'] = temp$visit_date
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
-   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'Cal_flag'] = temp$CAL
-   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'DL_flag'] = temp$DL
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'Cal_flag'] = temp$cal_flag
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'DL_flag'] = temp$dl_flag
   }
 ```
 
 ```{r}
-datatable(loris_vis %>% dplyr::select(CandID, PSCID, DOB, Sex, cohort, cohort2, Date_visit, 
+datatable(loris_vis %>% 
+            dplyr::select(CandID, PSCID, DOB, Sex, cohort, cohort2, Date_visit, 
                                       VisitNo, et_collected, et_age, et_date, Cal_flag, DL_flag),
             filter = c('top'), rownames = FALSE)
 ```
 
-
+### Who are we missing data from?  
 ```{r}
-loris_vis %>% filter(DL_flag==1&Cal_flag==0)
+no_et = loris_vis %>% 
+  filter(is.na(et_collected)) %>%
+  filter(!grepl('ift|dsa|bcpCFP', cohort)) %>%
+  select(CandID, PSCID, VisitNo, cohort, cohort2,  Scan_done, Date_visit) %>%
+  arrange(CandID, VisitNo)
+
+datatable(no_et, filter='top')
+
+temp = no_et %>% filter(Date_visit < '2018-01-01') %>% pull(Date_visit)
+hist(temp, breaks='month', xlab = 'Visits missing ET Before 2018')
+
+temp = no_et %>% filter(Date_visit >= '2018-01-01') %>% pull(Date_visit)
+hist(temp, breaks='month', xlab = 'Visits missing ET After 2018')
+
 ```
 
-## Save eye-tracking data participant list 
-```{r}
+
+## 3. Save eye-tracking data participant list 
+```{r echo = TRUE}
 et = loris_vis %>% filter(!is.na(et_collected))
 write.csv(x=et, file=out_dir)
 ```
@@ -338,6 +353,9 @@ write.csv(x=et, file=out_dir)
 ```{r}
 knit_exit()
 ```
+
+
+
 
 # Steps for getting list of RS data
 

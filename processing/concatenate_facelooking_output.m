@@ -1,11 +1,11 @@
 clear all
 close all
 % set wdir
-wdir = '/Users/sifre002/Documents/Code/fractal-eye-analyses';
-cd([wdir '/MFDFA/'])
+wdir = '/home/elisonj/sifre002/matlab/fractal-eye-analyses/code/';
+cd(wdir)
 
 %%
-folder = '/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/Individual_Data/20200803data/'; % Folder w/ individual data, where concatenated output will be written
+folder = '/home/elisonj/sifre002/matlab/fractal-eye-analyses/data/'; % Folder w/ individual data, where concatenated output will be written
 outputFileName = 'face_out.txt'; % Name for output file with concatenated data
 header = 'id, movie, seg, longestFixDur, faceCount, otherCount'; 
 %%

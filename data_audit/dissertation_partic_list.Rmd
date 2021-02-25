@@ -14,6 +14,7 @@ library(readxl)
 library(DT)
 library(miceadds)
 library(stringr)
+library(lubridate)
 
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
@@ -31,15 +32,15 @@ source.all(paste(wdir, 'analysis/Rfuncs/', sep =''))
 
 # About
 
-Document generates a list of visits to be included in my dissertation. Does not take QA/QC into account
+Document generates a list of visits to be included in my dissertation. Does not take QA/QC into account.
 
 ```{r echo = TRUE}
 # List of .tsvs on mesabi 
 data_list_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/list_et_files.csv'
-# List of visit dates 
-visit_date_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/dates_of_et.txt'
+# List of visit dates in AUDIT_PASSED
+visit_date_file = '~/Documents/GitHub/fractal-eye-analyses/data_audit/2021-02-23files_in_AUDIT_PASSED.csv'
 # List of pconns 
-pconn_file = '~/Documents/GitHub/enrichment-repetitive-bx/Marginal-Model-Data/listofpconns.txt'
+pconn_file = '~/Documents/GitHub/RS-Functional-Connectivity-Models/data/audit/files_in_connectivity_mat.csv'
 ```
 
 
@@ -107,6 +108,13 @@ indiv_dat= left_join(indiv_dat, cohort, by = c('CandID')) %>%
   distinct()
 ```
 
+Are we missing cohort, DOB or sex for anyone in `indiv_dat`?
+```{r}
+indiv_dat %>%
+  filter(is.na(CandID) | is.na(DOB) | is.na(Sex) | is.na(PSCID))
+```
+
+
 ```{r clean_cohort}
 # Clean up cohort
 loris_vis = loris_vis %>%
@@ -137,25 +145,50 @@ unique(loris_vis$cohort)
 datatable(loris_vis, filter = c('top'))
 ```
 
-## 1. Get date of visit for .tsv files on mesabi.  
-Includes directories that have Calver only (not DL).  Used to calculate age at visit & match with the visits in `loris_vis`
+## 1. Get date of visits in `~/AUDIT_PASSED`.  
+Includes directories that have Calver only or DL only.  Used to calculate age at visit & match with the visits in `loris_vis`
 ```{r echo=TRUE}
 visit_dates = read.csv(file = visit_date_file, stringsAsFactors = FALSE)
 ```
 
 ```{r}
 # Use visit date to calculate age at visit 
-visit_dates = visit_dates %>%
-  select(visit_date=dates, ids) %>%
-  filter(ids!='data') %>%
+visit_dates=visit_dates %>%
+  select(visit_date=date, ids=vis) %>%
   mutate(PSCID=paste(sapply(strsplit(ids, '_'), '[', 1), sapply(strsplit(ids, '_'), '[', 2), sep='_')) %>% 
   # format date
-  mutate(visit_date = as.Date(visit_date, format='%m/%d/%Y')) %>%
+  #################
+  mutate(visit_date2 = mdy(visit_date)) %>%
   # Merge indiv_dat with visit_dates & calc age at visit 
   left_join(indiv_dat, by = 'PSCID') %>%
-    mutate(age = visit_date - DOB,
+    mutate(age = visit_date2 - DOB,
            age = as.numeric(age),
            age = age/30.42)
+```
+
+Which PSCIDs are NOT in `indiv_dat` ? 
+```{r}
+missing = visit_dates %>%
+  filter(!grepl('Bab', PSCID)) %>%
+  filter(!(PSCID %in% indiv_dat$PSCID)) %>% 
+  arrange(PSCID) %>% 
+  select(PSCID) %>%
+  mutate(fam_id = sapply(strsplit(missing, '_'), '[' ,1))
+
+# Pull first part of ID only to see if error with _03 vs _04
+indiv_dat = indiv_dat %>%
+  mutate(fam_id = sapply(strsplit(PSCID, '_',), '[', 1))
+
+missing %>%
+  mutate(real_id = ifelse(fam_id %in% indiv_dat$fam_id, 1, 0))
+
+```
+
+
+Visit with missing date? 
+These do have dates, re-run script. 
+```{r}
+visit_dates %>% filter(is.na(visit_date2))
 ```
 
 ```{r}
@@ -166,7 +199,9 @@ visit_dates = visit_dates %>% arrange(PSCID)
 `visit_dates`: List of eye-tracking visits on MSI.  
 
 ```{r echo = TRUE}
-visit_dates %>% filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex)) %>% datatable()
+visit_dates %>% 
+  filter(!grepl('Bab', ids)) %>%
+  filter(is.na(PSCID) | is.na(CandID) | is.na(DOB) | is.na(Sex)) %>% datatable()
 ```
 
 Looks like DSA individuals in LORIS with no visits registered yet.
@@ -217,6 +252,8 @@ loris_vis$et_collected = NA
 loris_vis$et_date = NA
 loris_vis$et_date = as.Date(loris_vis$et_date)
 loris_vis$et_age = NA
+loris_vis$DL_flag = NA
+loris_vis$Cal_flag = NA
 ```
 
 ```{r find_closest_et_vis, echo = TRUE, cache=TRUE}
@@ -235,12 +272,26 @@ for (i in c(1:nrow(visit_dates))) {
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_collected'] = temp$id
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_date'] = temp$visit_date
    loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'et_age'] = temp$age
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'Cal_flag'] = temp$CAL
+   loris_vis[compareNA(loris_vis$Date_visit, closest_date) & loris_vis$PSCID == temp$PSCID, 'DL_flag'] = temp$DL
   }
 ```
 
 ```{r}
-datatable(loris_vis %>% dplyr::select(CandID, PSCID, DOB, Sex, cohort, cohort2, Date_visit, VisitNo, et_collected, et_age, et_date),
+datatable(loris_vis %>% dplyr::select(CandID, PSCID, DOB, Sex, cohort, cohort2, Date_visit, 
+                                      VisitNo, et_collected, et_age, et_date, Cal_flag, DL_flag),
             filter = c('top'), rownames = FALSE)
+```
+
+
+```{r}
+loris_vis %>% filter(DL_flag==1&Cal_flag==0)
+```
+
+## Save eye-tracking data participant list 
+```{r}
+et = loris_vis %>% filter(!is.na(et_collected))
+write.csv(x=et, file=out_dir)
 ```
 
 
@@ -253,36 +304,33 @@ knit_exit()
 ## 1. Read .pconn file (contains paths to all .pconns)
 
 ```{r pconns_mesabi}
-# Directories on mesabi
-listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
+# Data pulled from mesabi
+# listofpconns <- read.table(pconn_file, quote="\"", comment.char="", stringsAsFactors = FALSE)
+listofpconns <- read.csv(pconn_file, stringsAsFactors = FALSE)
 
 listofpconns = listofpconns %>%
-  dplyr::select(fname = V1, exists=V2) %>%
+  dplyr::select(fname = x) %>%
   # remove file names that arent sub-123456_ses-XXmo_corr
   filter(grepl('sub-', fname)) %>%
   mutate(id_nums = gsub("\\D+", "", fname),
          CandID = substring(id_nums, 1, 6),
          vis = as.numeric(id_nums)%%as.numeric(CandID),
-         CandID = as.numeric(CandID)) %>%
+         CandID = as.integer(CandID)) %>%
   dplyr::select(-c(id_nums)) %>%
   # Get rid of duplicates (m_corr vs mo_corr)
   mutate(fname = gsub(x = fname, pattern = 'mo', replacement='m')) %>%
-  distinct()
+  distinct() %>% 
+  arrange(CandID)
 
-datatable(listofpconns, colnames=c('Directory name', '.pconn exists/missing', 'CandID', 'Visit'), filter='top')
+datatable(listofpconns, colnames=c('Directory name', 'CandID', 'Visit'), filter='top')
 ```
 
-Visits with/without .pconn
-
-```{r}
-count(listofpconns, exists)
-```
 
 ## 2. Merge whether scan happened with loris_vis
 
 ```{r}
 loris_vis$rs_collected = NA
-loris_vis$pconn_exists = NA
+#loris_vis$pconn_exists = NA
 
 # For every visit in list of pconns
 for (i in 1:nrow(listofpconns)) {
@@ -300,13 +348,13 @@ for (i in 1:nrow(listofpconns)) {
   if (age %in% vis$Visit_label_age) {
     closest_age = age
     loris_vis[compareNA(id, loris_vis$CandID) & compareNA(age, loris_vis$Visit_label_age), 'rs_collected'] = temp$fname
-    loris_vis[compareNA(id, loris_vis$CandID) & compareNA(age, loris_vis$Visit_label_age), 'pconn_exists'] = temp$exists
+    #loris_vis[compareNA(id, loris_vis$CandID) & compareNA(age, loris_vis$Visit_label_age), 'pconn_exists'] = temp$exists
   } else { 
     # Otherwise, find the closest one
     min_ind = which.min(abs(vis$temp_age - age))
     closest_vis = vis[min_ind, 'Visit_label']
     loris_vis[compareNA(id, loris_vis$CandID) & loris_vis$Visit_label == closest_vis, 'rs_collected'] = temp$fname
-    loris_vis[compareNA(id, loris_vis$CandID) & loris_vis$Visit_label == closest_vis, 'pconn_exists'] = temp$exists
+    #loris_vis[compareNA(id, loris_vis$CandID) & loris_vis$Visit_label == closest_vis, 'pconn_exists'] = temp$exists
   }
 }
   

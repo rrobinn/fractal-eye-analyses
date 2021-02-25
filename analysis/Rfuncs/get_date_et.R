@@ -8,6 +8,11 @@ get_date_et <- function(tobii_file){
     
     if (is.data.frame(t)) {
       recording_date = t$RecordingDate
+      # A small number of filses are .csvs (even tho extension is .tsv)
+      if (is.null(recording_date)) {
+        t <- read.delim(tobii_file, nrows = 1, header = TRUE, sep = ',')
+        recording_date = t$RecordingDate
+      }
     } else {
       rturn(t)
     }

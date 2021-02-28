@@ -49,7 +49,7 @@ dsa_file = paste(wdir, 'data/misc_queries/misc_dsa_dob.csv', sep = '')
 <b>Path where final list will be stored:</b>
 ```{r}
 listname = 'Dissertation_ParticList.csv'
-out_dir = paste(wdir, 'data_audit/', listname, sep ='')
+out_dir = paste(wdir, 'data_audit/', sep ='')
 out_dir
 ```
 
@@ -327,7 +327,7 @@ loris_vis2 = loris_vis %>%
   filter(!grepl('bcpELISONx6m', Visit_label)) # Double check but i  dont think these visits gets eye trakcing
 
 et = loris_vis2 %>% filter(!is.na(et_collected))  # only save visits with eye-tracking data 
-write.csv(x=et, file=out_dir)
+write.csv(x=et, file=paste(out_dir, 'et_only.csv', sep='') )
 ```
 
 
@@ -773,12 +773,12 @@ loris_vis2 = loris_vis2 %>%
 
 ```{r echo=TRUE}
 loris_vis2 %>% 
-  filter(n_et==0 & n_scan==0)
+  filter(n_et==0 & n_scan==0) %>%
+  select(CandID, PSCID, cohort, Visit_label) %>%
+  mutate(cohort = factor(cohort)) %>% # Makes filtering easier
+  datatable(filter = 'top')
 ```
 
-```{r}
-knit_exit()
-```
 
 
 ```{r}
@@ -826,9 +826,6 @@ datatable(loris_vis2 %>%
 ```
 
 ### Scan
-```{r}
-knit_exit()
-```
 
 
 ```{r}
@@ -836,12 +833,10 @@ scan_tally=loris_vis2 %>%
   filter(n_scan >0) %>%
   dplyr::select(CandID, PSCID, ageFirstVis,Visit_label_age, Visit_label,
                 DOB, Date_visit, Scan_done, cohort2,
-                rs_collected, pconn_exists) %>%
+                rs_collected) %>%
   mutate(CandID = as.factor(CandID),
          # Scan status
-         status = ifelse(is.na(rs_collected), 'No RS Dir', ''),
-         status = ifelse(compareNA(pconn_exists, 'missing'), 'RS Dir', status),
-         status = ifelse(compareNA(pconn_exists, 'exists'), 'RS Dir + pconn', status)) %>%
+         status = ifelse(is.na(rs_collected), 'No RS', 'Has RS')) %>%
   # Age for Cross-sectional kids 
   mutate(age2 =  Date_visit - as.Date(DOB),
          age2 = as.numeric(age2/30),
@@ -853,26 +848,21 @@ rs = scan_tally %>%
   filter(!is.na(rs_collected)) %>%
   group_by(CandID) %>%
   summarize(n=n())
-
-rs_and_pconn = scan_tally %>%
-  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
-  group_by(CandID) %>%
-  summarize(n=n())
 ```
 
--   `r sum(rs_and_pconn$n)` visits on MSI with pconns, from `r nrow(rs_and_pconn)` indidividuals.
+-   `r sum(rs$n)` visits on MSI with pconns, from `r nrow(rs)` indidividuals.
 
 ```{r scan_cohort}
 # Numbe of individuals in each cohort
 scan_tally %>%
-  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
+  filter(!is.na(rs_collected)) %>%
   dplyr::select(CandID, cohort2) %>%
   distinct() %>%
   count(cohort2, name = 'Number of individuals')
 
 # Numbe of scans from each cohort
 scan_tally %>%
-  filter(!is.na(rs_collected) & compareNA(pconn_exists, 'exists')) %>%
+  filter(!is.na(rs_collected) ) %>%
   count(cohort2, name = 'Number of scans')
 ```
 
@@ -884,7 +874,7 @@ plot_dat = scan_tally %>%
 ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
   geom_point(aes(color=status), size=1.1) +
   geom_line() +
-  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  scale_color_manual(values = c('springgreen4', 'red')) +
   theme(axis.text.y=element_blank()) + 
   scale_y_discrete()+
   scale_x_continuous(breaks = unique(plot_dat$Visit_label_age)) + 
@@ -898,7 +888,7 @@ plot_dat = scan_tally %>%
 ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
   geom_point(aes(color=status), size=1.1) +
   geom_line() +
-  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  scale_color_manual(values = c('springgreen4', 'red')) +
   theme(axis.text.y=element_blank()) + 
   scale_y_discrete()+
   scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
@@ -912,7 +902,7 @@ plot_dat = scan_tally %>%
 ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
   geom_point(aes(color=status), size=1.1) +
   geom_line() +
-  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  scale_color_manual(values = c('springgreen4', 'red')) +
   theme(axis.text.y=element_blank()) + 
   scale_y_discrete()+
   #scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
@@ -927,17 +917,17 @@ ggplot(data = plot_dat, aes(y = reorder(CandID, ageFirstVis), x = Visit_label_ag
   geom_point(aes(color=status), size=1.1) +
   geom_line() +
   theme(axis.text.y=element_blank()) + 
-  scale_color_manual(values = c('red', 'black', 'springgreen4')) +
+  scale_color_manual(values = c('springgreen4', 'red')) +
   scale_y_discrete()+
   #scale_x_continuous(breaks = c(2, 4, 8, 10, 13, 24)) + 
   labs(x = 'Scan Age (months)', y = 'Individual', title='BCP-E') 
 ```
 
+
 ```{r bcp_clean_scan_fig, cache=TRUE}
 # Figure that shows how many scans we do have 
 scan_tally %>%
   filter(!is.na(rs_collected)) %>%
-  filter(compareNA(pconn_exists, 'exists')) %>%
   filter(cohort2!='BCP_D' & cohort2!='BCP_E' & cohort2!='BCP_ELISON') %>%
     ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
     geom_point(aes(color=cohort2), size=1.1) +
@@ -948,7 +938,6 @@ scan_tally %>%
 
 scan_tally %>%
   filter(!is.na(rs_collected)) %>%
-  filter(compareNA(pconn_exists, 'exists')) %>%
   filter(cohort2=='BCP_D' | cohort2=='BCP_E' | cohort2=='BCP_ELISON') %>%
     ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
     geom_point(aes(color=cohort2), size=1.1) +
@@ -958,47 +947,30 @@ scan_tally %>%
     labs(x = 'Scan Age (months)', y = 'Individual', title='Visits with .pconn on MSI') 
 ```
 
-```{r}
-knit_exit()
-```
-
-
-## Eye-tracking
-
-```{r}
-et=loris_vis2 %>%
-  filter(n_et >0,
-         !is.na(Visit_label)) %>%
-  dplyr::select(CandID, PSCID, ageFirstVis,Visit_label_age, Visit_label,
-                DOB, Date_visit, cohort2,
-                et_age, et_collected, cohort) %>%
-  mutate(CandID = as.factor(CandID),
-         # Scan status
-          status = ifelse(!is.na(et_collected), 'Visit=Yes, ET=Yes', ''), 
-          status = ifelse(is.na(Date_visit), 'Visit=No', status),
-          status = ifelse(!is.na(Date_visit) & is.na(et_collected), 'Visit=Yes, ET=No', status)) %>%
-  # Age for BCP-CFP
-  mutate(age2 =  Date_visit - as.Date(DOB),
-         age2 = as.numeric(age2/30),
- Visit_label_age = ifelse(is.na(Visit_label_age), age2, Visit_label_age)) %>%
-  # BCP-CFP are feeding check-ins (not real visits )
- mutate(remove = ifelse(cohort=='bcpCFP' & is.na(et_collected), 1, 0)) %>%
-  filter(remove ==0) %>%
-  dplyr::select(-c(cohort, remove))
-```
 
 
 ## ET & RS
 
-```{r}
+```{r et_and_rs_figs}
 loris_vis2 %>% 
   filter(!is.na(rs_collected) & !is.na(et_collected)) %>%
+  filter(cohort2!='BCP_E' & cohort2!='BCP_D') %>%
     ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
     geom_point(aes(color=cohort2), size=1.1) +
     geom_line() +
     scale_y_discrete()+
     theme(axis.text.y=element_blank()) + 
-    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with .pconn & ET data') 
+    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with RS and ET data') 
+
+loris_vis2 %>% 
+  filter(!is.na(rs_collected) & !is.na(et_collected)) %>%
+  filter(cohort2=='BCP_E' | cohort2=='BCP_D') %>%
+    ggplot(data = ., aes(y = reorder(CandID, ageFirstVis), x = Visit_label_age)) +
+    geom_point(aes(color=cohort2), size=1.1) +
+    geom_line() +
+    scale_y_discrete()+
+    theme(axis.text.y=element_blank()) + 
+    labs(x = 'Visit Age (months)', y = 'Individual', title='Visits with RS and ET data') 
 ```
 
 ```{r}
@@ -1019,9 +991,7 @@ flagged_list = loris_vis2 %>%
          mri_flag = ifelse(!is.na(rs_collected), 1, 0) ) %>%
   filter(et_flag==1 | mri_flag==1)
 
-write.csv(x = flagged_list, file = out_dir, row.names = FALSE)
+write.csv(x = flagged_list, file = paste(out_dir, 'et_or_mri.csv', sep=''), row.names = FALSE)
 ```
 
-```{r}
-knit_exit()
-```
+

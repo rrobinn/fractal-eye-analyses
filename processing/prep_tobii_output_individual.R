@@ -37,41 +37,7 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
     action = 'No .tsv match - skipped'
     return(action) 
   }
-  
-  # if (length(filename)!=1) {
-  #   # Check if files are the same. If they are different, we will process both. 
-  #   recording_dur = c()
-  #   has_data = c()
-  #   for  (i in filename){
-  #     dat=read.delim(paste(f, i, sep = '/'), sep = '\t', stringsAsFactors = FALSE, nrows=1)
-  #     # Recording Dur 
-  #     recording_dur = c(recording_dur, dat$RecordingDuration)
-  #     
-  #     # Count valid frames
-  #     v=dat$ValidityLeft
-  #     v[is.na(v)] = -9999
-  #     n_valid = c(n_valid, sum(v<=1))
-  #     if (n_valid>1000) {
-  #       has_data = c(has_data,1)
-  #     } else {
-  #       has_data = c(has_data,0)
-  #     }
-  #   }
-  #   
-  #   if (length(unique(recording_dur)) == 1) { # Then these are duplictes, pick the first one 
-  #     to_process = 1
-  #   }else {
-  #     to_process = which(has_data)
-  #   }
-  #   
-  #   
-  #   #  process task with more valid data 
-  #   to_process = which.max(n_valid)
-  #   filename = filename[to_process]
-  #   action = 'More than one match - processed task with more valid data'
-  #   
-  # }
-  # 
+
   
   for (file in filename) {
     # Check if the .txt file already exists 

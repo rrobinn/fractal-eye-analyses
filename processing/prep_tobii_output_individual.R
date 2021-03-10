@@ -76,28 +76,29 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
       }
     }
     
-    
+    if (grepl(':', dat2$RecordingTimestamp[1])){ # If it's in the HH:MM:SS.XX format 
+      dat2 = dat2 %>% 
+        mutate(RecordingTimestamp = hms(dat2$RecordingTimestamp),
+               RecordingTimestamp = seconds(RecordingTimestamp))
+      
+      dat2$RecordingTimestamp = dat2$RecordingTimestamp  - dat2$RecordingTimestamp[1]
+      dat2$RecordingTimestamp = as.numeric(dat2$RecordingTimestamp)*1000
+    }
+
+  
     # Generate text to write to .txt file 
     colnames = paste(colnames(dat2), collapse = ',')
     to_print=col_concat(dat2, sep = ',')
     
     action = paste(action, '...success')
     fname = gsub(file, pattern='.tsv', replacement='')
-    write.csv(x=to_print, file = paste(f, '/', fname, '.txt', sep='' ), row.names = FALSE, eol = '\n')  
-    write.csv(x=colnames, file = paste(f, '/', fname, '_colnames.txt', sep =''), row.names=FALSE)
+    write.table(x=to_print, file = paste(f, '/', fname, '.txt', sep='' ), col.names=FALSE, row.names = FALSE, eol = '\n')  
+    write.table(x=colnames, file = paste(f, '/', fname, '_colnames.txt', sep =''), row.names=FALSE, col.names=FALSE)
     
-    return(action)
     
-  }
-  
-
-  
-
-  
-
-  
-  
-  
+    
+  } # End for loop
+  return(action)
 
 }
 

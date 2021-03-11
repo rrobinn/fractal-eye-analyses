@@ -84,7 +84,7 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
         dat2[, c] = ifelse(is.na(dat2[,c]), -9999, dat2[, c])
       }
     }
-    
+    # Handle time stamp formatting 
     if (grepl(':', dat2$RecordingTimestamp[1])){ # If it's in the HH:MM:SS.XX format 
       dat2 = dat2 %>% 
         mutate(RecordingTimestamp = hms(dat2$RecordingTimestamp),
@@ -119,6 +119,7 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
     
     to_print = rbind(cleaned_dat[[1]], cleaned_dat[[2]])
     to_print=col_concat(to_print, sep = ',')
+    action = paste(action, 'concatenated 2 files ...')
     }
   
   

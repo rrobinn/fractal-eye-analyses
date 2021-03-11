@@ -10,20 +10,19 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
   # By default, do not over-write the .txt file 
   if (is.null(overwrite)) overwrite = 0
   
-  # Columns needed for analysis
-  necessary_cols = c('RecordingTimestamp', 'ParticipantName', 'RecordingResolution',
-                     'GazePointLeftX..ADCSpx.','GazePointLeftY..ADCSpx.','PupilLeft','ValidityLeft',
-                     'GazePointRightX..ADCSpx.', 'GazePointRightY..ADCSpx.', 'PupilRight', 'ValidityRight',
-                     'MediaName', 'RecordingDate')
+  # # Columns needed for analysis
+  # necessary_cols = c('RecordingTimestamp', 'ParticipantName', 'RecordingResolution',
+  #                    'GazePointLeftX..ADCSpx.','GazePointLeftY..ADCSpx.','PupilLeft','ValidityLeft',
+  #                    'GazePointRightX..ADCSpx.', 'GazePointRightY..ADCSpx.', 'PupilRight', 'ValidityRight',
+  #                    'MediaName', 'RecordingDate', 'RecordingDuration')
   
   all_cols = c('RecordingTimestamp','ParticipantName','RecordingResolution','GazePointLeftX..ADCSpx.',
                'GazePointLeftY..ADCSpx.','DistanceLeft','PupilLeft','ValidityLeft',
                'GazePointRightX..ADCSpx.','GazePointRightY..ADCSpx.',
                'DistanceRight','PupilRight','ValidityRight',
                'FixationIndex','GazePointX..ADCSpx.','GazePointY..ADCSpx.','GazeEventDuration',
-               'GazeEventType','SaccadeIndex','SaccadicAmplitude',
                # Info about trials
-               'MediaName','StudioProjectName','RecordingResolution','RecordingDate')
+               'MediaName','StudioProjectName','RecordingDate', 'RecordingDuration')
   
   action = ''
   
@@ -31,28 +30,38 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
   
   temp = list.files(f)
   filename = temp[grepl(pattern = 'tsv', temp)] # Files with dancing ladies data 
+  n_files = length(filename)
   
-  
-  if (length(filename)==0) {
+  if (n_files==0) {
     action = 'No .tsv match - skipped'
     return(action) 
   }
-
   
-  for (file in filename) {
+  cleaned_dat = list()
+  for (i in c(1:n_files)) {
+    fname =filename[i]
+    bname = gsub('\\.tsv', '', fname) 
+    
     # Check if the .txt file already exists 
-    if ( file.exists(paste(f, '/',file,'.txt', sep='')) & overwrite==0 ) {
+    if ( file.exists(paste(f, '/',bname,'.txt', sep='')) & overwrite==0 ) {
       action = '.txt file already exists - skipped'
       return(action)
     }
-    # Read data 
-    dat=read.delim(paste(f, file, sep = '/'), sep = '\t', stringsAsFactors = FALSE)
-    # Check if it imported as one col
-    if (dim(dat)[2]==1){
-      dat=read.delim(paste(f, filename, sep = '/'), sep = ',', stringsAsFactors = FALSE)
+    
+    # If this is not the first file, check to see if this is an accidental copy
+    if (i!=1) {
+      temp =  read.delim(paste(f, fname, sep = '/'), sep = '\t', stringsAsFactors = FALSE, nrow=1)
+      if (temp$RecordingDuration == cleaned_dat[[i=1]]$RecordingDuration[1]) next 
     }
+    
+    # Otherwise, read data 
+    dat=read.delim(paste(f, fname, sep = '/'), sep = '\t', stringsAsFactors = FALSE)
+    # Check if it imported as one col
+    #if (dim(dat)[2]==1){
+    #  dat=read.delim(paste(f, filename, sep = '/'), sep = ',', stringsAsFactors = FALSE)
+    #}
     # Check if it has all the headers needed
-    missing_cols = necessary_cols[!necessary_cols %in% colnames(dat)]
+    missing_cols = all_cols[!all_cols %in% colnames(dat)]
     if (length(missing_cols)>0) {
       missing_cols = paste(missing_cols, collapse = ',')
       action = paste('misisng cols: ', missing_cols)
@@ -61,7 +70,7 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
     
     # Select the columns that you do have 
     dat2 = dat %>% 
-      dplyr::select(intersect(colnames(dat), all_cols))
+      dplyr::select( all_of(all_cols))
     # Get rid of .. in colnames
     colnames(dat2) = gsub(pattern = '\\.', replacement='', colnames(dat2))
     
@@ -88,16 +97,36 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
   
     # Generate text to write to .txt file 
     colnames = paste(colnames(dat2), collapse = ',')
-    to_print=col_concat(dat2, sep = ',')
-    
-    action = paste(action, '...success')
-    fname = gsub(file, pattern='.tsv', replacement='')
-    write.table(x=to_print, file = paste(f, '/', fname, '.txt', sep='' ), col.names=FALSE, row.names = FALSE, eol = '\n')  
-    write.table(x=colnames, file = paste(f, '/', fname, '_colnames.txt', sep =''), row.names=FALSE, col.names=FALSE)
-    
-    
-    
+    cleaned_dat[[i]] = dat2
+
   } # End for loop
+  
+  
+  if (length(cleaned_dat)==1) {
+    to_print = cleaned_dat[[1]]
+    to_print=col_concat(to_print, sep = ',')
+  }else{
+    # Get last time stamp of the first file 
+    ts1 = cleaned_dat[[1]]$RecordingTimestamp
+    tsi1 = ts1[length(ts1)]
+    
+    # Get first time stamp of the second file
+    ts2 = cleaned_dat[[2]]$RecordingTimestamp
+    ts2 = ts2[1]
+    # Start first tiem stamp at 0, then add ts2 + 1
+    cleaned_dat[[2]]$RecordingTimestamp  = cleaned_dat[[2]]$RecordingTimestamp - cleaned_dat[[2]]$RecordingTimestamp[1]
+    cleaned_dat[[2]]$RecordingTimestamp = cleaned_dat[[2]]$RecordingTimestamp + ts2 + 1
+    
+    to_print = rbind(cleaned_dat[[1]], cleaned_dat[[2]])
+    to_print=col_concat(to_print, sep = ',')
+    }
+  
+  
+  
+  action = paste(action, '...success')
+  #fname = gsub(file, pattern='.tsv', replacement='')
+  write.table(x=to_print, file = paste(f, '/', bname, '.txt', sep='' ), col.names=FALSE, row.names = FALSE, eol = '\n')  
+  write.table(x=colnames, file = paste(f, '/', bname, '_colnames.txt', sep =''), row.names=FALSE, col.names=FALSE)
   return(action)
 
 }

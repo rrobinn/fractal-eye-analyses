@@ -108,14 +108,15 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
   }else{
     # Get last time stamp of the first file 
     ts1 = cleaned_dat[[1]]$RecordingTimestamp
-    tsi1 = ts1[length(ts1)]
+    ts1 = ts1[length(ts1)]
     
     # Get first time stamp of the second file
     ts2 = cleaned_dat[[2]]$RecordingTimestamp
     ts2 = ts2[1]
-    # Start first tiem stamp at 0, then add ts2 + 1
-    cleaned_dat[[2]]$RecordingTimestamp  = cleaned_dat[[2]]$RecordingTimestamp - cleaned_dat[[2]]$RecordingTimestamp[1]
-    cleaned_dat[[2]]$RecordingTimestamp = cleaned_dat[[2]]$RecordingTimestamp + ts2 + 1
+    
+    # For the second file (which is arbitrary) set the first time stamp to 0, then add ts2 + 1
+    cleaned_dat[[2]]$RecordingTimestamp  = cleaned_dat[[2]]$RecordingTimestamp - cleaned_dat[[2]]$RecordingTimestamp[1] # Set to 0
+    cleaned_dat[[2]]$RecordingTimestamp = cleaned_dat[[2]]$RecordingTimestamp + ts1 + 1
     
     to_print = rbind(cleaned_dat[[1]], cleaned_dat[[2]])
     to_print=col_concat(to_print, sep = ',')
@@ -125,7 +126,6 @@ prep_tobii_output_individual <- function(f, overwrite = NULL) {
   
   
   action = paste(action, '...success')
-  #fname = gsub(file, pattern='.tsv', replacement='')
   write.table(x=to_print, file = paste(f, '/', bname, '.txt', sep='' ), col.names=FALSE, row.names = FALSE, eol = '\n')  
   write.table(x=colnames, file = paste(f, '/', bname, '_colnames.txt', sep =''), row.names=FALSE, col.names=FALSE)
   return(action)

@@ -1,4 +1,4 @@
-function [success] = runMFDFA_participant(id, varargin)
+function [success] = runMFDFA_participant(path, varargin)
 %% runMFDFA_participant
 % runs MFDFA for one individual. Useful for parallelizing jobs
 
@@ -11,19 +11,25 @@ rootDir = pwd;
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-dataDir = [rootDir '/data/individual_data/'];
 figDir = [rootDir '/Figs/'];
 %% Default settings
 [settings] =  MFDFA_settings();
 settingsMatFile = NaN; 
+
+%% Get id
+% All of time series .mat files are named id_calVerTimeSeries.mat)
+myDir = dir(path);
+files = {myDir.name};
+f = files(contains(files, 'calVerTimeSeries.mat')); % Should only be one match
+f= f{1};
+id = erase(f, '_calVerTimeSeries.mat');
+
 %% Override defaults if varargin>0 varargin (settings, and path overriding)
 if nargin>1
     for v=1:2:length(varargin)
         switch varargin{v}
             case 'settings'
                 settings = varargin{v+1};
-            case 'dataDir'
-                dataDir = varargin{v+1};
             case 'figDir'
                 figDir = varargin{v+1};
             case 'settingsMatFile'
@@ -53,10 +59,9 @@ header = {'id', 'movie', 'seg', 'date', 'longestFixDur', 'propInterp', 'propMiss
 tag = ['scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
 %%
 try
-    particDir=[dataDir id '/'];
     % load data
-    calver = load([particDir id '_calVerTimeSeries.mat']);
-    et = load([particDir id '_segmentedTimeSeries.mat']);
+    calver = load([path '/' id '_calVerTimeSeries.mat']);
+    et = load([path '/' id '_segmentedTimeSeries.mat']);
     % make time series
     [ts_out_calver, specs_out_calver] = makeTimeSeriesForFractalAnalysis(calver, 'settings', settings);
     [ts_out_et, specs_out_et] = makeTimeSeriesForFractalAnalysis(et, 'settings', settings);
@@ -79,8 +84,7 @@ try
     M2_Ph = cell(size(specs,1),1); M2_Dh = cell(size(specs,1),1);
     
     
-    %display('Calculating H \n');
-    for t=1:size(ts_out,1)
+    for t=1:2%size(ts_out,1)
         ts = ts_out{t};
         
         % Trial info (used to name figs)
@@ -149,7 +153,7 @@ try
                   M1_Hq, M1_tq, M1_hq, M1_Dq, M1_Fq, ...
                   M2_Ht, M2_Htbin, M2_Ph, M2_Dh);
     
-    save([particDir 'h_' tag '.mat'], 'out', 'settings');
+    save([path '/h_' tag '.mat'], 'out', 'settings');
     
     %% figures
     if (settings.r2plot | settings.MFDFAplot1 | settings.MFDFAplot2)
@@ -163,9 +167,10 @@ try
             FigName = get(figHandle, 'Name');
             saveas(figHandle, [FolderName, FigName, '.jpg']);
         end
-        save([FolderName 'settings.mat'], 'settings');
+        save([FolderName 'settings.mat'], 'settings'); % Save settings in fig dir
         close all
     end
+    
     success = 1;
 catch ME
     disp(['Error on id = ' id ' : ' ME.message])

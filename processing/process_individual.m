@@ -1,4 +1,4 @@
-function [success] = process_individual(id, varargin)
+function [success] = process_individual(path, varargin)
 %% process_individual
 %  processes data for one individual. Useful for parallelizing jobs
 
@@ -11,24 +11,13 @@ success = 0;
 %% set paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder
 [s, e]=regexp(pwd, 'fractal-eye-analyses');
-rootDir = pwd; 
+rootDir = pwd;
 rootDir = rootDir(1:e);
 
 addpath(genpath(rootDir));
-inFilePath = [rootDir '/data/'];
-aoiPath = [rootDir '/data/dynamic_aoi/'];
+aoiPath = [rootDir '/dynamic_aoi/'];
 
-%% Override defaults if varargin>0 varargin (settings, and path overriding)
-if nargin>1
-    for v=1:2:length(varargin)
-        switch varargin{v}
-            case 'dataDir'
-                inFilePath = varargin{v+1};
-            otherwise
-                error(['Input ' varargin{v} 'not recognized']);
-        end
-    end
-end
+
 %%
 % read in bounding boxes & make data structure of bounding boxes
 [master_AOI, aoi_headers] = read_AOI(aoiPath);
@@ -36,13 +25,28 @@ end
 
 %%
 %% clear workspace & set up output directory
-disp(['Attempting to read in data for ' id]);
+disp(['Attempting to read in data for ' path]);
+
+% Get a list of the files
+myDir = dir(path);
+files = {myDir.name};
+f = files(contains(files, 'RawData.mat')); % Should only be one match
+f= f{1};
+
+if isempty(f) 
+    disp('Did not find _RawData.mat');
+    return
+end
 
 %% % Load raw et data
-%cd([inFilePath id]);
+fullPath =  [path, '/', f];
+% get id
+temp=strsplit(f, '_');
+id = [temp{1}, '_', temp{2}, '_', temp{3}];
+
 try
     %% Reading in et data
-    load([inFilePath id '/' id '_RawData.mat'])
+    load(fullPath);
     %% %% Flag Blinks
     disp(' ');
     disp(['----------------------------------------']);
@@ -74,24 +78,23 @@ try
     
     % Save  data
     disp('Save data & interpolated data & aoi data');
-    save([inFilePath id '/' id '_Parsed'], 'ParticData', 'PrefBin');
+    save([path '/' id '_Parsed'], 'ParticData', 'PrefBin');
     %% dl time series
     disp('Create time series');
     [segmentedData,segSummaryCol]  = generate_timeseries(ParticData, PrefBin, dataCol);
     disp('Saving segmented data');
-    save([inFilePath id '/' id '_segmentedTimeSeries'],'segmentedData', 'segSummaryCol');
+    save([path '/' id '_segmentedTimeSeries'],'segmentedData', 'segSummaryCol');
     
     %% calver time series
     disp('Make calver time series');
     [segmentedData_calVer, calVerCol] = generate_timeseries_calver(PrefBin, ParticData, dataCol);
     disp('Saving CalVer time series');
-    save([inFilePath id '/' id '_calVerTimeSeries'],'segmentedData_calVer', 'calVerCol');
+    save([path '/' id '_calVerTimeSeries'],'segmentedData_calVer', 'calVerCol');
     %%
-    success = 1; 
+    success = 1;
     disp([id ' finished!']);
 catch ME
     disp([ME.identifier ' ' id])
-    %disp(['Could not find RawData.mat for ' id]);
     return
 end
 

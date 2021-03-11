@@ -84,7 +84,7 @@ try
     M2_Ph = cell(size(specs,1),1); M2_Dh = cell(size(specs,1),1);
     
     
-    for t=1:2%size(ts_out,1)
+    for t=1:size(ts_out,1)
         ts = ts_out{t};
         
         % Trial info (used to name figs)

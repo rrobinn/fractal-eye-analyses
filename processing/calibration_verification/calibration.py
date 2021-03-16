@@ -220,7 +220,15 @@ cvs_names_skipped = []
 
 dirList = os.listdir(dirname)
 dirList = sorted(dirList)
+
+# Make directory for problem files
+problem_dir = dirname + '_problemfiles'
+if os.path.isdir(problem_dir) is False:
+    os.mkdir(problem_dir)
+
 print(dirList)
+
+
 
 for file in dirList:
 
@@ -368,6 +376,14 @@ all the data you've exported is considered valid for one / both eyes.\n")
     if len(newL) != len(newR):
         print("Something went wrong finding average of distance from screen!")
         exit()
+
+    if len(newL) ==0:
+        print("No data - moving to problem directory")
+        # Move file to /problem_dir/
+        bname = os.path.basename(filename)
+        os.rename(filename, os.path.join(problem_dir, bname))
+        continue
+
 
     aveL = sum(newL) / len(newL)
     aveR = sum(newL) / len(newR)

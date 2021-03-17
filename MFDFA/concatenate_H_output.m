@@ -1,28 +1,37 @@
-clear all
-close all
-% set wdir
-wdir = '/Users/sifre002/Documents/Github/fractal-eye-analyses';
-cd([wdir '/MFDFA/'])
+function concatenate_H_output(path, varargin)
 
-%%
-folder = '~/Documents/GitHub/fractal-eye-analyses/data/individual_data_dissertation/'; % Folder w/ individual data, where concatenated output will be written
+close all
+%% Override defaults if varargin>0 
 outputFileName = 'h_out.txt'; % Name for output file with concatenated data
 matFileName = 'h_scres8_scmin8.mat'; % Name of .mat file to load and concatenate into one data structure
-header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, warning, h, r2, Hq-5, Hq-3, Hq-1, Hq0, Hq+1, Hq+3, Hq+5, scmin, scmaxDiv, scres';
-%%
-files = dir(folder);
-dirFlags = [files.isdir];
-files = files(dirFlags);
-readErrors= {};
+if nargin>1
+    for v=1:2:length(varargin)
+        switch varargin{v}
+            case 'path'
+                path = varargin{v+1};
+            case 'matFileName'
+                matFileName = varargin{v+1}; 
+            case 'outputFileName'
+                outputFileName = varargin{v+1};
+            otherwise
+                error(['Input ' varargin{v} 'not recognized']);
+        end
+    end  
+end
 
 %%
-fid = fopen([folder outputFileName], 'w');
+header = 'id, movie, seg, date, longestFixDur, propInterp, propMissing, warning, h, r2, Hq-5, Hq-3, Hq-1, Hq0, Hq+1, Hq+3, Hq+5, scmin, scmaxDiv, scres';
+%%
+files = dir([path '*/*/EU*/' matFileName]); % Return list of files that match matFileName (assumes BIDS structure)
+%%
+fid = fopen([path outputFileName], 'w');
 fprintf(fid, '%s \n', header);
+readErrors = {};
 for f = 1:size(files,1)
     try
         % Read in .mat file w/ DFA output
-        disp(['Attempting to read in data for ' files(f).name]);
-        load([folder files(f).name '/' matFileName]);
+        disp(['Attempting to read in data for ' files(f).folder]);
+        load(fullfile(files(f).folder, files(f).name));
         
         % Pull settings to save
         scmin = settings.scmin;
@@ -70,5 +79,5 @@ for f = 1:size(files,1)
 end
 readErrors=readErrors';
 %%
-save([folder 'h_out_readErrors.mat'], 'readErrors');
+save([path 'h_out_readErrors.mat'], 'readErrors');
 fclose(fid);

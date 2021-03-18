@@ -20,9 +20,9 @@ settingsMatFile = NaN;
 % All of time series .mat files are named id_calVerTimeSeries.mat)
 myDir = dir(path);
 files = {myDir.name};
-f = files(contains(files, 'calVerTimeSeries.mat')); % Should only be one match
+f = files(contains(files, 'cTimeSeries.mat')); % Should only be one match
 f= f{1};
-id = erase(f, '_calVerTimeSeries.mat');
+id = erase(f, '_TimeSeries.mat');
 
 %% Override defaults if varargin>0 varargin (settings, and path overriding)
 if nargin>1

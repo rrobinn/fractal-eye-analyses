@@ -71,6 +71,6 @@ while ( (errorAmplitude > errorThresshold | errorSpec > errorThresshold) & (cput
     oldTotalError = totalError;
 end
 
-errorSpec
-errorAmplitude
+errorSpec;
+errorAmplitude;
 y = real(y);

@@ -20,9 +20,13 @@ settingsMatFile = NaN;
 % All of time series .mat files are named id_calVerTimeSeries.mat)
 myDir = dir(path);
 files = {myDir.name};
-f = files(contains(files, 'TimeSeries.mat')); % Should only be one match
-f= f{1};
-id = erase(f, '_TimeSeries.mat');
+files = files(contains(files, 'TimeSeries.mat')); % Should only be one match
+id= files{1};
+if contains(id, 'calVer')
+    id = erase(id, '_calVerTimeSeries.mat');
+else
+    id = erase(id, '_TimeSeries.mat');
+end
 
 %% Override defaults if varargin>0 varargin (settings, and path overriding)
 if nargin>1
@@ -38,7 +42,6 @@ if nargin>1
                 error(['Input ' varargin{v} 'not recognized']);
         end
     end
-    
 end
 
 % Load settings if user specified specific .mat file 
@@ -58,6 +61,7 @@ header = {'id', 'movie', 'seg', 'date', 'longestFixDur', 'propInterp', 'propMiss
     
 tag = ['scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
 %%
+
 try
     % load data
     calver = load([path '/' id '_calVerTimeSeries.mat']);

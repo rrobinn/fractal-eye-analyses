@@ -17,7 +17,7 @@ settingsMatFile = NaN;
 % Don't want to plot
 settings.r2plot=0;
 settings.MFDFAplot1 = 0;
-settingsMFDFAplot2=0;
+settings.MFDFAplot2=0;
 %% Get id
 % All of time series .mat files are named surrogates.mat)
 myDir = dir(path);
@@ -50,7 +50,7 @@ if ~isnan(settingsMatFile)
 end
 
 
-out_cols2={'H', 'r2', 'Hq-5', 'Hq-3', 'Hq-1', 'Hq-0', 'Hq-1', 'Hq-3', 'Hq-5'};
+out_cols2={'H', 'r2', 'Hq-5', 'Hq-3', 'Hq-1', 'Hq-0', 'Hq+1', 'Hq+3', 'Hq+5'};
 
 
 %% temporarily disable polynomial warnings
@@ -63,8 +63,7 @@ tag = ['scres' num2str(settings.scres) '_scmin' num2str(settings.scmin)];
 try
     % load surrogates
     load(fullfile(path, 'surrogates.mat'));
-
-
+    
     n_surrogates = size(surrogates_out{1}, 1);
     out = specs_out;
     % For each time series 
@@ -96,7 +95,7 @@ try
 
     end
     %% save output
-    save(fullfile(path, 'MFDFA_surrogates.mat'), 'out', 'out_cols2', 'settings');
+    save(fullfile(path, [tag '_MFDFA_surrogates.mat']), 'out', 'out_cols2', 'settings');
 
     success = 1;
 catch ME

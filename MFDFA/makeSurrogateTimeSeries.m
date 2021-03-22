@@ -77,7 +77,7 @@ try
         % Get input for making surrogate
         [fourier_coeff, sorted_values, ~, ~, meanValue, ~] = load_1d_data_et(timestamp, series);
         
-        surrogates = cell(n_surrogates);
+        surrogates = cell(n_surrogates, 2);
         % Make n surrogates
         for n = 1:n_surrogates
             [surrogate, errorAmplitude, errorSpec] = iaaft_loop_1d(fourier_coeff, sorted_values);

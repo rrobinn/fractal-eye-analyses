@@ -99,7 +99,12 @@ try
 
     success = 1;
 catch ME
-    disp(['Error on id = ' path ' : ' ME.message])
+    if length(surrogates_out)==0
+        disp(['Error on id = ' path ' : No data in surrogates_out'])
+    else
+        disp(['Error on id = ' path ' : ' ME.message])
+    end
+    
     return
 end
 

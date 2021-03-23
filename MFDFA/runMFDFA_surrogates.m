@@ -99,7 +99,7 @@ try
 
     success = 1;
 catch ME
-    disp(['Error on id = ' id ' : ' ME.message])
+    disp(['Error on id = ' path ' : ' ME.message])
     return
 end
 

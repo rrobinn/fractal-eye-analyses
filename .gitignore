@@ -8,7 +8,7 @@
 
 data_for_calver/
 
-.DS_Store
+*/*/.DS_Store
 
 
 # Prevent users to commit their own .RData and .Rhistory in mutual area
@@ -42,6 +42,8 @@ data/individual_data/
 data/settings.mat
 data/Dissertation_ParticList.csv
 data/dev
+data/calver/*distances*
+data/calver/*summary*
 data/*.txt
 data/*.mat
 data/*.csv
@@ -61,3 +63,9 @@ data_audit/*_cache/
 data_audit/slurm_out_preptobii.R
 data_audit/FileAudit
 data_audit/*.csv
+data_audit/*visit_dates*
+*.Rproj*
+.Rproj.user
+data/individual_data/.DS_Store
+*.R
+data/individual_data/.DS_Store

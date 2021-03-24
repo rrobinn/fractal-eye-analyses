@@ -354,14 +354,14 @@ datatable(et %>%
 Indicates if they have a visit directory in `~/AUDIT_PASSED/`
 ```{r}
 loris_vis2 %>% group_by(cohort) %>%
-  summarize(`Number of visits with eye-tracking data` = sum(is.na(et_collected)),
+  summarize(`Number of visits with eye-tracking data` = sum(!is.na(et_collected)),
             `Number of visits` = n())
 ```
 
 ### By visit labl
 ```{r}
 loris_vis2 %>% group_by(Visit_label) %>%
-  summarize(`Number of visits with eye-tracking data` = sum(is.na(et_collected)),
+  summarize(`Number of visits with eye-tracking data` = sum(!is.na(et_collected)),
             `Number of visits` = n()) %>% datatable(filter='top')
 ```
 
@@ -648,7 +648,7 @@ loris_vis2 %>%
 ```
 
 # Save list et meta-data
-```{r}
+```{r echo=TRUE}
 write.csv(x=loris_vis2, file=paste(out_dir, 'potential_etvis_in_loris.csv', sep='') )
 ```
 

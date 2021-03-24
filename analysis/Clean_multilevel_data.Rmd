@@ -671,5 +671,6 @@ h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
 ```{r echo=TRUE}
 today = format(Sys.Date(), format="%Y-%m-%d")
 write.csv(h5, paste(out_dir, today, '-h_clean.csv', sep = ''))
+write.csv(removed, paste(out_dir, today, '-h_removed.csv', sep = ''))
 
 ```

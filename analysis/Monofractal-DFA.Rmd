@@ -13,10 +13,8 @@ library(readr)
 library(tidyverse)
 library(lme4)
 library(ggplot2)
-#library(MuMIn)
 library(AICcmodavg)
 library(moments) 
-#library(nlme)
 library(sm)
 library(knitr)
 library(DT)
@@ -28,7 +26,7 @@ source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
 
 ```{r}
 # Read cleaned data
-data = read.csv( paste(wdir, 'data/2021-02-19-clean_h.csv', sep = ''), stringsAsFactors = FALSE )
+data = read.csv( paste(wdir, 'data/2021-03-24-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
 
 # Make variables needed for models 
 data$male = ifelse(data$Sex=='Male', 1,0)
@@ -38,6 +36,7 @@ clean_dat = data %>% filter(compareNA(remove, 0))
 
 
 # DFA 
+
 
 Testing for normality 
 ```{r message=FALSE, warning=FALSE}
@@ -113,16 +112,24 @@ bad_r2 %>%
 JE000169_04_01  
 JE000107_04_04
 
-```{r}
-knit_exit()
-```
 
 
 # Spectrum Width  
 ```{r}
+dat2 = clean_dat %>%
+  filter(pink==1) %>%
+  mutate(trial = ifelse(CalVer==1, 'CalVer',''),
+         trial = ifelse(Pix==1, 'Pix', trial),
+         trial = ifelse(Pix==0 & CalVer==0, 'Soc', trial))
 
+ggplot(data=dat2, aes(x=spect_width)) +
+  geom_histogram(aes(y=..density..),color = 'black')  +
+  geom_density(color='red')+
+  facet_wrap(~trial, nrow=3)
 ```
 
+# Questions
+- I only want to look at spectrum width if the H is indicates monofractal, right?
 
 
 ```{r}

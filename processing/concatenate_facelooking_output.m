@@ -51,7 +51,7 @@ for f = 1:size(files,1)
              
 
              temp_out = [session ',' trial ',' num2str(seg) ',' ...
-                 date, ',',
+                 date, ',', ...
                  num2str(longestFix) ',' num2str(faceCount) ',' num2str(otherCount)];
              fprintf(fid, '%s \n', temp_out);
          end

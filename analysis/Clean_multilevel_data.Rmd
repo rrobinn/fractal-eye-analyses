@@ -13,7 +13,11 @@ Cleans multi-level data & generates text on exclusions
 ## To-do
 - For the cases where I added 'v01' to the calver data for DevSocAtt kids - verify that these were the first visits 
 - Re-run calver with more data  
-- Check if calver script was attempted with the ones missing here
+- Check if calver script was attempted with the ones missing here  
+- There were a few cases with mis-labeled visits. need to re-run everything with these cases. (they are excluded for now)
+ [1] "JE000053_03_01"    "JE000100_05_02"    "JE000115_03_06"    "JE000157_05_01"    "JE000221_05_03"    "JE000228_04_01"    "JE000238_03_02"   
+ [8] "MNBCP000018_04_06" "MNBCP000055_03_04" "MNBCP000068_03_04" "MNBCP000070_04_01" "MNBCP000204_04_01" "MNBCP000209_05_01"
+
 
 ```{r}
 knitr::opts_chunk$set(echo = FALSE)
@@ -70,13 +74,55 @@ precision_info_dl     <- read.csv( paste(wdir, 'data/calver/dl_trials/_output_re
 h=h %>%
   mutate(date=mdy(date)) %>%
   mutate(PSCID = paste(lapply(strsplit(id, '_'), '[', 1),
-                             lapply(strsplit(id, '_'), '[', 2), sep= '_'))%>% 
+                       lapply(strsplit(id, '_'), '[', 2), sep= '_'))%>% 
   filter(!grepl('Bab', id, ignore.case=TRUE))
 
 # Keep cases with at least one visit 
 particList = particList %>% filter(n_et>0)
 ```
 
+Handle cases where data from the same visit was copied twice
+```{r}
+h = h %>%
+  # Make variable that labels the id-movie-seg-longestFix-propInterp-date
+  # If all of these are the same, then they are duplicates and should be removed 
+  mutate(temp=paste(id,movie,seg,longestFixDur, propInterp, date)) %>%
+  group_by(temp) %>%
+  mutate(n=c(1:n()))  %>%
+  ungroup() %>%
+  filter(n==1) %>%
+  select(-n)
+
+aoi_data = aoi_data %>%
+  filter(id %in% h$id) %>%
+    # Make variable that labels the id-movie-seg-longestFix-propInterp-date
+  # If all of these are the same, then they are duplicates and should be removed 
+  mutate(temp=paste(id,movie,seg,longestFixDur, propInterpolated, date)) %>%
+  group_by(temp) %>%
+  mutate(n=n() )  %>%
+  mutate(n=c(1:n()))  %>%
+  ungroup() %>%
+  filter(n==1) %>%
+  select(-n)
+```
+
+
+```{r echo=TRUE}
+# Handle dups for face-looking
+# dups = aoi_data %>% filter(n>1) %>% pull(temp) %>% unique()
+# aoi_data$remove_dup=0
+# for (i in dups) {
+#   temp = aoi_data %>% filter(temp==i)
+#   # If the date & longestFixDur match, assume this is a dup and remove the second ow
+#   if (temp$date[1]==temp$date[2] & 
+#       temp$longestFixDur[1]==temp$longestFixDur[2] & 
+#       temp$faceCount[1]==temp$faceCount[2]) {
+#     aoi_data[aoi_data$temp==temp$temp[1] & aoi_data$n==2,'remove_dup'] = 1
+#   }
+# }
+# aoi_data = aoi_data %>% filter(remove_dup==0) %>% select(-c(remove_dup))
+
+```
 
 
 Check if missing data in particList
@@ -126,7 +172,7 @@ temp = particList %>%
 h= h %>%
   # Create variable for Participant ID (currently combined with session #)
   left_join(temp, by='PSCID') %>%
- # Variable to keep track of if theyre in participant list
+  # Variable to keep track of if theyre in participant list
   mutate(particList = ifelse(PSCID %in% particList$PSCID, 1, 0))
 
 # Calculate age at visit
@@ -146,7 +192,12 @@ missing_info = h %>%
 missing_info
 ```
 
-Cases missing cohort
+```{r}
+h = h %>% filter(! id %in% missing_info$id)
+```
+
+
+Cases missing cohort (these were all covered above)
 ```{r}
 h %>% 
   filter(particList==1) %>%
@@ -191,8 +242,8 @@ temp = lapply(strsplit(AvgPrec_calver$id,'_'), length)
 temp = unlist(temp)==2
 AvgPrec_calver$fix_id = temp
 AvgPrec_calver$id = ifelse(AvgPrec_calver$fix_id==1,
-                                paste(AvgPrec_calver$id, '01', sep='_'), 
-                                AvgPrec_calver$id)
+                           paste(AvgPrec_calver$id, '01', sep='_'), 
+                           AvgPrec_calver$id)
 
 # Fix DL IDs 
 temp = lapply(strsplit(AvgPrec_dl$id, '_'), length)
@@ -203,7 +254,7 @@ AvgPrec_dl = AvgPrec_dl %>%
                      paste(sapply(strsplit(id,'_'), '[',1), 
                            sapply(strsplit(id,'_'), '[',2),
                            sapply(strsplit(id,'_'), '[',3), sep = '_'), id)) 
-                    
+
 ```
 
 Determine which visits we need to pull calver from the DL task. 
@@ -389,9 +440,9 @@ n_females = sum(grepl('female', n_females, ignore.case=TRUE))
 
 # Summarise age 
 age_summ = h %>% select(id, et_age)  %>% distinct() %>% 
-   summarize(mean_age = mean(et_age),
-             min_age = min(et_age),
-             max_age = max(et_age))
+  summarize(mean_age = mean(et_age),
+            min_age = min(et_age),
+            max_age = max(et_age))
 ```
 
 <b>Original Sample</b>.  `r nrow(h)` time-series of eye-tracking data were collected from `r length(unique(h$PSCID))` `r round(age_summ$min_age, 2)`-`r round(age_summ$max_age, 2)`-month-old infants (`r n_females` females, mean age= `r round(age_summ$mean_age,2)` months) across `r length(unique(h$id))` visits to the lab.  
@@ -496,35 +547,32 @@ removed_r2
 Finally, .... ata from an additional `r length(unique(removed_r2$PSCID))` participants, `r length(unique(removed_r2$id))` eye-tracking visits, totaling to `r nrow(removed_r2)` segments were excluded from future analyses
 
 
-# Clean AOI data & Merge with H data
-Merge with `h_clean`
+# Clean AOI data 
+
 ```{r echo=TRUE}
 aoi_data = aoi_data %>%
-  dplyr::select(id,
-          movie,
-          seg,
-          longestFix_aoi = longestFixDur,
-          faceCount, otherCount) %>%
+  rename(longestFixFace=longestFixDur) %>%
   mutate(id=as.character(id),
          id = gsub('v', '', id),
-         movie=as.character(movie))
-
+         movie=as.character(movie)) %>%
+  mutate(propFace_seg = faceCount / (faceCount + otherCount))
 
 aoi_data2 = aoi_data %>% 
-  filter(longestFix_aoi!=-9999) 
-
-
-h_clean = h_clean %>%
-  left_join(aoi_data2, by = c('id', 'movie', 'seg')) %>%
-  mutate(propFace_seg = faceCount / (faceCount + otherCount))
+  filter(longestFixFace!=-9999) 
 ```
+
+```{r}
+# Merge h and aoi_data2 by temp (string that contains unique identifier for each time series)
+h2=left_join(h, 
+             aoi_data2 %>% select(temp, faceCount,otherCount,propFace_seg), by='temp')
+```
+
 
 # Create person-, visit-, and movie-centered variables. These are used to parse variance for modelling.
 
 ## Grand means
 
 ```{r echo = TRUE}
-h2 = h_clean
 # Get grand mean for average age
 AveAge = h2 %>%
   # Pull age for each person's visit (average age calculated so that their age at each visit is weighted online once)
@@ -538,10 +586,11 @@ age_grand_mean = mean(AveAge$Age)
 aveLongFix=mean(h2$longestFixDur)
 avePrec=mean(h2$AvgPrecision)
 avePropFace = mean(h2$propFace_seg, na.rm = TRUE)
+avePropFace = mean(aoi_data2$propFace_seg)
 
 # Create varaible for person's age centered at grand mean 
 h2=h2%>%
- mutate(Age_centeredGrandmean=as.numeric(et_age-age_grand_mean)) 
+  mutate(Age_centeredGrandmean=as.numeric(et_age-age_grand_mean)) 
 ```
 
 -   Average age = `r age_grand_mean`
@@ -566,6 +615,8 @@ personLevel_var=h2%>%
             AveLongestFix_person=mean(longestFixDur),
             AvePropFace_person = sum(faceCount, na.rm = TRUE) / ( sum(faceCount, na.rm = TRUE) + sum(otherCount, na.rm = TRUE) ),
             n_person=n())
+
+
 ```
 
 # Session-level variables

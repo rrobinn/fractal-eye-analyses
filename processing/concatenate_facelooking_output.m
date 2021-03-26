@@ -3,7 +3,7 @@ function concatenate_facelooking_output(path, varargin)
 
 %% Override defaults if varargin>0 
 outputFileName = 'face_out.txt'; % Name for output file with concatenated data
-header = 'id, movie, seg, date, longestFixDur, faceCount, otherCount'; 
+header = 'id, movie, seg, date, longestFixDur, propMissing, propInterpolated, faceCount, otherCount'; 
 if nargin>1
     for v=1:2:length(varargin)
         switch varargin{v}
@@ -36,6 +36,8 @@ for f = 1:size(files,1)
              trial = temp{1, segSummaryCol.trial};
              seg = temp{1, segSummaryCol.seg}; 
              date = temp{1, segSummaryCol.date};
+             propInterpolated = temp{1, segSummaryCol.propInterpolated};
+             propMissing = temp{1, segSummaryCol.propMissing};
              %%  Calculate longestFixDur, faceCount, otherCount
              % Longest fixation
              longestFixBool = cell2mat(temp(:, segSummaryCol.longestFixBool));
@@ -48,11 +50,11 @@ for f = 1:size(files,1)
              otherCount = sum(aoi ==0);
              
              %% write data to txt file 
-             
-
+         
              temp_out = [session ',' trial ',' num2str(seg) ',' ...
-                 date, ',', ...
-                 num2str(longestFix) ',' num2str(faceCount) ',' num2str(otherCount)];
+                 date, ',', num2str(longestFix) ',' , ...
+                 num2str(propMissing), ',', num2str(propInterpolated), ','...
+                 num2str(faceCount) ',' num2str(otherCount)];
              fprintf(fid, '%s \n', temp_out);
          end
    catch ME

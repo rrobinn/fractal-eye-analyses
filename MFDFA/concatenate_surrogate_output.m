@@ -24,7 +24,7 @@ end
 files = dir([path '*/*/EU*/' matFileName]); % Return list of files that match matFileName (assumes BIDS structure)
 
 % header
-header='id, movie, seg, date, surrogate_meanvalue, surrogate_num, H, r2, Hq-5, Hq-3, Hq-1, Hq0, Hq1, Hq3, Hq5';
+header='id, movie, seg, date, longestFixDur, propInterp, propMissing, surrogate_meanvalue, surrogate_num, H, r2, Hq-5, Hq-3, Hq-1, Hq0, Hq1, Hq3, Hq5';
 %%
 fid = fopen([path outputFileName], 'w');
 fprintf(fid, '%s \n', header);
@@ -41,14 +41,20 @@ for f = 1:size(files,1)
             thisTrialInfo = out{t,1};
             id = thisTrialInfo{1}; movie=thisTrialInfo{2};
             seg = thisTrialInfo{3}; date=thisTrialInfo{4};
-            surrogateMeanVal = thisTrialInfo{9}; 
+            longestFix = num2str(thisTrialInfo{5});
+            propInterp = num2str(thisTrialInfo{6});
+            propMissing = num2str(thisTrialInfo{7});
+            surrogateMeanVal = num2str(thisTrialInfo{9}); 
+            
             
             thisTrialOut = out{t,2}; 
             thisTrialOut = num2cell(thisTrialOut);
             thisTrialOut = cellfun(@num2str, thisTrialOut, 'Uniformoutput', false);
             % Write output for each surrogate to each row
             for s = 1:size(thisTrialOut)
-                temp = [id ',' movie ',' num2str(seg) ',' date ',' num2str(surrogateMeanVal), ',' ...
+                temp = [id ',' movie ',' num2str(seg) ',' date ',' ...
+                    longestFix, ',' propInterp, ',', propMissing, ',', ...
+                    surrogateMeanVal, ',' ...
                     num2str(s), ',' ... % surrogate #
                     thisTrialOut{s, 1}, ',', ... % H
                     thisTrialOut{s, 2}, ',',... % r2

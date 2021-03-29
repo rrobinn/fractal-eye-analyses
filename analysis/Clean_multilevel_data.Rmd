@@ -492,7 +492,9 @@ n_females = h %>% select(PSCID, Sex) %>% distinct() %>% pull(Sex)
 n_females = sum(grepl('female', n_females, ignore.case=TRUE))
 
 # Summarise age 
-age_summ = h %>% select(id, et_age)  %>% distinct() %>% 
+age_summ = h %>% 
+  select(id, et_age) %>% 
+  distinct() %>% 
   summarize(mean_age = mean(et_age),
             min_age = min(et_age),
             max_age = max(et_age))
@@ -565,6 +567,9 @@ removed_fuss = removed %>%
   select(id, PSCID) %>% 
   distinct() %>%
   mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1))
+
+PSCID_removed_fuss = removed_fuss %>% filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
+vis_removed_fuss = removed_fuss %>% pull(id) %>% unique()
 ```
 Data from  <b>`r sum(removed_fuss$removed_PSCID_from_sample)` participants, `r length(unique(removed_fuss$id))` eye-tracking visits, totaling `r removed %>% filter(grepl('Fussed', reason)) %>% nrow()` </b> time-series were excluded from future analyses.
 
@@ -584,6 +589,13 @@ removed_calver = removed %>%
   select(PSCID, id) %>% 
   distinct() %>%
   mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1))
+
+PSCID_removed_calver = removed_calver %>% filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
+vis_removed_calver = removed_calver %>% pull(id) %>% unique()
+
+# Make sure these were not included in kids already removed
+intersect(PSCID_removed_calver, PSCID_removed_fuss)
+intersect(vis_removed_calver, vis_removed_fuss)
 
 ```
 
@@ -607,6 +619,16 @@ removed_interp = removed %>%
   mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1),
          removed_vis_from_sample = ifelse(id %in% survived$id, 0, 1))
 
+
+PSCID_removed_interp = removed_interp %>% 
+  filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
+
+vis_removed_interp = removed_interp %>% 
+  filter(removed_vis_from_sample==1)  %>% pull(id) %>% unique()
+
+# Make sure these were not included in kids already removed
+intersect(PSCID_removed_interp, c(PSCID_removed_fuss, PSCID_removed_calver))
+intersect(vis_removed_interp, c(vis_removed_fuss,vis_removed_calver))
 ```
 
 Blinks were identified using a noise-based algorithm. All data missing as a result of blinks (less than 200 ms)
@@ -622,8 +644,9 @@ temp = h %>%
 
 After interpolation, infants had an average proportion of `r mean(temp)` (range `r min(temp)`–`r max(temp)`) residual missing data per segment. Given past work suggesting too much aggregation can bias detrended fluctuation analysis (e.g.,20), we chose a stringent quality control threshold for the permissible proportion interpolated for each segment. 
 
-After visualizing the distribution, the 80th quantile threshold for the sample’s proportion interpolated was calculated (`r round(interp_thresh[1], 3)`) and segments with a proportion exceeding that value were excluded from analyses; data from an additional `r sum(removed_interp$removed_PSCID_from_sample)` infants, 
-`r sum(removed_interp$removed_vis_from_sample)` eye-tracking session, 
+After visualizing the distribution, the 80th quantile threshold for the sample’s proportion interpolated was calculated (`r round(interp_thresh[1], 3)`) and segments with a proportion exceeding that value were excluded from analyses; data from an additional 
+`r removed_interp %>% select(id,removed_PSCID_from_sample) %>% distinct() %>% pull(removed_PSCID_from_sample) %>% sum()` infants, 
+`r removed_interp %>% select(id,removed_vis_from_sample) %>% distinct() %>% pull(removed_vis_from_sample) %>% sum()`  eye-tracking session, 
 totaling `r removed %>% filter(grepl('interp', reason)) %>% nrow()` time-series 
 were removed from future analyses. 
 The mean proportion of residual missing data for the remaining sample was `r mean(h_clean$propMissing)`. 
@@ -644,11 +667,22 @@ removed_fix = removed %>%
   select(PSCID, id, movie, seg)  %>%
   mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1),
          removed_vis_from_sample = ifelse(id %in% survived$id, 0, 1))
+
+
+PSCID_removed_fix= removed_fix %>% 
+  filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
+
+vis_removed_fix = removed_fix %>% 
+  filter(removed_vis_from_sample==1)  %>% pull(id) %>% unique()
+
+# Make sure these were not included in kids already removed
+intersect(PSCID_removed_fix, c(PSCID_removed_fuss, PSCID_removed_calver,PSCID_removed_interp))
+intersect(vis_removed_fix, c(vis_removed_fuss,vis_removed_calver,vis_removed_interp))
 ```
 
 Based on ----, we removed time series with fewer than 800 data points. Accordingly, data from an additional 
-`r sum(removed_fix$removed_PSCID_from_sample)` infants, 
-`r sum(removed_fix$removed_vis_from_sample)` eye-tracking visits, 
+`r length(PSCID_removed_fix)` infants, 
+`r length(vis_removed_fix)` eye-tracking visits, 
 totaling to `r removed %>% filter(grepl('Fix', reason)) %>% nrow()` time series were excluded from future analyses
 
 
@@ -667,13 +701,27 @@ removed_r2 = removed %>%
   select(PSCID, id, movie, seg)  %>%
   mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1),
          removed_vis_from_sample = ifelse(id %in% survived$id, 0, 1))
+
+
+PSCID_removed_r2= removed_r2 %>% 
+  filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
+
+vis_removed_r2 = removed_r2 %>% 
+  filter(removed_vis_from_sample==1)  %>% pull(id) %>% unique()
+
+# Make sure these were not included in kids already removed
+intersect(PSCID_removed_r2, 
+          c(PSCID_removed_fuss, PSCID_removed_calver,PSCID_removed_interp,PSCID_removed_fix))
+
+intersect(vis_removed_r2, 
+          c(vis_removed_fuss,vis_removed_calver,vis_removed_interp, vis_removed_fix))
 ```
 
 
 
-Finally, .... ata from an additional 
-`r sum(removed_r2$removed_PSCID_from_sample)` infants, 
-`r sum(removed_r2$removed_vis_from_sample)` eye-tracking visits, 
+Finally, .... data from an additional 
+`r length(PSCID_removed_r2)` infants, 
+`r length(vis_removed_r2)` eye-tracking visits, 
 totaling to `r removed %>% filter(grepl('R2', reason)) %>% nrow()` time series were excluded from future analyses
 
 ```{r}
@@ -691,50 +739,46 @@ final_n = nrow(temp)
 final_n_female = sum(temp$Sex=='Female')
 final_n_vis = sum(temp$n_vis)
 final_n_timeseries = nrow(h_clean)
-
-
 ```
 
 
 # Flow chart of exclusion
-
-
-
 ```{r}
 # For segment-level variables, need to make data.frame at visit-level 
 # (otherwise inflating missing tallies)
-interp = removed_interp %>%  select(-c(movie,seg)) %>% distinct() 
-tooshort = removed_fix  %>% select(-c(movie,seg)) %>% distinct() 
-r2 = removed_r2 %>% select(-c(movie,seg)) %>% distinct() 
+#interp = removed_interp %>%  select(-c(movie,seg)) %>% distinct() 
+#tooshort = removed_fix  %>% select(-c(movie,seg)) %>% distinct() 
+#r2 = removed_r2 %>% select(-c(movie,seg)) %>% distinct() 
 
 
 lab1 = paste('Original Sample \n', 
        'N = ', length(unique(h$PSCID)), ' (', n_females, ' females) \n',
       'Visits = ', length(unique(h$id)), '\n',
       'Time-series = ', nrow(h), sep='')
+
 lab_fuss = paste('Excluded for fussing out \n', 
-      'N = ', sum(removed_fuss$removed_PSCID_from_sample), '\n', 
-      'Visits = ', nrow(removed_fuss), '\n',
+      'N = ', length(PSCID_removed_fuss), '\n', 
+      'Visits = ', length(vis_removed_fuss), '\n',
       'Time-series = ', removed %>% filter(grepl('Fussed', reason)) %>% nrow(), sep='')
 
 lab_cal = paste('Excluded for low eye-tracker precision \n', 
-       'N = ', sum(removed_calver$removed_PSCID_from_sample), '\n',
-      'Visits = ', nrow(removed_calver), '\n',
+       'N = ', length(PSCID_removed_calver), '\n',
+      'Visits = ', length(vis_removed_calver), '\n',
       'Time-series = ', removed %>% filter(grepl('Cal', reason)) %>% nrow(), sep='')
 
 lab_interp = paste('Excluded for high interpolation levels \n', 
-       'N = ', sum(interp$removed_PSCID_from_sample), '\n',
-      'Visits = ', sum(interp$removed_vis_from_sample), '\n',
+       'N = ', length(PSCID_removed_interp), '\n',
+      'Visits = ', length(vis_removed_interp), '\n',
       'Time-series = ', removed %>% filter(grepl('Interp', reason)) %>% nrow(), sep='')
 
 lab_tooshort = paste('Excluded for time series < 800 \n', 
-       'N = ', sum(tooshort$removed_PSCID_from_sample), '\n',
-      'Visits = ', sum(tooshort$removed_vis_from_sample), '\n',
+       'N = ', length(PSCID_removed_fix), '\n',
+      'Visits = ', length(vis_removed_fix), '\n',
       'Time-series = ', removed %>% filter(grepl('Fix', reason)) %>% nrow(), sep='')
 
 lab_r2 =  paste('Excluded for poor linear fit \n', 
-      'N = ', sum(r2$removed_PSCID_from_sample), '\n',
-      'Visits = ', sum(r2$removed_vis_from_sample), '\n',
+      'N = ', length(PSCID_removed_r2), '\n',
+      'Visits = ', length(vis_removed_r2), '\n',
       'Time-series = ', removed %>% filter(grepl('R2', reason)) %>% nrow(), sep='')
 
 lab_final = paste('Final Sample \n',

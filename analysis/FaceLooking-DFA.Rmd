@@ -1,0 +1,515 @@
+---
+title: "Face-Lookinh & DFA"
+author: "Robin Sifre"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    self_contained: true
+---
+
+```{r message=FALSE, warning = FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(readr)
+library(tidyverse)
+
+library(ggplot2)
+library(ggeffects)
+
+# modeling 
+library(AICcmodavg)
+library(bbmle)
+library(merTools)
+library(nlme)
+library(lme4)
+library(sjPlot)
+
+library(knitr)
+library(DT)
+library(lubridate)
+
+```
+
+# About
+To-do:  
+
+```{r echo=TRUE}
+wdir = '~/Documents/Github/fractal-eye-analyses/'
+source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
+
+# Read cleaned data
+clean_dat = read.csv( paste(wdir, 'data/2021-03-29-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
+
+# Read cases that were removed
+removed = read.csv( paste(wdir, 'data/2021-03-29-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
+
+```
+
+```{r}
+# Make variables needed for models 
+clean_dat = clean_dat %>% 
+  mutate(female = ifelse(Sex=='Female', 1,0),
+         Trial = ifelse(CalVer==0 & Pix==0, 'Social', ''),
+         Trial = ifelse(CalVer==1, 'Attention-Getter', Trial),
+         Trial = ifelse(Pix==1, 'Pixelated', Trial),
+         social = ifelse(Trial=='Social', 1, 0)) 
+# Get grand mean for average age
+AveAge = clean_dat %>%
+  dplyr::select(id, et_age) %>%
+  distinct() %>%
+  pull(et_age) %>%
+  mean()
+```
+
+```{r echo=TRUE}
+model_dat = clean_dat %>% filter(Trial!='Attention-Getter')
+```
+
+
+# Visualize IVs
+```{r dist_propFace, warning=FALSE}
+ggplot(data=model_dat, aes(x=propFace_seg)) +
+  geom_histogram(color='black')
+```
+
+Infants more likely to not look at faces in the Pix condition
+```{r dist_propFace_byCond, warning=FALSE}
+ggplot(data=model_dat, aes(x=propFace_seg)) +
+  geom_histogram(aes(y=..density..), color='black') +
+  facet_wrap(~Trial, nrow=2)
+```
+
+```{r face_by_age, warning=FALSE, message=FALSE}
+# Segment-level
+ggplot(data=model_dat, aes(x = et_age, y=propFace_seg) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  xlab('Age') +
+  facet_wrap(~Pix, nrow=2)
+
+ggplot(data=model_dat, aes(x = et_age, y=propFace_session_groupmeancentered) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  xlab('Age') +
+  labs(y = '% Face looking, centered on person avg', title = 'Within-person variation') + 
+  facet_wrap(~Pix, nrow=2)
+
+ggplot(data=model_dat, aes(x = et_age, y=propFace_person_grandmeancentered) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  xlab('Age') +
+  labs(y = '% Face looking, centered on grand mean', title = 'Between-person variation') + 
+  facet_wrap(~Pix, nrow=2)
+```
+
+# Logistic Regression
+```{r}
+model_dat$allCount = model_dat$faceCount + model_dat$otherCount
+```
+
+## Functional form - FE  
+We pick a <b>linear</b> effect of age 
+```{r}
+# Fixed effects 
+glm.0 <- glmer(faceCount / allCount ~ 1 + 
+    (1 | PSCID),
+    family = 'binomial', weights = allCount, data = model_dat)
+
+glm.1 <- glmer(faceCount / allCount ~ 1 + 
+                 Age_centeredGrandmean + 
+    (1 | PSCID),
+    family = 'binomial', weights = allCount, data = model_dat)
+
+# Failed to converge 
+glm.2 <- glmer(faceCount / allCount ~ 1 + 
+                 Age_centeredGrandmean + I(Age_centeredGrandmean^2) + 
+    (1 | PSCID),
+    family = 'binomial', weights = allCount, data = model_dat)
+
+mynames <- as.character (c("glm.0", "glm.1")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.0), logLik(glm.1),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc 
+
+summary(glm.1)
+
+```
+
+## Functional form - RE  
+We add an RE for age 
+```{r}
+glm.1b <- glmer(faceCount / allCount ~ 1 + 
+                 Age_centeredGrandmean  + 
+    (1 + Age_centeredGrandmean| PSCID), 
+    family = 'binomial', weights = allCount, data = model_dat)
+
+mynames <- as.character (c("glm.1", "glm.1b")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.1), logLik(glm.1b),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc 
+
+```
+
+## QC Covariates 
+```{r mods_qc, cache=TRUE}
+glm.2 <- glmer(faceCount / allCount ~ 1 + 
+                 Age_centeredGrandmean + 
+                  # Covariates 
+                  as.factor(female) +
+                  # Segment level
+                  scale(longestFixDur) +
+                  propInterp +
+                 AvgPrecision +
+    (1 + Age_centeredGrandmean| PSCID), 
+    family = 'binomial', weights = allCount, data = model_dat)
+
+# remove n.s. covariates 
+glm.2b <- glmer(faceCount / allCount ~ 1 + 
+ Age_centeredGrandmean + 
+                  # Segment level
+                  scale(longestFixDur) +
+                  propInterp +
+                 AvgPrecision +
+    (1 + Age_centeredGrandmean| PSCID), 
+    family = 'binomial', weights = allCount, data = model_dat)
+
+
+mynames <- as.character (c("glm.2", "glm.2b")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.2), logLik(glm.2b),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc 
+# removing n.s. covariates (male) does not worsten model fit 
+```
+
+## Pix  
+We add FE and RE of Pix 
+```{r mods_pix, cache=TRUE}
+# FE of Pix 
+glm.3a = glmer(faceCount / allCount ~ 1 + 
+                 Age_centeredGrandmean + 
+                 # Segment level
+                 scale(longestFixDur) +
+                 propInterp +
+                 AvgPrecision +
+                 Pix +
+                 (1 + Age_centeredGrandmean| PSCID), 
+               family = 'binomial', weights = allCount, data = model_dat)
+
+# FE and RE of Pix 
+glm.3b <- glmer(faceCount / allCount ~ 1 + 
+                           Age_centeredGrandmean + 
+                           # Segment level
+                           scale(longestFixDur) +
+                           propInterp +
+                           AvgPrecision +
+                           Pix +
+                           (1 + Age_centeredGrandmean + Pix| PSCID), 
+                         family = 'binomial', weights = allCount, data = model_dat)
+
+
+
+mynames <- as.character (c("glm.2b", "glm.3a", "glm.3b")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.2b), logLik(glm.3a), logLik(glm.3b),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc  #glm.3b is the best fitting one 
+
+# Comparing model stats to model without Pix 
+anova(glm.3b, glm.2b )
+
+```
+
+Age x Pix 
+```{r mod_agexpix, cache=TRUE}
+glm.4 = glmer(faceCount / allCount ~ 1 + 
+                Age_centeredGrandmean + 
+                # Covariates 
+                # Segment level
+                scale(longestFixDur) +
+                propInterp +
+                AvgPrecision + 
+                Pix +
+                Pix:Age_centeredGrandmean + 
+                (1 + Age_centeredGrandmean + Pix| PSCID), 
+              family = 'binomial', weights = allCount, data = model_dat)
+
+mynames <- as.character (c( "glm.3b", "glm.4")) # model numbers as characters
+myaicc  <- ICtab(logLik(glm.3b), logLik(glm.4),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc 
+
+```
+
+## Table of model results
+
+## Visualize model results
+
+# Predicting H with face looking
+## Visualizations 
+```{r face_h_seg_vis, cache=TRUE}
+ggplot(data=model_dat, aes(x = propFace_seg, y=h) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  #scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  labs(x = '% Face looking, segment', y = 'H') + 
+  facet_wrap(~Trial, nrow=2)
+
+ggplot(data=model_dat, aes(x = propFace_seg, y=h, color = Trial) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'lm') +
+  labs(x = '% Face looking, segment level, centered', y = 'H') 
+
+```
+
+
+```{r face_h_mov_vis, cache=TRUE}
+ggplot(data=model_dat, aes(x = propFace_movie_groupmeancentered, y=h) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  labs(x = '% Face looking, movie level, centered', y = 'H', title = 'Within-visit variation, between movie') +
+  facet_wrap(~Trial, nrow=2)
+
+ggplot(data=model_dat, aes(x = propFace_movie_groupmeancentered, y=h, color = Trial) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'lm') +
+  labs(x = '% Face looking, segment level, centered', y = 'H', title = 'Within-visit variation, between movie') 
+
+
+```
+
+```{r face_h_vis_vis, cache=TRUE}
+ggplot(data=model_dat, aes(x = propFace_session_groupmeancentered, y=h) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  #scale_x_continuous(breaks = c(3,5,9,15,18,24,36)) +
+  labs(x = '% Face looking, visit level centered', y = 'H', title = 'Within-visit variation') + 
+  facet_wrap(~Trial, nrow=2)
+
+ggplot(data=model_dat, aes(x = propFace_session_groupmeancentered, y=h, color = Trial) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'lm') +
+  labs(x = '% Face looking, visit level, centered', y = 'H', 
+       caption='X-axis is the average face looking in a visit for a condition, \n centered on participant\'s average') 
+
+
+```
+
+```{r face_h_person_vis, cache=TRUE}
+ggplot(data=model_dat, aes(x = propFace_person_grandmeancentered, y=h) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'loess') +
+  labs(x = '% Face looking, person level centered', y = 'H', title = 'Between-person variation') + 
+  facet_wrap(~Trial,nrow=2)
+
+ggplot(data=model_dat, aes(x = propFace_person_grandmeancentered, y=h, color = Trial) ) +
+  geom_point(alpha = .3) +
+  geom_smooth(method = 'lm') +
+  labs(x = '% Face looking, visit level, centered', y = 'H', 
+       caption='X-axis is the average face looking in a visit for a condition, \n centered on participant\'s average') 
+```
+
+## Establishing functional form -
+Need to do this again since the sample is slightly different than for the overall H trajectories 
+```{r}
+lmer.0=lmer(h~1+(1|PSCID)+(1|id), data=model_dat, REML=FALSE)
+#
+lmer.1=lmer(h~1+Age_centeredGrandmean+(1|PSCID)+(1|id), data=model_dat, REML=FALSE) #linear age,
+
+lmer.2 = lmer(h~1+Age_centeredGrandmean + I(Age_centeredGrandmean^2) + 
+              +(1|PSCID)+(1|id), data=model_dat, REML=FALSE) #linear age,
+
+mynames <- as.character (c("lmer.0", "lmer.1", "lmer.2")) # model numbers as characters
+myaicc  <- ICtab(logLik(lmer.0),logLik(lmer.1),
+		     logLik(lmer.2),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc # Quadratic is borderline better. 
+```
+
+```{r}
+
+```
+
+
+## RE
+```{r}
+lmer.1a=lmer(h~1+Age_centeredGrandmean+(1|PSCID)+(1|id)+(1|movie), data=model_dat, REML=FALSE) #linear age,
+lmer.1b=lmer(h~1+Age_centeredGrandmean+(1+Age_centeredGrandmean|PSCID)+(1|id)+(1|movie), data=model_dat, REML=FALSE) #linear age,
+anova(lmer.1a, lmer.1b)
+```
+We adopt a linear FE and RE of age.
+
+Adding in QC covariates
+```{r}
+# Add in all covariates
+lmer.3a = lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                # QC - prop interp
+                propInterp_segment_groupmeancentered + propInterp_movie_groupmeancentered +
+                 propInterp_session_groupmeancentered +  propInterp_person_grandmeancentered +
+                 # QC - longest fix
+                 longestFix_segment_groupmeancentered + longestFix_movie_groupmeancentered +
+                 longestFix_session_groupmeancentered + longestFix_person_grandmeancentered +
+                 # QC - precision
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                 male +
+                (1+Age_centeredGrandmean|PSCID) + (1|id)+(1|movie), data=model_dat, REML=FALSE)
+options(max.print=200)
+summary(lmer.3a)
+
+# Remove n.s. covariates 
+lmer.3b = lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 propInterp_person_grandmeancentered + 
+                 # QC - precision
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                (1+Age_centeredGrandmean|PSCID) + (1|id)+(1|movie), data=model_dat, REML=FALSE)
+
+anova(lmer.3a, lmer.3b) # removing does not make model fit worse 
+
+```
+
+
+Effect of Pix
+```{r}
+# Add Pixelated FE
+lmer.4a =  lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 propInterp_person_grandmeancentered+# QC - precision
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated + 
+                (1+Age_centeredGrandmean|PSCID) + (1|id)+(1|movie), data=model_dat, REML=FALSE)
+               
+
+
+# Add pixelated RE at person level (failed to converge)
+lmer.4b =  lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                  propInterp_person_grandmeancentered+
+                 # QC - precision
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated + 
+                (1+Age_centeredGrandmean + Pixelated|PSCID) + (1|id)+(1|movie), data=model_dat, REML=FALSE)
+               
+# Add pixelated RE at visit level
+lmer.4c =  lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 # QC - precision
+                  propInterp_person_grandmeancentered + 
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated + 
+                (1+Age_centeredGrandmean |PSCID) + (1+Pixelated|id)+(1|movie), data=model_dat, REML=FALSE)
+               
+
+
+# Add pixelated RE at visit and person level  - failed to converge 
+lmer.4d = lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 # QC - precision
+                 propInterp_person_grandmeancentered+
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated + 
+                (1+Age_centeredGrandmean + Pixelated|PSCID) + (1+Pixelated|id)+(1|movie), data=model_dat, REML=FALSE)
+               
+
+mynames <- as.character (c("lmer.4a", "lmer.4c")) 
+
+myaicc  <- ICtab(logLik(lmer.4a),
+		     logLik(lmer.4c), 
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc #dAICc over 2 means significantly better
+
+# Random effect of Pix at Visit level is better mdoel fit
+```
+We adopt the model with FE, and RE for Pix at person-level
+
+```{r}
+summary(lmer.4c)
+```
+
+Effect of prop face
+```{r}
+# Add prop face
+lmer.5 =  lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 # QC 
+                 propInterp_person_grandmeancentered +
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated +  
+                 propFace_segment_groupmeancentered+ 
+                 propFace_movie_groupmeancentered + propFace_session_groupmeancentered +
+                 propFace_person_grandmeancentered +
+                (1+Age_centeredGrandmean |PSCID) + (1+Pixelated|id)+(1|movie), data=model_dat, REML=FALSE)
+               
+
+
+anova(lmer.4c, lmer.5)
+```
+
+Face looking at all levels is significant 
+```{r}
+summary(lmer.5)
+```
+
+Face x Pixelated interaction
+```{r}
+# Face:Pixelated interaction
+lmer.6 =   lmer(h~1+Age_centeredGrandmean + AveAge_person +
+                 # QC 
+                   propInterp_person_grandmeancentered+
+                 precision_session_groupmeancentered + precision_person_grandmeancentered +
+                  Pixelated + 
+                  # Prop face 
+                  propFace_segment_groupmeancentered+ 
+                 propFace_movie_groupmeancentered + propFace_session_groupmeancentered +
+                 propFace_person_grandmeancentered +
+                  # Face x Pix
+                   propFace_segment_groupmeancentered:Pixelated + propFace_movie_groupmeancentered:Pixelated +
+                 propFace_session_groupmeancentered:Pixelated + propFace_person_grandmeancentered:Pixelated +
+                (1+Age_centeredGrandmean |PSCID) + (1+Pixelated|id)+(1|movie), data=model_dat, REML=FALSE)
+
+mynames <- as.character(c("lmer.5", "lmer.6") )
+
+myaicc  <- ICtab(logLik(lmer.5),
+		     logLik(lmer.6),
+		     type ="AICc",
+		     nobs = nrow(na.omit(model_dat)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc$rweight <- max(myaicc$weight)/myaicc$weight
+myaicc #dAICc over 2 means significantly better
+
+anova(lmer.5, lmer.6) # model with Face x Pix interaction is not better 
+```
+There is a significant effect of segment, session, and person face-looking looking on H. There is also an interaction between Pixelated and session-level face-looking (marginally, p=.08)
+
+
+```{r}
+summary(lmer.0)
+
+summary(lmer.1b) # functional form
+summary(lmer.3b) # covariates
+summary(lmer.4c) # Pix 
+summary(lmer.5)# Face - looking (best fitting model)
+summary(lmer.6) # Face x Pix 
+
+anova(lmer.5, lmer.4c)
+anova(lmer.6, lmer.5)
+anova(lmer.5, lmer.6)
+```
+
+

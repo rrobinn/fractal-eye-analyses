@@ -42,8 +42,7 @@ data/individual_data/
 data/settings.mat
 data/Dissertation_ParticList.csv
 data/dev
-data/calver/*distances*
-data/calver/*summary*
+data/calver
 data/*.txt
 data/*.mat
 data/*.csv
@@ -69,3 +68,6 @@ data_audit/*visit_dates*
 data/individual_data/.DS_Store
 *.R
 data/individual_data/.DS_Store
+
+analysis/*cache/
+analysis/*files/

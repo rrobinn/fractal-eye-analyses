@@ -35,6 +35,10 @@ model_data = data %>% filter(CalVer==0)
 
 ```
 
+# To do 
+o	Make table of # of participants that came from BCP/BSLERP vs devsocatt kids. Enrollment was slightly different for those kids. 
+
+o	Figures of relationship between age and QC metrics 
 
 # Face-looking trajectories
 

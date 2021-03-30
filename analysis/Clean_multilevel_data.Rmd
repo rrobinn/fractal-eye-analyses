@@ -86,7 +86,7 @@ Handle cases where data from the same visit was copied twice
 h = h %>%
   # Make variable that labels the id-movie-seg-longestFix-propInterp-date
   # If all of these are the same, then they are duplicates and should be removed 
-  mutate(temp=paste(id,movie,seg,longestFixDur, propInterp, date)) %>%
+  mutate(temp=paste(id,movie,seg, round(propInterp,3), date)) %>%
   group_by(temp) %>%
   mutate(n=c(1:n()))  %>%
   ungroup() %>%
@@ -97,13 +97,16 @@ aoi_data = aoi_data %>%
   filter(id %in% h$id) %>%
   # Make variable that labels the id-movie-seg-longestFix-propInterp-date
   # If all of these are the same, then they are duplicates and should be removed 
-  mutate(temp=paste(id,movie,seg,longestFixDur, propInterpolated, date)) %>%
+  mutate(date = mdy(date)) %>%
+  mutate(temp=paste(id,movie,seg, round(propInterpolated,3), date)) %>%
   group_by(temp) %>%
   mutate(n=n() )  %>%
   mutate(n=c(1:n()))  %>%
   ungroup() %>%
   filter(n==1) %>%
   select(-n)
+
+
 ```
 
 
@@ -209,7 +212,7 @@ h %>%
 ## Bin the cohorts 
 ```{r}
 h = h %>%
-  mutate(cohort_bin = ifelse(grepl('dsa|BCP_ELISON|BCP_E', cohort2), 'CrossSect', 'Longit' ))
+  mutate(cohort_bin = ifelse(grepl('dsa', cohort2), 'DevSocAtt', 'BcpBSLERP' ))
 ```
 
 
@@ -819,21 +822,30 @@ grViz("digraph flowchart {
 # Clean AOI data 
 
 ```{r clean_aoi, echo=TRUE}
-aoi_data = aoi_data %>%
+aoi_data2 = aoi_data %>%
   rename(longestFixFace=longestFixDur) %>%
   mutate(id=as.character(id),
          id = gsub('v', '', id),
          movie=as.character(movie)) %>%
   mutate(propFace_seg = faceCount / (faceCount + otherCount))
 
-aoi_data2 = aoi_data %>% 
+aoi_data2 = aoi_data2 %>% 
   filter(longestFixFace!=-9999) 
 ```
 
 ```{r}
 # Merge h and aoi_data2 by temp (string that contains unique identifier for each time series)
-h2=left_join(h %>% filter(remove==0), 
+h2=left_join(h_clean, 
              aoi_data2 %>% select(temp, faceCount,otherCount,propFace_seg), by='temp')
+
+```
+
+ Merged data
+```{r}
+h2 %>% 
+  select(id, PSCID, movie, seg, date, longestFixDur, 
+         h, r2, remove, faceCount, otherCount, propFace_seg)  %>%
+  head(20)
 ```
 
 
@@ -848,7 +860,8 @@ AveAge = h2 %>%
   group_by(id)%>%
   summarise(Age = unique(et_age)) %>%
   # Calculate sample's average Age 
-  summarise(Age = mean(Age) )
+  summarise(Age = mean(Age) ) %>%
+  ungroup()
 
 # Get grand mean for average longest fix
 age_grand_mean = mean(AveAge$Age)
@@ -987,6 +1000,47 @@ h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
 
 ```
 
+# Final tally of cases before any exlcusionary criteria are applied 
+```{r}
+# Count of individuals from each cohort
+h5 %>% 
+  select(PSCID, cohort2) %>%
+  distinct() %>%
+  count(cohort2)
+
+# Count of visits from each cohort
+h5 %>% 
+  select(id, cohort2) %>%
+  distinct() %>%
+  count(cohort2)
+
+h5 %>%
+  group_by(cohort_bin) %>%
+  summarise(mean_vis_count = mean(n_et),
+            min = min(n_et),
+            max = max(n_et))
+
+h5 %>%
+  group_by(cohort2) %>%
+  summarise(mean_vis_count = mean(n_et),
+            min = min(n_et),
+            max = max(n_et))
+
+```
+
+```{r}
+ggplot(data = h5, aes(y = reorder(CandID, ageFirstVis), x = round(et_age,0))) +
+  geom_line(color = 'grey') +
+  geom_point(aes(color=cohort_bin), size=1.1) +
+  scale_color_manual(values = c('springgreen4', 'red')) +
+  scale_x_continuous(breaks = c(3, 4, 6, 7, 9, 10, 12, 13, 24, 30, 36))+
+  scale_y_discrete()+
+  theme_bw() + 
+  labs(x = 'ET Age (months)', y = 'Individual', title='BSLERP - 1') 
+```
+
+
+
 # Save clean data w/ variables generated 
 ```{r echo=TRUE}
 today = format(Sys.Date(), format="%Y-%m-%d")
@@ -994,3 +1048,4 @@ write.csv(h5, paste(out_dir, today, '-h_clean.csv', sep = ''))
 write.csv(removed, paste(out_dir, today, '-h_removed.csv', sep = ''))
 
 ```
+

@@ -421,6 +421,13 @@ h = h %>%
 
 ```
 
+If they fussed out, call it bad calver (couldn't calibrate)
+```{r echo=TRUE}
+h = h %>%
+  mutate(reason = ifelse(grepl('Fuss', reason), 'Bad Calver', reason))
+  
+```
+
 Check for Wonky calver
 
 ```{r}
@@ -553,28 +560,6 @@ removed_age = removed  %>%
        removed_vis_from_sample = ifelse(id %in% survived$id, 0, 1))
 ```
 
-## Fussed out
-
-
-```{r}
-# Fussed out 
-# # # # # # # # # 
-# List of time series that survived up to & including current variable 
-survived = h %>%
-  filter(!grepl('Age|Fuss', reason)) %>%
-  select(id, PSCID,reason) %>%
-  distinct()
-
-removed_fuss = removed %>%
-  filter(reason=='Fussed out') %>% 
-  select(id, PSCID) %>% 
-  distinct() %>%
-  mutate(removed_PSCID_from_sample = ifelse(PSCID %in% survived$PSCID, 0, 1))
-
-PSCID_removed_fuss = removed_fuss %>% filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
-vis_removed_fuss = removed_fuss %>% pull(id) %>% unique()
-```
-Data from  <b>`r sum(removed_fuss$removed_PSCID_from_sample)` participants, `r length(unique(removed_fuss$id))` eye-tracking visits, totaling `r removed %>% filter(grepl('Fussed', reason)) %>% nrow()` </b> time-series were excluded from future analyses.
 
 
 ## Bad Calver
@@ -583,7 +568,7 @@ Data from  <b>`r sum(removed_fuss$removed_PSCID_from_sample)` participants, `r l
 # # # # # # # # # 
 survived = h %>%
   # Get list of Ids that are still there, after you remove for all the resons leading up to & including propInterp
-  filter(!grepl('Age|Fuss|Cal', reason)) %>%
+  filter(!grepl('Age|Cal', reason)) %>%
   select(id, PSCID,reason) %>%
   distinct()
 
@@ -596,9 +581,6 @@ removed_calver = removed %>%
 PSCID_removed_calver = removed_calver %>% filter(removed_PSCID_from_sample==1) %>% pull(PSCID) %>% unique()
 vis_removed_calver = removed_calver %>% pull(id) %>% unique()
 
-# Make sure these were not included in kids already removed
-intersect(PSCID_removed_calver, PSCID_removed_fuss)
-intersect(vis_removed_calver, vis_removed_fuss)
 
 ```
 
@@ -630,8 +612,8 @@ vis_removed_interp = removed_interp %>%
   filter(removed_vis_from_sample==1)  %>% pull(id) %>% unique()
 
 # Make sure these were not included in kids already removed
-intersect(PSCID_removed_interp, c(PSCID_removed_fuss, PSCID_removed_calver))
-intersect(vis_removed_interp, c(vis_removed_fuss,vis_removed_calver))
+intersect(PSCID_removed_interp, c(PSCID_removed_calver))
+intersect(vis_removed_interp, c(vis_removed_calver))
 ```
 
 Blinks were identified using a noise-based algorithm. All data missing as a result of blinks (less than 200 ms)
@@ -662,7 +644,7 @@ Proportions of interpolated and residual missing data were entered into all mode
 # # # # # # # # # # # # # # # # # # # # # # # # # 
 survived = h %>%
   # Get list of Ids that are still there, after you remove for all the resons leading up to & including propInterp
-  filter(!grepl('Age|Fuss|Calver|propInterp|Fix', reason)) %>%
+  filter(!grepl('Age|Calver|propInterp|Fix', reason)) %>%
   select(id, PSCID,reason) %>%
   distinct()
 removed_fix = removed %>%
@@ -679,8 +661,8 @@ vis_removed_fix = removed_fix %>%
   filter(removed_vis_from_sample==1)  %>% pull(id) %>% unique()
 
 # Make sure these were not included in kids already removed
-intersect(PSCID_removed_fix, c(PSCID_removed_fuss, PSCID_removed_calver,PSCID_removed_interp))
-intersect(vis_removed_fix, c(vis_removed_fuss,vis_removed_calver,vis_removed_interp))
+intersect(PSCID_removed_fix, c(PSCID_removed_calver,PSCID_removed_interp))
+intersect(vis_removed_fix, c(vis_removed_calver,vis_removed_interp))
 ```
 
 Based on ----, we removed time series with fewer than 800 data points. Accordingly, data from an additional 
@@ -695,7 +677,7 @@ totaling to `r removed %>% filter(grepl('Fix', reason)) %>% nrow()` time series 
 # # # # # # # # # # # # # # # # # # # # # # # # # 
 survived = h %>%
   # Get list of Ids that are still there, after you remove for all the resons leading up to & including propInterp
-  filter(!grepl('Age|Fuss|Calver|propInterp|Fix|R2', reason)) %>%
+  filter(!grepl('Age|Calver|propInterp|Fix|R2', reason)) %>%
   select(id, PSCID,reason) %>%
   distinct()
 
@@ -714,10 +696,10 @@ vis_removed_r2 = removed_r2 %>%
 
 # Make sure these were not included in kids already removed
 intersect(PSCID_removed_r2, 
-          c(PSCID_removed_fuss, PSCID_removed_calver,PSCID_removed_interp,PSCID_removed_fix))
+          c(PSCID_removed_calver,PSCID_removed_interp,PSCID_removed_fix))
 
 intersect(vis_removed_r2, 
-          c(vis_removed_fuss,vis_removed_calver,vis_removed_interp, vis_removed_fix))
+          c(vis_removed_calver,vis_removed_interp, vis_removed_fix))
 ```
 
 
@@ -754,38 +736,33 @@ final_n_timeseries = nrow(h_clean)
 #r2 = removed_r2 %>% select(-c(movie,seg)) %>% distinct() 
 
 
-lab1 = paste('Original Sample \n', 
-       'N = ', length(unique(h$PSCID)), ' (', n_females, ' females) \n',
+lab1 = paste('Original Sample \n ', 
+       'Individuals = ', length(unique(h$PSCID)), ' (', n_females, ' females) \n',
       'Visits = ', length(unique(h$id)), '\n',
       'Time-series = ', nrow(h), sep='')
 
-lab_fuss = paste('Excluded for fussing out \n', 
-      'N = ', length(PSCID_removed_fuss), '\n', 
-      'Visits = ', length(vis_removed_fuss), '\n',
-      'Time-series = ', removed %>% filter(grepl('Fussed', reason)) %>% nrow(), sep='')
-
 lab_cal = paste('Excluded for low eye-tracker precision \n', 
-       'N = ', length(PSCID_removed_calver), '\n',
+       'Individuals = ', length(PSCID_removed_calver), '\n',
       'Visits = ', length(vis_removed_calver), '\n',
       'Time-series = ', removed %>% filter(grepl('Cal', reason)) %>% nrow(), sep='')
 
 lab_interp = paste('Excluded for high interpolation levels \n', 
-       'N = ', length(PSCID_removed_interp), '\n',
+       'Individuals = ', length(PSCID_removed_interp), '\n',
       'Visits = ', length(vis_removed_interp), '\n',
       'Time-series = ', removed %>% filter(grepl('Interp', reason)) %>% nrow(), sep='')
 
 lab_tooshort = paste('Excluded for time series < 800 \n', 
-       'N = ', length(PSCID_removed_fix), '\n',
+       'Individuals = ', length(PSCID_removed_fix), '\n',
       'Visits = ', length(vis_removed_fix), '\n',
       'Time-series = ', removed %>% filter(grepl('Fix', reason)) %>% nrow(), sep='')
 
 lab_r2 =  paste('Excluded for poor linear fit \n', 
-      'N = ', length(PSCID_removed_r2), '\n',
+      'Individuals = ', length(PSCID_removed_r2), '\n',
       'Visits = ', length(vis_removed_r2), '\n',
       'Time-series = ', removed %>% filter(grepl('R2', reason)) %>% nrow(), sep='')
 
 lab_final = paste('Final Sample \n',
-                  'N = ', final_n, ' (', final_n_female, ' females) \n',
+                  'Individuals = ', final_n, ' (', final_n_female, ' females) \n',
                   'Visits = ', final_n_vis, '\n',
                   'Time-series = ', final_n_timeseries, sep ='')
 
@@ -796,22 +773,21 @@ grViz("digraph flowchart {
       tab3 [label = '@@3-1']
       tab4 [label = '@@4-1']
       tab5 [label = '@@5-1']
-      tab6 [label = '@@6-1']
-      
+
       node [fontname = Helvetica, shape = ellipse]
-      tab7 [label = '@@7-1']
-      tab1 [label = '@@1']
+      tab1 [label = '@@1-1']
+      tab6 [label = '@@6-1']
        # edge definitions with the node IDs
-      tab1 -> tab2 -> tab3 -> tab4 -> tab5 -> tab6 -> tab7;
+      tab1 -> tab2 -> tab3 -> tab4 -> tab5 -> tab6;
       }
 
       [1]: lab1
-      [2]: lab_fuss
-      [3]: lab_cal
-      [4]: lab_interp
-      [5]: lab_tooshort
-      [6]: lab_r2
-      [7]: lab_final
+      [2]: lab_cal
+      [3]: lab_interp
+      [4]: lab_tooshort
+      [5]: lab_r2
+      [6]: lab_final
+
       
       ")
 ```

@@ -75,11 +75,19 @@ h=h %>%
   mutate(date=mdy(date)) %>%
   mutate(PSCID = paste(lapply(strsplit(id, '_'), '[', 1),
                        lapply(strsplit(id, '_'), '[', 2), sep= '_'))%>% 
-  filter(!grepl('Bab', id, ignore.case=TRUE))
+  filter(!grepl('Bab', id, ignore.case=TRUE)) %>%
+  rename(Hq_Neg5 = `Hq-5`, 
+         Hq_Neg3 = `Hq-3`, 
+         Hq_Neg1 = `Hq-1`,
+         Hq_Pos1 = `Hq+1`,
+         Hq_Pos3 = `Hq+3`,
+         Hq_Pos5 = `Hq+5`)
 
 # Keep cases with at least one visit 
 particList = particList %>% filter(n_et>0)
 ```
+
+
 
 Handle cases where data from the same visit was copied twice
 ```{r}

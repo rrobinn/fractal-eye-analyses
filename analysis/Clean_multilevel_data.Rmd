@@ -12,7 +12,7 @@ Cleans multi-level data & generates text on exclusions
 
 ## To-do
 - For the cases where I added 'v01' to the calver data for DevSocAtt kids - verify that these were the first visits 
-
+- Change the way you select which precision to use: "Audio-visual attention cues were presented at 3 time-points during each eye-tracking visit: at the beginning, interleaved with the Social and Pixelated movies, and at the end. Infants’ longest contiguous raw eye-tracking data for all available Attention Cue trials were analyzed for precision."
 
 ```{r constants1}
 knitr::opts_chunk$set(echo = FALSE)
@@ -589,7 +589,7 @@ vis_removed_calver = removed_calver %>% pull(id) %>% unique()
 
 <b>Quality-control exclusion criteria</b>. Infants’ eyes were calibrated to the eye-tracking equipment at the beginning of each visit, using the manufacturer’s five-point calibration procedure. Precision, or the distance between repeated samples of gaze points58, was included given that it is a measure of variability and thus is likely to influence DFA calculations that quantify nested patterns of variability. To measure the eye-tracker’s precision throughout the experiment, experimental trials were interleaved with audio-visual attention cues. Precision was included as a quality-control exclusion criterion due to its potential to influence fractal structure, given that it is an index of variation around a target stimulus. Audio-visual attention cues were presented at 3 time-points during each eye-tracking visit: at the beginning, interleaved with the Social and Pixelated movies, and at the end. Infants’ longest contiguous raw eye-tracking data for all available Attention Cue trials were analyzed for precision. Data from eye-tracking sessions with Root Mean Square Error of Approximation (RMSEA) values two standard deviations or more above the sample mean (indicating poor precision) were excluded. As such, data from eye-tracking sessions with an average RMSEA (averaged across X and Y axes for both eyes) greater than <b>`r round(calver_thresh,2)`</b> degrees of visual angle were excluded from analyses. 
 
-As a result, data from <b>`r sum(removed_calver$removed_PSCID_from_sample)` participants, `r length(unique(removed_calver$id))` eye-tracking visits, totaling `r removed %>% filter(grepl('Calver', reason)) %>% nrow()` </b> time-series were excluded from future analyses. For the remaining eye-tracking visits, the average precision was <b>`r mean(h_clean$AvgPrecision)`°</b> of visual angle.
+As a result, data from <b>`r length(PSCID_removed_calver)` participants, `r length(vis_removed_calver)` eye-tracking visits, totaling `r removed %>% filter(grepl('Calver', reason)) %>% nrow()` </b> time-series were excluded from future analyses. For the remaining eye-tracking visits, the average precision was <b>`r mean(h_clean$AvgPrecision)`°</b> of visual angle.
 
 ## High interpolation levels
 
@@ -633,9 +633,9 @@ temp = h %>%
 After interpolation, infants had an average proportion of `r mean(temp)` (range `r min(temp)`–`r max(temp)`) residual missing data per segment. Given past work suggesting too much aggregation can bias detrended fluctuation analysis (e.g.,20), we chose a stringent quality control threshold for the permissible proportion interpolated for each segment. 
 
 After visualizing the distribution, the 80th quantile threshold for the sample’s proportion interpolated was calculated (`r round(interp_thresh[1], 3)`) and segments with a proportion exceeding that value were excluded from analyses; data from an additional 
-`r removed_interp %>% select(id,removed_PSCID_from_sample) %>% distinct() %>% pull(removed_PSCID_from_sample) %>% sum()` infants, 
-`r removed_interp %>% select(id,removed_vis_from_sample) %>% distinct() %>% pull(removed_vis_from_sample) %>% sum()`  eye-tracking session, 
-totaling `r removed %>% filter(grepl('interp', reason)) %>% nrow()` time-series 
+`r length(PSCID_removed_interp)` infants, 
+`r length(vis_removed_interp)`  eye-tracking session, 
+totaling `r removed %>% filter(grepl('Interp', reason)) %>% nrow()` time-series 
 were removed from future analyses. 
 The mean proportion of residual missing data for the remaining sample was `r mean(h_clean$propMissing)`. 
 Proportions of interpolated and residual missing data were entered into all models as covariates. 
@@ -808,9 +808,17 @@ aoi_data2 = aoi_data %>%
          movie=as.character(movie)) %>%
   mutate(propFace_seg = faceCount / (faceCount + otherCount))
 
+# Cases where the data are all missing
 aoi_data2 = aoi_data2 %>% 
-  filter(longestFixFace!=-9999) 
+  filter(!is.na(propFace_seg)) 
 ```
+
+Are any visits in `h_clean` that are not in `aoi_data2`?
+```{r}
+setdiff(h_clean$id, aoi_data2$id)
+
+```
+
 
 ```{r}
 # Merge h and aoi_data2 by temp (string that contains unique identifier for each time series)
@@ -1006,6 +1014,20 @@ h5 %>%
             max = max(n_et))
 
 ```
+
+Summary of age 
+```{r}
+summary(h5$et_age)
+```
+
+```{r}
+h5 %>%
+  group_by(cohort_bin) %>%
+  summarise(mean_et_age = mean(et_age),
+            min = min(n_et),
+            max = max(n_et))
+```
+
 
 ```{r}
 ggplot(data = h5, aes(y = reorder(CandID, ageFirstVis), x = round(et_age,0))) +

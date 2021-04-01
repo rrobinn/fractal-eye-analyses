@@ -156,18 +156,6 @@ h=h %>%
 
 ```
 
-Calculate spectrum width
-```{r echo=TRUE}
-# Calculate spectrum width for each row (id, movie, seg)
-h = h %>%
-  # Only consider positive q's 
-  mutate(min_hq_posonly= pmin(`Hq0`, `Hq+1`, `Hq+3`, `Hq+5`),
-         max_hq_posonly = pmax(`Hq0`, `Hq+1`, `Hq+3`, `Hq+5`),
-         min_hq= pmin(`Hq-5`, `Hq-3`, `Hq-1`, `Hq0`, `Hq+1`, `Hq+3`, `Hq+5`),
-         max_hq = pmax(`Hq-5`, `Hq-3`, `Hq-1`, `Hq0`, `Hq+1`, `Hq+3`, `Hq+5`),
-         spect_width_posonly = max_hq_posonly - min_hq_posonly,
-         spect_width = max_hq-min_hq)
-```
 
 ```{r}
 # Merge w/ participant info (CandID, DOB, Sex, n_et, cohort, cohort2, ageFirstVis)

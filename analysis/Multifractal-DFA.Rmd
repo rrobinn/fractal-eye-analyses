@@ -166,43 +166,6 @@ dim(h)
 # Visualizatoins 
 
 Width of surrogates 
-```{r echo=FALSE}
-# Make long to be compatible with ggplot2
-# temp = h %>% 
-#   dplyr::select(temp, 
-#                 surrogate_mean_width_posonly = mean_width_posonly,
-#                 surrogate_mean_width = mean_width, 
-#                 orig_width_posonly = spect_width_posonly,
-#                 orig_width = spect_width,
-#                 Trial) %>%
-#   pivot_longer(cols = c(surrogate_mean_width_posonly, surrogate_mean_width, 
-#                         orig_width, orig_width_posonly), 
-#                names_to='data_source', values_to='width')
-               
-```
-
-
-```{r echo=TRUE}
-#temp %>% filter(data_source=='surrogate_mean_width_posonly') %>% dplyr::select(width) %>% summary(width) 
-#temp %>% filter(data_source=='orig_width') %>% dplyr::select(width) %>% summary(width) 
-```
-
-For plotting purposes, restricting x-axis to <= 2.5 (removed `r sum(compareNA(TRUE, temp$width>2.5))` out of `r nrow(temp)` cases.
-```{r}
-# temp %>% 
-#   filter(width <= 2.5,
-#          grepl('pos', data_source)) %>%
-# ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
-#   geom_histogram(alpha=0.2, position='identity') 
-```
-
-```{r}
-# temp %>% 
-#   filter(width <= 2.5,
-#         !grepl('pos', data_source)) %>%
-# ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
-#   geom_histogram(alpha=0.2, position='identity') 
-```
 
 ```{r}
 h %>%

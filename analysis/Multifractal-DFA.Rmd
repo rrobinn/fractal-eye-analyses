@@ -1,0 +1,258 @@
+---
+title: "Multifractal DFA"
+author: "Robin Sifre"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(tidyverse)
+library(lubridate)
+
+library(ggplot2)
+library(ggeffects)
+
+# modeling 
+library(AICcmodavg)
+library(bbmle)
+library(merTools)
+library(nlme)
+library(lme4)
+
+#library(moments) 
+library(sm)
+library(knitr)
+#library(stats)
+```
+
+# About
+This document does the analyses for multi-fractal spectrum width.  
+- Read H(q) data for surrogates
+- Merges multi-fractal spectrum width of original data with surrogates. Does t-test to determine if time series is fractal. 
+- Spectrum width is calculated by max(H(q)) - min(H(q)). q={0, 1, 3, 5}
+
+
+# To do
+- Add in cases with poor R^2 (currently excluded, should not be)
+
+
+```{r}
+source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
+```
+
+```{r echo=TRUE, cache=TRUE}
+wdir = '~/Documents/Github/fractal-eye-analyses/'
+
+# Read cleaned data (includes MF-width of original data)
+h = read.csv( paste(wdir, 'data/2021-03-31-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
+
+# Read surrogate data 
+surr = read.csv( paste(wdir, 'data/surrogate_MFDFA.txt', sep = ''), stringsAsFactors = FALSE )
+```
+
+```{r}
+h = h %>% 
+  mutate(female = ifelse(Sex=='Female', 1,0),
+         Trial = ifelse(CalVer==0 & Pix==0, 'Social', ''),
+         Trial = ifelse(CalVer==1, 'Attention-Getter', Trial),
+         Trial = ifelse(Pix==1, 'Pixelated', Trial),
+         social = ifelse(Trial=='Social', 1, 0)) 
+```
+
+
+```{r echo=FALSE}
+# Keep surrogates that exist in visits 
+visits = unique(h$id)
+surr = surr %>%
+  mutate(id = gsub('v', '', id)) %>%
+  filter(id %in% visits) %>%
+  filter(surrogate_num<=8) %>%# I did 32 for a handful. remove for now. 
+  # Variables to be used for merging 
+  mutate(date=mdy(date))  
+
+# Handle cases where a time series is duplicated 
+surr = distinct(surr)
+
+surr = surr %>%
+  # Unique identifier for each surrogate
+  mutate(temp = paste(id, movie, seg, surrogate_num, longestFixDur, round(propInterp,3), date)) %>%
+  group_by(temp) %>%
+  mutate(n=c(1:n())) %>%
+  ungroup() %>%
+  # Arbitrarily pick the first dup
+  filter(n==1)
+```
+
+
+# Surrogates spectrum Width  
+- Calculate spectrum width for the surrogates 
+- Generate summary values (mean width, range, SD)
+```{r echo = TRUE, cache=TRUE}
+surr = surr %>%
+  # Calculate spectrum width for the surrogates -
+  mutate(# Including only positive q's 
+         min_hq = pmin(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         max_hq = pmax(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         spect_width = max_hq - min_hq)
+         # Including all q's
+         #min_hq = pmin(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         #max_hq = pmax(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         #spect_width = max_hq - min_hq) 
+```
+
+
+```{r echo=TRUE, cache=TRUE}
+# Unique identifier for each time series 
+surr = surr %>%
+  mutate(temp = paste(id, movie, seg, longestFixDur, round(propInterp,3), date))
+
+# Summary values for each time series 
+surr_summ = surr %>%
+  # Make summary variables for each time series 
+  group_by(temp) %>%
+  summarise(
+            mean_width = mean(spect_width),
+            min_width = min(spect_width),
+            max_width = max(spect_width),
+            sd_width = sd(spect_width)) %>%
+  ungroup()
+
+# Make wide (each time series is its own row. Populate the surrogate columns with spectrum widths
+surr = surr %>%
+  dplyr::select(temp, surrogate_num, spect_width) %>%
+  pivot_wider(id_cols = temp, 
+              names_from=surrogate_num, names_prefix = 'surr', 
+              values_from = spect_width)
+```
+
+
+
+# Merge surrogate width with real width
+
+```{r merge_h_surrogatewidth}
+h = h %>%
+  dplyr::select(id, movie, seg, date, 
+                h, spect_width_posonly,
+                longestFixDur, propInterp, propMissing, 
+                min_hq, max_hq, et_age, AvgPrecision, Trial, female) %>%
+  # Make unique identifier for each time series to merge with surrogate data 
+  mutate(temp = paste(id, movie, seg, longestFixDur, round(propInterp,3), date)) %>%
+  rename( spect_width = spect_width_posonly) 
+```
+
+```{r echo=TRUE}
+# Dimensions of h before merge 
+dim(h)
+```
+
+```{r}
+#h = left_join(h, surr_wide, by='temp')
+h = left_join(h, surr_wide, by='temp')
+h = left_join(h, surr_summ, by='temp')
+```
+
+```{r echo=TRUE}
+# Dimensions of h after merge 
+dim(h)
+```
+
+
+# Visualizatoins 
+
+Width of surrogates 
+```{r echo=FALSE}
+# Make long to be compatible with ggplot2
+# temp = h %>% 
+#   dplyr::select(temp, 
+#                 surrogate_mean_width_posonly = mean_width_posonly,
+#                 surrogate_mean_width = mean_width, 
+#                 orig_width_posonly = spect_width_posonly,
+#                 orig_width = spect_width,
+#                 Trial) %>%
+#   pivot_longer(cols = c(surrogate_mean_width_posonly, surrogate_mean_width, 
+#                         orig_width, orig_width_posonly), 
+#                names_to='data_source', values_to='width')
+               
+```
+
+
+```{r echo=TRUE}
+#temp %>% filter(data_source=='surrogate_mean_width_posonly') %>% dplyr::select(width) %>% summary(width) 
+#temp %>% filter(data_source=='orig_width') %>% dplyr::select(width) %>% summary(width) 
+```
+
+For plotting purposes, restricting x-axis to <= 2.5 (removed `r sum(compareNA(TRUE, temp$width>2.5))` out of `r nrow(temp)` cases.
+```{r}
+# temp %>% 
+#   filter(width <= 2.5,
+#          grepl('pos', data_source)) %>%
+# ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
+#   geom_histogram(alpha=0.2, position='identity') 
+```
+
+```{r}
+# temp %>% 
+#   filter(width <= 2.5,
+#         !grepl('pos', data_source)) %>%
+# ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
+#   geom_histogram(alpha=0.2, position='identity') 
+```
+
+```{r}
+h %>%
+  filter(mean_width_posonly <= 2.5) %>%
+  ggplot(data = ., aes(x=spect_width_posonly, y =mean_width_posonly, color=Trial )) +
+  geom_point(alpha=0.2) + 
+  geom_abline(slope=1)+
+  facet_wrap(~Trial, nrow=3) + 
+  labs(x= 'Spectrum Width', y = 'Surrogate mean width')
+
+```
+
+```{r}
+h %>%
+  filter(spect_width <= 2.5) %>%
+  ggplot(data = ., aes(x=spect_width, y =mean_width, color=Trial )) +
+  geom_point(alpha=0.2) + 
+  geom_abline(slope=1)+
+  facet_wrap(~Trial, nrow=3) + 
+  labs(x= 'Spectrum Width', y = 'Surrogate mean width')
+
+```
+
+```{r}
+knit_exit()
+```
+
+
+# Statistical test 
+A one-sample two-sided t test comparing the original data’s spectrum width to the sample of linear surrogates’ spectrum widths was used.
+```{r}
+# Pull widths 
+h %>%
+  select(id, movie, seg, date, Trial, female, h,
+         longestFixDur, propInterp, propMissing, et_age, 
+         orig_width = spect_width_posonly,
+         surr1 = surr1_posonly, 
+         surr2 = surr1_posonly, 
+         surr3 = surr1_posonly, 
+         surr4 = surr1_posonly, 
+         surr5 = surr1_posonly, 
+         surr6 = surr1_posonly, 
+         surr7 = surr1_posonly, 
+         surr8 = surr1_posonly, 
+         )
+
+temp = h[1,]
+x=c(temp$surr_1, temp$surr_2, temp$surr_3, temp$surr_4, temp$surr_5, temp$surr_6, temp$surr_7, temp$surr_8)
+mu = temp$spect_width
+t = t.test(x, mu=mu,alternative='less' ) # alternative hypothesis: true mean of distribution is outside of  mu/spect_width
+
+```
+

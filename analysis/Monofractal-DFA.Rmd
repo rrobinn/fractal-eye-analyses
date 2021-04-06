@@ -11,6 +11,7 @@ output:
 
 ```{r message=FALSE, warning = FALSE, echo = FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+options(width = 400)
 
 library(readr)
 library(tidyverse)
@@ -50,10 +51,10 @@ wdir = '~/Documents/Github/fractal-eye-analyses/'
 source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
 
 # Read cleaned data
-clean_dat = read.csv( paste(wdir, 'data/2021-03-31-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
+clean_dat = read.csv( paste(wdir, 'data/2021-04-01-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
 
 # Read cases that were removed
-removed = read.csv( paste(wdir, 'data/2021-03-31-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
+removed = read.csv( paste(wdir, 'data/2021-04-01-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
 
 ```
 
@@ -61,19 +62,6 @@ removed = read.csv( paste(wdir, 'data/2021-03-31-h_removed.csv', sep = ''), stri
 visits = unique(clean_dat$id)
 ```
 
-```{r calc_surr_avg_H, cache=TRUE}
-# Make average H for each time series
-# surr = surr %>%
-#   dplyr::select(id, movie, seg, date, longestFixDur, propInterp, propMissing, surrogate_num, H) %>%
-#   # Make unique label for each time series (that does not include surrogate number)
-#   mutate(temp=paste(id,movie,seg,date,longestFixDur,propInterp,propMissing)) %>%
-#   pivot_wider(id_cols=temp, names_from=surrogate_num, names_prefix = 'surr', 
-#               values_from=H) %>%
-# rowwise() %>%
-# mutate(mean_h = mean(c(surr1, surr2, surr3, surr4, surr5, surr6, surr7, surr8)))
-  
-
-```
 
 ```{r}
 clean_dat = clean_dat %>%
@@ -108,6 +96,10 @@ AveAge = clean_dat %>%
   mean()
 ```
 
+```{r}
+clean_dat = clean_dat %>%
+  mutate(Participant = PSCID, Visit=id)
+```
 
 
 # DFA 
@@ -135,27 +127,23 @@ summary(clean_dat$h)
 
 
 Proportion of time series that are considered "pink noise"
-```{r echo=TRUE}
+```{r echo=TRUE, cache=TRUE}
 clean_dat$pink=NA
 clean_dat$pink=ifelse(clean_dat$h>0.69 & clean_dat$h<1.1, 1, 0)
 sum(clean_dat$pink==1)/nrow(clean_dat)
 ```
 
 # Visualize IVs
-```{r iv_hists, warning=FALSE}
+```{r iv_hists, warning=FALSE, cache=TRUE}
 ggplot(data=clean_dat, aes(x=et_age)) +
   geom_histogram(color='black')
 ggplot(data=clean_dat, aes(x=age_centered_grandmean)) +
   geom_histogram(color='black')
 ```
 
-```{r}
-
-```
-
 
 # Visualize outcomes
-```{r face_hists, warning=FALSE}
+```{r face_hists, warning=FALSE, cache=TRUE}
 ggplot(data=clean_dat, aes(x=propFace_seg)) +
   geom_histogram(color='black')
 
@@ -190,7 +178,7 @@ ctrl <- lmeControl(opt='optim')
 ## Determine which levels to model intercept for 
 ### Baseline mod
 ```{r}
-lmer.0=lmer(h~1+(1|PSCID)+(1|id)+(1|movie), data=clean_dat, REML=FALSE) #int-only w/ nested structures
+lmer.0=lmer(h~1+(1|Participant)+(1|Visit)+(1|movie), data=clean_dat, REML=FALSE) #int-only w/ nested structures
 summary(lmer.0)
 ```
 
@@ -201,18 +189,18 @@ remat <- print(VarCorr(lmer.0),comp=c("Variance", "Std.Dev."))
 
 ```{r}
 remat<- data.frame(remat)
-PSCID_var = remat %>% filter(grp=='PSCID') %>% pull(vcov)
-sess_var = remat %>% filter(grp=='id') %>% pull(vcov)
+Participant_var = remat %>% filter(grp=='Participant') %>% pull(vcov)
+sess_var = remat %>% filter(grp=='Visit') %>% pull(vcov)
 mov_var = remat %>% filter(grp=='movie') %>% pull(vcov)
-resid_var= remat %>% filter(grp=='Residual') %>% pull(vcov)
-total_var = PSCID_var + sess_var+ mov_var + resid_var
+resVisit_var= remat %>% filter(grp=='ResVisitual') %>% pull(vcov)
+total_var = Participant_var + sess_var+ mov_var + resVisit_var
 ```
 
 ```{r echo=TRUE}
-PSCID_var/total_var
+Participant_var/total_var
 sess_var/total_var
 mov_var/total_var
-resid_var/total_var
+resVisit_var/total_var
 ```
 
 Since movie accounts for < 3% of total variance, model RE for intercept for person, visit only. 
@@ -222,14 +210,14 @@ Since movie accounts for < 3% of total variance, model RE for intercept for pers
 Fixed effect of $Age$
 ```{r fixef_age, cache=TRUE, echo=TRUE}
 # Intercept only  
-lmer.0=lmer(h ~ 1 + (1|PSCID)+(1|id), data=clean_dat, 
+lmer.0=lmer(h ~ 1 + (1|Participant)+(1|Visit), data=clean_dat, 
             REML=FALSE) 
 # Linaer FE 
-lmer.1=lmer(h ~ 1+ Age_centeredGrandmean + (1|PSCID)+(1|id), data=clean_dat,                
+lmer.1=lmer(h ~ 1+ Age_centeredGrandmean + (1|Participant)+(1|Visit), data=clean_dat,                
             REML=FALSE) 
 # Quadratic FE 
 lmer.2=lmer(h ~ 1+ Age_centeredGrandmean + I(Age_centeredGrandmean^2) + 
-              (1|PSCID)+(1|id), 
+              (1|Participant)+(1|Visit), 
             data=clean_dat,               
             REML=FALSE) #quadratic age
 anova(lmer.0, lmer.1, lmer.2)
@@ -239,7 +227,7 @@ RE of $Age$
 Quadratic RE of age leads to convergence issue 
 ```{r echo=TRUE}
 lmer.2b=lmer(h~1+ Age_centeredGrandmean + I(Age_centeredGrandmean^2)+
-               (1+Age_centeredGrandmean|PSCID)+(1|id),
+               (1+Age_centeredGrandmean|Participant)+(1|Visit),
              data=clean_dat, REML=FALSE) #quadratic age
 
 ```
@@ -311,8 +299,10 @@ lmer.3a = lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 # Person-level
                 propInterp_person_grandmeancentered +
                 longestFix_person_grandmeancentered_s + 
-                precision_person_grandmeancentered + factor(cohort_bin) + factor(female)+
-                (1 |PSCID) + (1|id), 
+                precision_person_grandmeancentered + 
+                 factor(cohort_bin) + factor(female)+
+                 AveAge_person +
+                (1 |Participant) + (1|Visit), 
                data=clean_dat, REML=FALSE) #linear age
 
 summary(lmer.3a)
@@ -326,7 +316,7 @@ lmer.3b=lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 # Person-level
                 longestFix_person_grandmeancentered + 
                 precision_person_grandmeancentered +
-                (1|PSCID) + (1|id),
+                (1|Participant) + (1|Visit),
                 data=clean_dat, REML=FALSE)
 ```
 
@@ -348,7 +338,7 @@ lmer.4=lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 longestFix_person_grandmeancentered + 
                 precision_person_grandmeancentered +
                 Pix + CalVer +
-                (1|PSCID) + (1|id),
+                (1|Participant) + (1|Visit),
                 data=clean_dat, REML=FALSE)
 ```
 
@@ -374,7 +364,7 @@ lmer.4a=lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 longestFix_person_grandmeancentered + 
                 precision_person_grandmeancentered +
                 Pix + 
-                (1|PSCID) + (1|id),
+                (1|Participant) + (1|Visit),
                 data=clean_dat, REML=FALSE)
 anova(lmer.3b, lmer.4a)
 
@@ -387,7 +377,7 @@ lmer.4b=lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 longestFix_person_grandmeancentered + 
                 precision_person_grandmeancentered +
                 CalVer + 
-                (1|PSCID) + (1|id),
+                (1|Participant) + (1|Visit),
                 data=clean_dat, REML=FALSE)
 anova(lmer.3b, lmer.4b)
 ```
@@ -406,7 +396,7 @@ lmer.5 = lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
        # Condition
        Pix + CalVer + 
        CalVer:Age_centeredGrandmean + CalVer:I(Age_centeredGrandmean^2) + 
-       (1|PSCID) + (1|id),
+       (1|Participant) + (1|Visit),
       data=clean_dat, REML=FALSE)
 ```
 
@@ -430,7 +420,7 @@ lmer.6 = lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
        Pix + CalVer + 
        CalVer:Age_centeredGrandmean + CalVer:I(Age_centeredGrandmean^2) + 
       Pix:Age_centeredGrandmean + Pix:I(Age_centeredGrandmean^2) + 
-       (1|PSCID) + (1|id),
+       (1|Participant) + (1|Visit),
       data=clean_dat, REML=FALSE)
 
 
@@ -551,7 +541,7 @@ lmer.fin = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 +
        Pix + CalVer + 
        CalVer:Age_centeredGrandmean + CalVer:Age_centeredGrandmean2 + 
       Pix:Age_centeredGrandmean + Pix:Age_centeredGrandmean2 + 
-       (1|PSCID) + (1|id),
+       (1|Participant) + (1|Visit),
       data=clean_dat, REML=FALSE)
 
 
@@ -580,53 +570,6 @@ ss_PixAge2$slopes
 ss_CalAge2$slopes
 ```
 
-## Proportion of variance explains
-
-# Table of models
-```{r echo=TRUE}
-mods = c(lmer.0, 
-         lmer.2, # Quad fix ef of age
-         lmer.3b, # Significant Control covariates 
-         lmer.4, # Main effects of calver and pix
-         lmer.6) # Interactions with AgexPix and AgexCalver
-```
-
-
-```{r h_model_table, cache=TRUE}
-
-
-#my_labels = generate_labels(mods)
-
-tab = tab_model(mods,
-          show.std=TRUE, 
-          show.est = FALSE,
-          show.re.var  = FALSE, 
-          show.p = FALSE, 
-          show.aicc = TRUE, show.loglik = TRUE,
-          pred.labels = c('(Intercept)',
-                          'Age', 
-                          'Age^2',
-                          'Visit-level % interpolated',
-                          'Visit-level fixation duration', 
-                          'Visit-level tracker precision', 
-                          'Person-level fixation duration', 
-                          'Person-level tracker precision',
-                          'Condition=Pixelated',
-                          'Condition=Attention-Getter',
-                          'Age x Attention-Getter',
-                          'Age^2 x Attention-Getter',
-                          'Age x Pixelated',
-                          'Age^2 x Pixelated '),
-          dv.labels = c('Model 1', 'Model 2', 
-                        'Model 3', 'Model 4', 'Model 5'),
-          string.std = 'Estimate (Std.)',
-          string.std_ci ='95% CI',
-          string.std.p = 'p (Std.)',
-          css.summary='+font-weight:bold;')
-
-tab
-```
-
-
+## Proportion of variance explained
 
 

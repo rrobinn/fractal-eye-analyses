@@ -1025,15 +1025,18 @@ h5 %>%
 ```
 
 
-```{r}
+```{r cleandat_longit_sample, cache=TRUE}
 ggplot(data = h5, aes(y = reorder(CandID, ageFirstVis), x = round(et_age,0))) +
   geom_line(color = 'grey') +
   geom_point(aes(color=cohort_bin), size=1.1) +
-  scale_color_manual(values = c('springgreen4', 'red')) +
+  scale_color_manual(values = c('springgreen4', 'red'), labels=c('Cohort 1', 'Cohort 2')) +
   scale_x_continuous(breaks = c(3, 4, 6, 7, 9, 10, 12, 13, 24, 30, 36))+
   scale_y_discrete()+
   theme_bw() + 
-  labs(x = 'ET Age (months)', y = 'Individual', title='BSLERP - 1') 
+  theme(axis.text.y = element_blank(),
+        axis.text.x = element_text(size=12),
+        axis.title = element_text(size=14, face='bold')) +
+  labs(x = 'ET Age (months)', y = 'Individual', colour='Cohort') 
 ```
 
 

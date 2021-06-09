@@ -8,6 +8,8 @@ output:
     self_contained: true
 ---
 
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -17,6 +19,8 @@ library(lubridate)
 
 library(ggplot2)
 library(ggeffects)
+library(effects)
+library(viridis)
 
 # modeling 
 library(AICcmodavg)
@@ -26,43 +30,75 @@ library(nlme)
 library(lme4)
 
 #library(moments) 
-library(sm)
 library(knitr)
+library(DT)
 #library(stats)
 ```
 
 # About
 This document does the analyses for multi-fractal spectrum width.  
-- Read H(q) data for surrogates
-- Merges multi-fractal spectrum width of original data with surrogates. Does t-test to determine if time series is fractal. 
-- Spectrum width is calculated by max(H(q)) - min(H(q)). q={0, 1, 3, 5}
+- Read H(q) data for surrogates  
+- Merges multi-fractal spectrum width of original data with surrogates.  
+- Does t-test to determine if time series is fractal.  
+- Spectrum width is calculated by max(H(q)) - min(H(q)). q={0, 1, 3, 5} and q={-5, -3, -1, 0, 1, 3, 5}.  
 
 
 # To do
-- Add in cases with poor R^2 (currently excluded, should not be)
-
-
-```{r}
+- Check why there is no surrogate data for JE000500_03_04,  JE000221_05_07
+```{r echo=FALSE}
 source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
 ```
 
-```{r echo=TRUE, cache=TRUE}
+```{r cache=TRUE}
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 
 # Read cleaned data (includes MF-width of original data)
-h = read.csv( paste(wdir, 'data/2021-03-31-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
+h = read.csv( paste(wdir, 'data/2021-04-01-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
+removed = read.csv( paste(wdir, 'data/2021-04-01-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
 
 # Read surrogate data 
 surr = read.csv( paste(wdir, 'data/surrogate_MFDFA.txt', sep = ''), stringsAsFactors = FALSE )
 ```
 
+# Prep data
+Merge cases that were removed for poor $R^2$
 ```{r}
+removed = removed %>% filter(reason=='Bad R2')
+h = bind_rows(h, removed)
+```
+
+```{r echo = FALSE}
 h = h %>% 
   mutate(female = ifelse(Sex=='Female', 1,0),
          Trial = ifelse(CalVer==0 & Pix==0, 'Social', ''),
          Trial = ifelse(CalVer==1, 'Attention-Getter', Trial),
          Trial = ifelse(Pix==1, 'Pixelated', Trial),
          social = ifelse(Trial=='Social', 1, 0)) 
+```
+
+Calculate spectrum width  
+
+```{r}
+h = h %>%
+  mutate(orig_width_posonly = pmax(Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5) - 
+           pmin(Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5),
+        orig_width_allqs   = pmax(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5) - 
+                              pmin(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5))
+```
+
+Distribution of MF spectra widths from original time series 
+```{r hist_orig_width, cache=TRUE, warning=FALSE, echo = FALSE}
+
+h %>%
+  dplyr::select(orig_width_posonly, orig_width_allqs) %>%
+  pivot_longer(cols = c(orig_width_posonly, orig_width_allqs),
+               names_to='qs', values_to = 'width') %>%
+  ggplot(data=., aes(x=width, fill=qs, color=qs)) +
+  geom_histogram(position='identity', alpha = 0.5) +
+  scale_x_continuous(limits = c(0, 2.5)) +
+  labs(x = 'Spectrum width of original time series')
+
+
 ```
 
 
@@ -92,58 +128,58 @@ surr = surr %>%
 
 # Surrogates spectrum Width  
 - Calculate spectrum width for the surrogates 
-- Generate summary values (mean width, range, SD)
 ```{r echo = TRUE, cache=TRUE}
 surr = surr %>%
   # Calculate spectrum width for the surrogates -
   mutate(# Including only positive q's 
-         min_hq = pmin(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         max_hq = pmax(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         spect_width = max_hq - min_hq)
+         min_hq_posonly = pmin(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         max_hq_posonly = pmax(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         surr_width_posonly = max_hq_posonly - min_hq_posonly,
          # Including all q's
-         #min_hq = pmin(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         #max_hq = pmax(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         #spect_width = max_hq - min_hq) 
+         min_hq = pmin(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         max_hq = pmax(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
+         surr_width = max_hq - min_hq) %>%
+  dplyr::select(-c(min_hq_posonly, max_hq_posonly, min_hq, max_hq))
 ```
 
-
+- Generate summary values (mean width, range, SD)
 ```{r echo=TRUE, cache=TRUE}
 # Unique identifier for each time series 
 surr = surr %>%
   mutate(temp = paste(id, movie, seg, longestFixDur, round(propInterp,3), date))
 
-# Summary values for each time series 
+# Summary values for each time series (min,max,mean, sd)
 surr_summ = surr %>%
   # Make summary variables for each time series 
   group_by(temp) %>%
   summarise(
-            mean_width = mean(spect_width),
-            min_width = min(spect_width),
-            max_width = max(spect_width),
-            sd_width = sd(spect_width)) %>%
+            surr_mean_width = mean(surr_width),
+            surr_min_width = min(surr_width),
+            surr_max_width = max(surr_width),
+            surr_sd_width = sd(surr_width),
+            surr_mean_width_posonly = mean(surr_width_posonly),
+            surr_min_width_posonly = min(surr_width_posonly),
+            surr_max_width_posonly = max(surr_width_posonly),
+            surr_sd_width_posonly = sd(surr_width_posonly)) %>%
   ungroup()
 
 # Make wide (each time series is its own row. Populate the surrogate columns with spectrum widths
-surr = surr %>%
-  dplyr::select(temp, surrogate_num, spect_width) %>%
+surr_wide = surr %>%
+  dplyr::select(temp, surrogate_num, surr_width, surr_width_posonly) %>%
   pivot_wider(id_cols = temp, 
               names_from=surrogate_num, names_prefix = 'surr', 
-              values_from = spect_width)
+              values_from = c(surr_width, surr_width_posonly))
+
 ```
 
 
 
-# Merge surrogate width with real width
+- Merge surrogate width with real width
 
-```{r merge_h_surrogatewidth}
-h = h %>%
-  dplyr::select(id, movie, seg, date, 
-                h, spect_width_posonly,
-                longestFixDur, propInterp, propMissing, 
-                min_hq, max_hq, et_age, AvgPrecision, Trial, female) %>%
+```{r echo=FALSE}
+h = h%>%
   # Make unique identifier for each time series to merge with surrogate data 
-  mutate(temp = paste(id, movie, seg, longestFixDur, round(propInterp,3), date)) %>%
-  rename( spect_width = spect_width_posonly) 
+  mutate(temp = paste(id, movie, seg, longestFixDur, round(propInterp,3), date)) 
 ```
 
 ```{r echo=TRUE}
@@ -152,7 +188,6 @@ dim(h)
 ```
 
 ```{r}
-#h = left_join(h, surr_wide, by='temp')
 h = left_join(h, surr_wide, by='temp')
 h = left_join(h, surr_summ, by='temp')
 ```
@@ -162,60 +197,758 @@ h = left_join(h, surr_summ, by='temp')
 dim(h)
 ```
 
-
-# Visualizatoins 
-
-Width of surrogates 
-
+Missing spectrum width
 ```{r}
-h %>%
-  filter(mean_width_posonly <= 2.5) %>%
-  ggplot(data = ., aes(x=spect_width_posonly, y =mean_width_posonly, color=Trial )) +
-  geom_point(alpha=0.2) + 
-  geom_abline(slope=1)+
-  facet_wrap(~Trial, nrow=3) + 
-  labs(x= 'Spectrum Width', y = 'Surrogate mean width')
+h %>% filter(is.na(surr_mean_width)) %>% dplyr::select(id) %>% distinct()
+```
+
+
+
+
+
+# Visualizations of width
+
+```{r echo = FALSE}
+# Make long to be compatible with ggplot2
+temp = h %>%
+  dplyr::select(temp,
+                surr_mean_width_posonly,
+                surr_mean_width,
+                orig_width_posonly,
+                orig_width_allqs,
+                Trial) %>%
+  pivot_longer(cols = c(surr_mean_width_posonly, surr_mean_width,
+                        orig_width_posonly, orig_width_allqs),
+               names_to='data_source', values_to='width')
+```
+
+
+```{r echo=FALSE}
+# temp %>% filter(data_source=='surr_mean_width_posonly') %>% dplyr::select(width) %>% summary(width) 
+# temp %>% filter(data_source=='orig_width_posonly') %>% dplyr::select(width) %>% summary(width) 
+# 
+# temp %>% filter(data_source=='surr_mean_width') %>% dplyr::select(width) %>% summary(width) 
+# temp %>% filter(data_source=='orig_width_allqs') %>% dplyr::select(width) %>% summary(width) 
+```
+
+## Original width vs surrogate width 
+
+- For plotting purposes, restricting x-axis to <= 2.5 (removed `r sum(compareNA(TRUE, temp$width>2.5))` out of `r nrow(temp)` cases).  
+- When we calculated MF spectra width with <b>positive q's only</b>, the surrogates are a bit wider than the original data. 
+```{r orig_width_surrogate_width_hist, echo=FALSE, warning=FALSE, cache=TRUE}
+temp = temp %>% mutate(posonly = ifelse(grepl('pos',data_source), 1, 0))
+
+temp %>%
+  filter(width <= 2.5,
+         grepl('pos', data_source)) %>%
+  mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
+ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
+  geom_histogram(alpha=0.2, position='identity') + 
+  theme_bw() +
+  theme(legend.title = element_blank(),legend.position = c(.75, .8), 
+        legend.background = element_rect(color='black',linetype='solid')) + 
+  labs(caption= 'Spectrum widths computed with only positive q\'s', x = 'MF spectrum width')
+
+temp %>%
+  filter(width <= 2.5,
+         grepl('pos', data_source)) %>%
+  mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
+ggplot(data=., aes(x=data_source, y=width, color=data_source)) +
+  geom_boxplot() + 
+  theme_bw() +
+  theme(legend.title = element_blank()) + 
+  labs(caption= 'Spectrum widths computed with only positive q\'s', 
+       x = '', y= 'MF spectrum width')
 
 ```
 
-```{r}
-h %>%
-  filter(spect_width <= 2.5) %>%
-  ggplot(data = ., aes(x=spect_width, y =mean_width, color=Trial )) +
+
+```{r origwidth_vs_surrwidth_posonly, echo=FALSE, cache=TRUE}
+ggplot(data = h, aes(x=orig_width_posonly, y =surr_mean_width_posonly, color=Trial )) +
   geom_point(alpha=0.2) + 
   geom_abline(slope=1)+
   facet_wrap(~Trial, nrow=3) + 
-  labs(x= 'Spectrum Width', y = 'Surrogate mean width')
+  labs(x= 'Spectrum Width (Original data)', y = 'Surrogate mean width',
+       title = 'Spectrum widths computed with only positive q\'s')
+```
+
+- When we calculate MF spectra with <b>negative and positive q's</b>, the original time series had a fatter tail than the surrogats.  
+
+```{r, echo=FALSE, warning=FALSE}
+temp %>%
+  filter(width <= 2.5,
+        !grepl('pos', data_source)) %>%
+ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
+  geom_histogram(alpha=0.2, position='identity')+ 
+  labs(title= 'Spectrum widths computed with positive and negative q\'s')
+```
+
+```{r}
+temp %>%
+  filter(width <= 2.5,
+         !grepl('pos', data_source)) %>%
+  mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
+ggplot(data=., aes(x=data_source, y=width, color=data_source)) +
+  geom_boxplot() + 
+  theme_bw() +
+  theme(legend.title = element_blank()) + 
+  labs(caption= 'Spectrum widths computed with all q\'s', 
+       x = '', y= 'MF spectrum width')
+```
+
+
+
+
+```{r origwidth_vs_surrwidth_allqs, echo = FALSE, cache=TRUE}
+h %>% 
+  filter(orig_width_allqs <= 2.5) %>%
+ggplot(data = ., aes(x=orig_width_allqs, y =surr_mean_width, color=Trial )) +
+  geom_point(alpha=0.2) + 
+  geom_abline(slope=1)+
+  facet_wrap(~Trial, nrow=3) + 
+  labs(x= 'Spectrum Width (Original data)', y = 'Surrogate mean width',
+       caption = 'Spectrum widths computed with positive and negative q\'s')
+```
+
+
+
+# Statistical t-test 
+A one-sample two-sided t test comparing the original data’s spectrum width to the sample of linear surrogates’ spectrum widths was used.
+Ntoe: two-sided is default setting for t.test func
+```{r generate_tstatss, cache=TRUE, echo=FALSE}
+# Function that returns the t-test and p-value for each row
+my_test <- function(dat) {
+  # Pull the dist of surrogate widths 
+  x_all =c(dat$surr_width_surr1, dat$surr_width_surr2, dat$surr_width_surr3, dat$surr_width_surr4,
+              dat$surr_width_surr5, dat$surr_width_surr6, dat$surr_width_surr7, dat$surr_width_surr8)
+  x_posonly = c(dat$surr_width_posonly_surr1, dat$surr_width_posonly_surr2, dat$surr_width_posonly_surr3,
+                dat$surr_width_posonly_surr4, dat$surr_width_posonly_surr5, dat$surr_width_posonly_surr6,
+                dat$surr_width_posonly_surr7, dat$surr_width_posonly_surr8)
+  
+  # Pull the original data surrogate width 
+  mu_all = dat$orig_width_allqs
+  mu_posonly = dat$orig_width_posonly
+  
+  # Check if there is data 
+  if (sum(!is.na(x_all))<3) {return(list(t=NA, p=NA))}
+  if (sum(!is.na(x_posonly))<3) {return(list(t=NA, p=NA))}
+
+  # Do the t-test 
+  ttest_all = t.test(x_all, mu=mu_all ) # alternative hypothesis: true mean of distribution is outside of  mu/spect_width
+  ttest_posonly = t.test(x_posonly, mu=mu_posonly ) 
+
+  return(list(t_all = ttest_all$statistic, p_all = ttest_all$p.value,
+              t_pos = ttest_posonly$statistic, p_pos = ttest_posonly$p.value))
+}
+
+
+h = h %>%
+  rowwise %>%
+  do({
+    result = as.data.frame(.)
+    result$t_all = my_test(result)$t_all
+    result$p_all = my_test(result)$p_all
+    result$t_pos = my_test(result)$t_pos
+    result$p_pos = my_test(result)$p_pos
+    result
+  })
+
+save(h, file = paste(wdir, 'data/h_with_tstats.RData',sep=''))
 
 ```
+
+## Remove extreme outliers 
+```{r, cache=TRUE}
+quant_all = quantile(h$t_all, na.rm=TRUE, c(.01, .99))
+quant_pos = quantile(h$t_pos, na.rm=TRUE, c(.01,.99))
+
+h2 = h %>%
+  mutate(t_all_outlier = ifelse(t_all < quant_all[['1%']] | t_all > quant_all[['99%']], 1, 0),
+         t_pos_outlier = ifelse(t_pos < quant_pos[['1%']] | t_pos > quant_pos[['99%']], 1, 0))
+```
+
+Example of data (first 500 rows)
+```{r, cache=TRUE}
+h2 %>%
+  dplyr::select(PSCID, visit=id, movie, seg, Trial,
+                orig_width_posonly, orig_width_allqs, 
+                surr_min_width_posonly, surr_mean_width,
+                t_all, t_pos) %>%
+  head(500) %>%
+  datatable(filter='top') %>%
+  formatRound(columns = c('orig_width_posonly', 'orig_width_allqs', 'surr_min_width_posonly', 'surr_mean_width', 't_all', 't_pos'), digits=3)
+  
+```
+
+
+
+# Visualizations of t-statistics
+```{r}
+summary(h2$t_all)
+summary(h2 %>% filter(t_all_outlier==0) %>% pull(t_all))
+
+summary(h2$t_pos)
+summary(h2 %>% filter(t_pos_outlier==0) %>% pull(t_pos))
+
+```
+
+
+
+
+
+```{r distribution_tscores, echo=FALSE, cache=TRUE}
+plot_dat = h2 %>%
+  dplyr::select(temp, t_all_outlier, t_pos_outlier, Trial, 
+                t_all, t_pos) %>%
+  pivot_longer(cols = c(t_all, t_pos),
+               names_to = 'included_qs', values_to = 't') %>%
+  mutate(included_qs = ifelse(grepl('pos', included_qs), 
+                              'Pos Qs Only', 'All Qs'))  %>%
+  # Remove outliers
+  filter(!(t_all_outlier==1 & grepl('All', included_qs)),
+         !(t_pos_outlier==1 & grepl('Pos', included_qs)))
+
+plot_dat %>%  
+  ggplot(data = ., aes(x=t, fill=included_qs)) +
+  geom_histogram(position='identity', alpha=.5) +
+  scale_x_continuous(limits = c(-50, 50)) +
+  geom_vline(xintercept = 0) + 
+  facet_wrap(~ included_qs, nrow= 2) +
+  labs(x = 'T-statistic', 
+          caption='Negative t-stat => original data\'s width is GREATER than the distribution of surrogate widths \n Positive t-stat => original data\'s width is LESS than the distribution of surrogate widths')
+```
+
+
+```{r}
+h2 %>%
+  dplyr::select(Trial, t_all, t_all_outlier, p_all) %>%
+  filter(t_all_outlier==0) %>%
+  mutate(class = ifelse(p_all > 0.01, 'n.s.', ''),
+         class = ifelse(p_all <= 0.01 & t_all> 0, 'Positive', class),
+         class = ifelse(p_all <= 0.01 & t_all < 0, 'Negative', class)) %>%
+  group_by(Trial) %>%
+  summarize(prop_ns = sum(class=='n.s.') / n(),
+            prop_pos = sum(class=='Positive') / n(),
+            prop_neg = sum(class=='Negative') / n(),
+            n=n())
+
+temp = h2 %>%
+  dplyr::select(Trial, t_all, t_all_outlier, p_all) %>%
+  filter(t_all_outlier==0) %>%
+  mutate(class = ifelse(p_all > 0.01, 'n.s.', ''),
+         class = ifelse(p_all <= 0.01 & t_all> 0, 'Positive', class),
+         class = ifelse(p_all <= 0.01 & t_all < 0, 'Negative', class))
+
+count(temp,class)
+
+```
+
+
+```{r distribution_tscores_byTrial, echo=FALSE}
+plot_dat %>%
+  filter(grepl('All', included_qs)) %>%
+ggplot(data = ., aes(x=t, fill=Trial)) +
+  geom_histogram(alpha=0.5, position = 'identity') +
+  scale_x_continuous(limits = c(-30,30)) +
+  geom_vline(xintercept = 0) +
+  facet_wrap(~Trial, nrow=3) +
+  theme_bw() +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=14, face='bold'),
+        legend.position = 'none',
+        # Facet_wrap title 
+        strip.text = element_text(size = 12, face='bold')) +
+  labs(x = 'T-statistic', y = 'Number of time series')
+
+```
+
+
+```{r boxplot_trial, cache=TRUE}
+plot_dat %>% filter(grepl('Pos', included_qs)) %>%
+ggplot(data = ., aes(x=Trial, y=t, color=Trial)) +
+  geom_boxplot() +
+  scale_y_continuous(limits = c(-50,50)) +
+  labs(title = 'MF Spectra with Positive q\'s only')
+
+plot_dat %>% filter(!grepl('Pos', included_qs)) %>%
+ggplot(data = ., aes(x=Trial, y=t, color=Trial)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=14, face='bold'),
+        legend.position = 'none') +
+  scale_y_continuous(limits = c(-50,25)) +
+  labs(title = 'MF Spectra with all q\'s', x='', y='T-statistic')
+
+```
+
+
+
+## t- stat conditional on age 
+```{r}
+
+
+h2 %>% filter(t_all_outlier==0) %>% 
+  mutate(logp = log(p_all)) %>%
+  pull(logp) %>% quantile(seq(.05,.95, .05))
+
+b = c(-17.5283266, -10.37, -6.52, -2.9, -0.4210926)
+l = exp(b)
+l = c(formatC(l[1:2], format = "e", digits = 2), round(l[3:5],3))
+
+h2 %>% 
+  filter(t_all_outlier==0) %>%
+  mutate(logp = log(p_all)) %>%
+ggplot(data = ., aes(x=et_age, y = t_all)) +
+  geom_point(aes(color=logp), alpha=.2)+
+  geom_hline(yintercept = 0, color='red') +
+  geom_smooth() + 
+  scale_color_viridis(direction=-1,
+                      breaks = b, labels =l, option='magma', name = 'p-value') + 
+  theme_bw() + 
+    theme(axis.text = element_text(size=12),
+         axis.title = element_text(size=14, face='bold'),
+         legend.title = element_text(size=12, face='bold')) + 
+  labs(x= 'Age (months)', y = 'T-statistic')
+
+# h2 %>% filter(t_pos_outlier==0) %>%
+# ggplot(data = ., aes(x=et_age, y = t_pos)) +
+#   geom_point(alpha=.2)+
+#   geom_hline(yintercept = 0, color='red')+
+#   geom_smooth() + 
+#   labs(x= 'Age (months)', y = 'Spectra calculated with only positive q\'s')
+
+```
+
+
+
+# Summary measures
+```{r}
+model_dat = h2 %>% 
+  # NA for the case where there are no surrogates for some reason (JE000500_03)
+  filter(!is.na(t_all_outlier)) %>% 
+  filter(t_all_outlier==0) %>%
+  dplyr::select(PSCID:orig_width_allqs, 
+                surr_mean = surr_mean_width,
+                surr_min = surr_min_width,
+                surr_max = surr_max_width,
+                t= t_all, 
+                p = p_all,
+                Participant=PSCID,
+                Visit= id)
+
+```
+
+
+```{r echo=TRUE}
+mean(model_dat$orig_width_allqs, na.rm=TRUE)
+sd(model_dat$orig_width_allqs, na.rm=TRUE)
+
+mean(model_dat$surr_mean, na.rm=TRUE)
+sd(model_dat$surr_mean, na.rm = TRUE)
+
+t.test(x=model_dat$surr_mean, y=model_dat$orig_width_posonly)
+
+```
+
+# Modeling 
+Make visit-level data for modeling 
+```{r echo=FALSE}
+# 3 rows per visit (Attention, Pix, Social) for tallying the different t-test
+# 2198 rows 
+vis_level = model_dat %>%
+  mutate(t_class = ifelse(p>=0.01, 'NS', ''),
+         t_class = ifelse(p<0.01 & t<0, 'Negative', t_class),
+         t_class = ifelse(p<0.01 & t>0, 'Positive', t_class)) %>%
+  dplyr::select(Visit, movie, seg, t_class, Trial) %>% 
+  group_by(Visit, Trial) %>%
+  summarise(n_Pos = sum(t_class=='Positive'),
+            n_neg = sum(t_class=='Negative'),
+            n_ns = sum(t_class=='NS')) %>%
+  ungroup()
+
+# Pull visit- and person-level covariates to merge 
+# sess=model_dat %>%
+#   filter(!is.na(AveInterp_session)) %>%
+#   dplyr::select( Visit,AveInterp_session ,  AveMissing_session,AveLongestFix_session, 
+#                  AvePropFace_session,Age_centeredGrandmean, AvgPrecision) %>%
+#   distinct() %>%
+#   group_by(Visit) %>%
+#   mutate(n=n()) %>%
+#   filter(n==1) %>%
+#   ungroup() %>%
+#   dplyr::select(-n)
+
+# person = model_dat %>%
+#   filter(!is.na(AveAge_person)) %>%
+#   dplyr::select(Participant, AveAge_person,AveInterp_person,
+#                 AveMissing_person,  AvePrecision_person,AveLongestFix_person,
+#                 AvePropFace_person, female) %>%
+#   distinct() %>%
+#   group_by(Participant) %>%
+#   mutate(n=n()) %>%
+#   filter(n==1) %>%
+#   ungroup() %>%
+#   dplyr::select(-n)
+```
+
+```{r echo=FALSE}
+# Merge Grouping variables back with vis_level 
+temp = model_dat %>% 
+  dplyr::select(Visit, Participant, et_age) %>% 
+           distinct() %>%
+    group_by(Visit) %>%
+  mutate(n=n()) %>%
+  filter(n==1) %>%
+  ungroup() %>%
+  dplyr::select(-n)
+
+vis_level = left_join(vis_level, temp, by = 'Visit')
+
+# Merge visit- and person-level covariates with vis_level
+#vis_level = left_join(vis_level, sess, by = 'Visit')
+#vis_level = left_join(vis_level, person,  by = 'Participant')
+
+# 9 rows per participant (Condition x t-stat)
+dat2 = vis_level %>%
+  pivot_longer(cols= c(n_Pos, n_neg, n_ns), names_to='t_class', values_to='t_count') 
+
+dat2 = dat2 %>%
+  mutate(Pix = ifelse(Trial=='Pixelated', 1,0),
+         Social = ifelse(Trial=='Social', 1,0),
+         CalVer= ifelse(Trial=='Attention-Getter', 1, 0),
+         neg_dummy = ifelse(t_class == 'n_neg', 1, 0),
+         ns_dummy = ifelse(t_class == 'n_ns', 1, 0))
+
+
+AveAge = dat2 %>%
+  select(Participant, et_age) %>%
+  distinct() %>%
+  pull(et_age) %>% mean(na.rm=TRUE)
+
+dat2$Age_centeredGrandmean = dat2$et_age - AveAge
+
+dat2 = dat2 %>% filter(!is.na(Age_centeredGrandmean))
+```
+
+Poisson model modeling the count of t-stats in each category 
+```{r}
+save(dat2, file = paste(wdir, 'data/mfdfa_model_data.RData',sep=''))
+```
+
+## Effect of t-test class
+Determine if there is an effect of t-test class (Neg vs Pos, N.S. vs pos)
+```{r tstat_mod_funcform, cache=TRUE, echo=TRUE}
+glm.0 = glmer(t_count ~ 1 + (1|Participant), data = dat2, family=poisson(link='log'))
+glm.1a = glmer(t_count ~ 1 +  
+                neg_dummy +  
+                (1|Participant), data = dat2, family=poisson(link='log'))
+glm.1b = glmer(t_count ~ 1 +  
+                ns_dummy +  
+                (1|Participant), data = dat2, family=poisson(link='log'))
+
+
+anova(glm.0, glm.1a)
+anova(glm.0, glm.1b)
+
+glm.1c = glmer(t_count ~ 1 +  
+                ns_dummy +  neg_dummy + 
+                (1|Participant), data = dat2, family=poisson(link='log'))
+
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+anova(glm.0, glm.1b, glm.1c)
+summary(glm.1c)
+
+
+
+```
+
+## Interactions with t-stat class and age 
+Interactions with class of t-stat. Age 
+```{r}
+# Age x negative 
+glm.2a = glmer(t_count ~ 1 +  
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean +
+                neg_dummy:Age_centeredGrandmean +
+                (1|Participant), data = dat2, family=poisson(link='log'))
+
+#Age x NS
+glm.2b = glmer(t_count ~ 1 +  
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean +
+                ns_dummy:Age_centeredGrandmean + 
+                (1|Participant), data = dat2, family=poisson(link='log'))
+
+# Both interactions
+glm.2c = glmer(t_count ~ 1 +  
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean +
+                neg_dummy:Age_centeredGrandmean + ns_dummy:Age_centeredGrandmean + 
+                (1|Participant), data = dat2, family=poisson(link='log'))
+
+anova(glm.1c, glm.2a, glm.2b, glm.2c)
+summary(glm.2c)
+
+# interpret age interaction (imaging there was a 2mo old vs to 10 month old)
+exp(-0.232396) * exp(-0.012788 *2)
+exp(-0.232396) * exp(-0.012788 *10)
+
+```
+
+## Effect of stim type and class 
+Does effect of t-stat class intearct with stimulus type? 
+```{r}
+# Interaction of Condition x Negative
+glm.3a = glmer(t_count ~ 1  + 
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean + 
+                neg_dummy:Age_centeredGrandmean + ns_dummy:Age_centeredGrandmean + 
+                # Intearctions with stimulus type 
+                Pix + CalVer + 
+                neg_dummy:Pix + 
+                neg_dummy:CalVer + 
+                (1|Participant), 
+                data = dat2, family=poisson(link='log'))
+# Interaction of Condition x N.s.
+glm.3b = glmer(t_count ~ 1  + 
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean + 
+                neg_dummy:Age_centeredGrandmean + ns_dummy:Age_centeredGrandmean + 
+                # Intearctions with stimulus type 
+                Pix + CalVer + 
+                ns_dummy:Pix + 
+                ns_dummy:CalVer + 
+                (1|Participant), 
+                data = dat2, family=poisson(link='log'))
+
+# Interaction of Condition x N.s.
+glm.3c = glmer(t_count ~ 1  + 
+                neg_dummy +  ns_dummy + 
+                # Interactions with age
+                Age_centeredGrandmean + 
+                neg_dummy:Age_centeredGrandmean + ns_dummy:Age_centeredGrandmean + 
+                # Intearctions with stimulus type 
+                Pix + CalVer + 
+                ns_dummy:Pix + 
+                ns_dummy:CalVer + 
+                neg_dummy:Pix + 
+                neg_dummy:CalVer +
+                (1|Participant), 
+                data = dat2, family=poisson(link='log'))
+
+mynames <- as.character (c('glm.2c', 'glm.3a', 'glm.3b'))
+myaicc  <- ICtab(logLik(glm.2c), logLik(glm.3a),logLik(glm.3b), 
+		     type ="AICc",
+		     nobs = nrow(na.omit(dat2)),
+		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
+myaicc
+```
+
+## Visualize model results 
+Model with age x t-stat class, and Negative x t-stat class is the best fitting model
+```{r age_tstat_interaction_plot, cache=TRUE}
+summary(glm.3a)
+
+dat2 = dat2 %>%
+  mutate(age_group = ifelse(et_age <= 12, '1', ''),
+         age_group = ifelse(et_age >  12 & et_age <=24, '2', age_group),
+         age_group = ifelse(et_age >  24 & et_age <=36, '3', age_group),
+         age_group = ifelse(et_age >  36, '4', age_group))
+
+dat2$t_class2 = factor(dat2$t_class, levels = c('n_neg', 'n_Pos', 'n_ns'), 
+                      labels = c('Negative', 'Positive', 'N.S.'))
+
+# Plot predicted probability of negative t-statistic
+dat2$yhat = predict(glm.3a, newdata = dat2, type='response')
+
+
+# ggeffect returns  marginal means (predicted values), since the effects are "marginalized" (or "averaged") over the levels of factors. 
+ave_age = dat2 %>% dplyr::select(Visit, et_age) %>% distinct() %>% pull(et_age) %>% mean()
+
+# Interactions with age 
+marg_neg_age = ggeffect(glm.3a, terms = c('Age_centeredGrandmean', 'neg_dummy'))
+plot_dat_neg_age = data.frame(marg_neg_age)
+colnames(plot_dat_neg_age)[6] = 'Negative_t'
+
+marg_ns_age = ggeffect(glm.3a, terms = c('Age_centeredGrandmean', 'ns_dummy'))
+plot_dat_ns_age = data.frame(marg_ns_age)
+colnames(plot_dat_ns_age)[6] = 'NS_t'
+
+marge_pos_age = ggeffect(glm.3a, terms = c('Age_centeredGrandmean'))
+plot_dat_pos_age = data.frame(marge_pos_age)
+colnames(plot_dat_pos_age)[6] = 'Positive_t'
+
+plot_dat = rbind(plot_dat_neg_age %>%
+                   filter(Negative_t==1) %>%
+                   mutate(class = 'negative') %>%
+                   dplyr::select(-Negative_t), 
+                 plot_dat_ns_age %>%
+                   filter(NS_t==1) %>%
+                   mutate(class = 'ns') %>%
+                   dplyr::select(-NS_t), 
+                 plot_dat_pos_age %>%
+                   mutate(class = 'positive') %>%
+                   dplyr::select(-Positive_t))
+
+head(plot_dat)
+plot_dat$class = ordered(plot_dat$class, levels = c('ns', 'negative', 'positive'))
+
+ggplot(data = plot_dat, aes(x=x + ave_age, y=predicted, color=class)) +
+   geom_line() +
+   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=class),alpha=.2 ) +
+  scale_x_continuous(breaks = seq(0,64,4)) +
+  scale_colour_manual(values = c('grey69', 'maroon', 'springgreen4'), guide=FALSE) + 
+  scale_fill_manual(values = c('grey69', 'maroon', 'springgreen4'), 
+                    labels = c('Non-significant', 't-stat=Negative', 't-stat=Positive')) + 
+  theme_bw() + 
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=14, face='bold'),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14, face='bold'),
+        #legend.position = c(.1, .1),
+        legend.background = element_rect(colour='black'))+
+  labs(title='Marginal means with 95% CI', x='Age (months)', 
+       y='Estimated log-odds')
+
+
+```
+
+Plot Condition x Pix
+```{r conditionxpix_fig, cache=TRUE}
+# Interactions with Neg x Pix  
+marg_pix_neg = ggeffect(glm.3a, terms = c('Pix', 'neg_dummy'))
+plot_dat_pix_neg = data.frame(marg_pix_neg)
+plot_dat_pix_neg=plot_dat_pix_neg %>%
+  rename(Condition = x, 
+         Negative_t = group) %>%
+  filter(Condition==1) %>%
+  mutate(Condition='Pixelated')
+  
+
+# Interactions with Neg x CalVer
+marg_calver_neg = ggeffect(glm.3a, terms = c('CalVer', 'neg_dummy'))
+plot_dat_calver_neg = data.frame(marg_calver_neg)
+plot_dat_calver_neg=plot_dat_calver_neg %>%
+  rename(Condition = x, 
+         Negative_t = group) %>%
+  filter(Condition==1) %>%
+  mutate(Condition='Attention-Cue')
+
+# Social (reference)
+marg_social_neg = ggeffect(glm.3a, terms = c('neg_dummy'))
+plot_dat_social_neg = data.frame(marg_social_neg)
+plot_dat_social_neg = plot_dat_social_neg %>%
+  rename(Condition=group, # only one term in this case 
+         Negative_t = x) %>%
+  filter(Condition==1) %>%
+  mutate(Condition = 'Social')
+
+plot_dat = rbind(plot_dat_pix_neg, plot_dat_calver_neg, plot_dat_social_neg)
+
+plot_dat = plot_dat %>%
+  mutate(Negative_t = ordered(Negative_t, 
+                              levels = c(0,1), labels=c('Positive', 'Negative'))) 
+
+
+head(plot_dat)
+
+# plot_dat$class = ordered(plot_dat$class, levels = c('ns', 'negative', 'positive'))
+
+ggplot(data = plot_dat, aes(x = Negative_t, y=predicted, fill=Condition)) + 
+  geom_bar(position='dodge', stat='identity') +
+  geom_errorbar(aes(x=Negative_t, ymin=conf.low, ymax=conf.high), position='dodge') +
+  theme_bw() + 
+  theme(axis.text = element_text(size=12, face= 'bold'),
+        axis.title = element_text(size=14, face='bold'),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14, face='bold'),
+        legend.background = element_rect(colour='black')) + 
+  labs(x = 'T-statistic type', y = 'Predicted log-odds', caption='Error bars are 95% Confident Intervals') 
+
+plot_dat$Negative_t = ordered(plot_dat$Negative_t, levels = c('Negative', 'Positive'))
+ggplot(data = plot_dat, aes(x = Condition, y=predicted, fill=Negative_t)) + 
+  geom_bar(position='dodge', stat='identity', color='black') +
+  geom_errorbar(aes(x=Condition, ymin=conf.low, ymax=conf.high), position='dodge') +
+  scale_fill_manual(values = c('Negative'='red4', 'Positive'='darkolivegreen')) +
+  theme_bw() + 
+  theme(axis.text = element_text(size=14, face= 'bold'),
+        axis.title = element_text(size=14, face='bold'),
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=14, face='bold'),
+        legend.background = element_rect(colour='black')) + 
+  labs(x = '', y = 'Predicted log-odds', caption='Error bars are 95% Confident Intervals', fill='T-stat') 
+```
+
+```{r}
+# Final models
+mods = c(glm.0 ,
+glm.1c, # Main effect of neg & ns 
+glm.2c, # stim type x age
+glm.3a) # Neg x Pix
+save(file = paste(wdir, '/analysis/widthModels.Rdata', sep = ''), mods)
+
+```
+
+
+
 
 ```{r}
 knit_exit()
 ```
 
 
-# Statistical test 
-A one-sample two-sided t test comparing the original data’s spectrum width to the sample of linear surrogates’ spectrum widths was used.
-```{r}
-# Pull widths 
-h %>%
-  select(id, movie, seg, date, Trial, female, h,
-         longestFixDur, propInterp, propMissing, et_age, 
-         orig_width = spect_width_posonly,
-         surr1 = surr1_posonly, 
-         surr2 = surr1_posonly, 
-         surr3 = surr1_posonly, 
-         surr4 = surr1_posonly, 
-         surr5 = surr1_posonly, 
-         surr6 = surr1_posonly, 
-         surr7 = surr1_posonly, 
-         surr8 = surr1_posonly, 
-         )
+Proportion of time series with significant t-test
+```{r echo=TRUE}
 
-temp = h[1,]
-x=c(temp$surr_1, temp$surr_2, temp$surr_3, temp$surr_4, temp$surr_5, temp$surr_6, temp$surr_7, temp$surr_8)
-mu = temp$spect_width
-t = t.test(x, mu=mu,alternative='less' ) # alternative hypothesis: true mean of distribution is outside of  mu/spect_width
+summ = model_dat %>% 
+  filter(!is.na(p)) %>% 
+  dplyr::select(Participant, Visit, movie, seg, Trial, p , t, et_age) %>%
+  mutate(sig = ifelse(p < 0.01, 1, 0),
+         t_sign = ifelse(t<0, 'Negative','Positive')) %>%
+  group_by(sig, t_sign) %>%
+  summarize(n=n()) %>%
+  ungroup()
+summ
+```
+- `r summ %>% filter(sig==1) %>% pull(n) %>% sum()` out of `r  summ %>% pull(n) %>% sum()` time series had a significant t-statistic (with significance defined as p<0.01).  
+- 
+
+# Modeling 
+Estimate linear reduction in significant negative t-stats. 
+```{r}
+model_dat=model_dat %>%
+  mutate(sig_p = ifelse(p < 0.01, 1, 0),
+         t_sign = ifelse(t<0, 'Negative','Positive')) %>%
+  mutate(sign = ifelse(sig_p==0, 'NS', ''),
+         sign = ifelse(sig_p==1 & t_sign=='Positive', 'Positive', sign),
+         sign = ifelse(sig_p==1 & t_sign=='Negative', 'Negative', sign)) %>%
+  mutate(Neg_t = ifelse(sign=='Negative', 1, 0),
+         Ns_t = ifelse(sign=='NS', 1, 0)) 
+```
+
+
+
+
+```{r basemods, cache=TRUE}
+lmer.0=lmer(t~1+(1|Participant)+(1|Visit), 
+            data=model_dat, 
+            REML=FALSE,
+            lmerControl(optimizer='Nelder_Mead'))
+
+lmer.1=lmer(t~1+(1|Participant)+(1|Visit), 
+            data=model_dat, 
+            REML=FALSE,
+            lmerControl(optimizer='Nelder_Mead'))
 
 ```
 

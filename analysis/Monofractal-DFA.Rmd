@@ -9,7 +9,7 @@ output:
 ---
 
 
-```{r message=FALSE, warning = FALSE, echo = FALSE}
+```{r message=FALSE, warning = FALSE, echo = FALSE, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 options(width = 400)
 
@@ -28,6 +28,7 @@ library(lme4)
 library(sjPlot)
 library(lmerTest)
 library(interactions)
+library(ggstance)
 library(cowplot)
 
 library(moments) 
@@ -441,7 +442,7 @@ anova(lmer.4, lmer.5, lmer.6)
 
 # Final model
 
-## Marginal effect of age 
+##  effect of age 
 ```{r plot_finalmod_age, cache=TRUE}
 pred = ggpredict(lmer.6, 
           # terms: names of those terms from model, for which marginal effects should be displayed.
@@ -449,13 +450,22 @@ pred = ggpredict(lmer.6,
           terms = 'Age_centeredGrandmean [all]', 
           type='random')
 
+ymin = mean(clean_dat$h, na.rm=TRUE) - 2*sd(clean_dat$h, na.rm=TRUE)
+ymax = mean(clean_dat$h, na.rm=TRUE) + 2*sd(clean_dat$h, na.rm=TRUE)
 #https://cran.r-project.org/web/packages/ggeffects/vignettes/ggeffects.html
 ggplot(data=clean_dat, aes(x=Age_centeredGrandmean+AveAge, y = h)) +
   geom_jitter(alpha=.2) +
-  geom_line(data=pred, aes(x=x+AveAge, y = predicted), color='red') +
+  geom_line(data=pred, aes(x=x+AveAge, y = predicted), color='cyan3', size=1.5) +
+  geom_vline(xintercept = 36, linetype='dashed', 
+             color = 'red', size = 1.2) +
+  scale_y_continuous(limits = c(ymin, ymax)) +
+  scale_x_continuous(breaks = c(seq(0, 60, 4))) +
   labs(title='Raw data with marginal effect of age plotted',
        x='Age (months)', y = expression(Raw~alpha)) +
-  theme_bw()
+  theme_bw() +
+  theme(axis.text.y = element_text(size=13),
+        axis.text.x = element_text(size=13),
+        axis.title = element_text(size=15, face='bold'))
 
 ggplot(data=pred, aes(x=x, y = predicted)) +
   geom_line(aes(y=predicted)) + 
@@ -464,9 +474,36 @@ ggplot(data=pred, aes(x=x, y = predicted)) +
        y=expression(Predicted~alpha)) + theme_bw()
 ```
 
-## Marginal effect of stimulus types
+##  effect of stimulus types
+```{r}
+# pred_cal = ggeffect(lmer.6, 
+#           terms = c('CalVer [all]'), 
+#           type='random')
+# pred_pix = ggeffect(lmer.6, 
+#           terms = c('Pix [all]'), 
+#           type='random')
+# 
+# pred_cal_df = data.frame(trial = pred_cal$x, h=pred_cal$predicted,   
+#                          cu = pred_cal$conf.high, cl = pred_cal$conf.low)
+# pred_pix_df = data.frame(trial = pred_cal$x, h=pred_cal$predicted,   
+#                          cu = pred_cal$conf.high, cl = pred_cal$conf.low)
+# 
+# pred_cal_df = pred_cal_df %>%
+#   filter(trial==1) %>% 
+#   mutate(trial =  'Attention-Getter')
+# 
+# pred_pix_df = pred_pix_df %>%
+#   mutate(trial = ifelse(trial==0, 'Social', 'Pixelated'))
+# 
+# plot_dat = rbind(pred_cal_df, pred_pix_df)
+
+
+```
+
+
+
 ```{r plot_finalage_by_stimtype}
-# Get predicted marginal effects for Age xCondition effects 
+# Get predicted effects for Age xCondition effects 
 pred_cal = ggpredict(lmer.6, 
           # terms: names of those terms from model, for which marginal effects should be displayed.
           # [all] includes quadratic too
@@ -521,12 +558,31 @@ ggplot(data=clean_dat, aes(x=Age_centeredGrandmean+AveAge, y = h)) +
                                 mean(clean_dat$h)+2*sd(clean_dat$h))) +
   theme_bw()
 
+
+ggplot(data=plot_dat,  aes(x=age+AveAge, y = h, color=Trial)) +
+  geom_line(size = 1.2) +
+  labs(x='Age (months)', y = expression(Raw~alpha)) +
+  scale_y_continuous(limits = c(ymin, ymax)) +
+  scale_x_continuous(breaks = seq(0,60,4)) +
+  theme_bw() + 
+    theme(axis.text.y = element_text(size=13),
+        axis.text.x = element_text(size=13),
+        axis.title = element_text(size=15, face='bold'),
+        legend.position = c(0.8, 0.3),
+        legend.title = element_blank(),
+        legend.text = element_text(size=15),
+        legend.background = element_rect(color='black'))
+
+
 ```
 
 ## Simples slopes
-```{r}
+```{r cache=TRUE, warning=FALSE}
 clean_dat = clean_dat %>%
-  mutate(Age_centeredGrandmean2 = Age_centeredGrandmean^2)
+  mutate(Age_centeredGrandmean2 = Age_centeredGrandmean^2,
+         Social_dummy = ifelse(Trial=='Social', 1, 0),
+         Calver_dummy = ifelse(Trial=='Attention-Getter', 1, 0),
+         Pix_dummy = ifelse(Trial=='Pixelated', 1, 0))
 
 # Re-make model with variable for age2 for sim slopes package 
 lmer.fin = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
@@ -544,32 +600,142 @@ lmer.fin = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 +
        (1|Participant) + (1|Visit),
       data=clean_dat, REML=FALSE)
 
+lmer.fin.social_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Social_dummy + 
+       Social_dummy:Age_centeredGrandmean + Social_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+
+lmer.fin.calver_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Calver_dummy + 
+       Calver_dummy:Age_centeredGrandmean + Calver_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+
+lmer.fin.pixelated_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Pix_dummy + 
+       Pix_dummy:Age_centeredGrandmean + Pix_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
 
 ```
 
 
-```{r simslopes, cache=TRUE, echo=TRUE}
+```{r simslopes, cache=TRUE, echo=TRUE, warning=FALSE}
 
 # sim_slopes returns 
 # Slopes: A table of coefficients for the focal predictor at each value of the moderator
 # ints = A table of coefficients for the intercept at each value of the moderator
-ss_PixAge = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean, 
-           modx = Pix, modx.values = c(0,1), johnson_neyman=FALSE)
-ss_CalAge = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean, 
-           modx = CalVer, modx.values = c(0,1), johnson_neyman=FALSE)
-
-ss_PixAge2 = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean2, 
-           modx = Pix, modx.values = c(0,1), johnson_neyman=FALSE)
-
-ss_CalAge2 = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean2, 
-           modx = CalVer, modx.values = c(0,1), johnson_neyman=FALSE)
-
-ss_PixAge$slopes
-ss_CalAge$slopes
-ss_PixAge2$slopes
-ss_CalAge2$slopes
+# ss_PixAge = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean, 
+#            modx = Pix, modx.values = c(0,1), johnson_neyman=FALSE)
+# ss_CalAge = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean, 
+#            modx = CalVer, modx.values = c(0,1), johnson_neyman=FALSE)
+# 
+# 
+# ss_PixAge2 = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean2, 
+#            modx = Pix, modx.values = c(0,1), johnson_neyman=FALSE)
+# 
+# ss_CalAge2 = sim_slopes(model=lmer.fin, pred=Age_centeredGrandmean2, 
+#            modx = CalVer, modx.values = c(0,1), johnson_neyman=FALSE)
+# 
+# 
+# 
+# ss_PixAge$slopes
+# ss_CalAge$slopes
+# 
+# ss_PixAge2$slopes
+# ss_CalAge2$slopes
 ```
 
+Interactions with linear age 
+```{r simslopes_linear, cache=TRUE, echo=TRUE, warning=FALSE}
+ss_SocAge = sim_slopes(model=lmer.fin.social_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Social_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_SocAge$slopes
+
+
+ss_PixAge = sim_slopes(model=lmer.fin.pixelated_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Pix_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_PixAge$slopes
+
+
+ss_CalverAge = sim_slopes(model=lmer.fin.calver_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Calver_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_CalverAge$slopes
+```
+
+
+
+Interactions with quadratic age 
+```{r sim_slopes_quad, cache=TRUE, echo=TRUE, warning=FALSE}
+ss_SocAge2 = sim_slopes(model=lmer.fin.social_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Social_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_SocAge2$slopes
+
+ss_PixAge2 = sim_slopes(model=lmer.fin.pixelated_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Pix_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_PixAge2$slopes
+
+ss_CalverAge2 = sim_slopes(model=lmer.fin.calver_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Calver_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+ss_CalverAge2$slopes
+```
+
+## Linear hypothesis testing
+Is the linear effect of age different for Pix compared to social?
+```{r}
+car::linearHypothesis(lmer.6, 'Age_centeredGrandmean:Pix=Age_centeredGrandmean')
+```
+
+Is the linear effect of age different for CalVer compared to social?
+```{r}
+car::linearHypothesis(lmer.6, 'Age_centeredGrandmean:CalVer=Age_centeredGrandmean')
+```
+
+
+
 ## Proportion of variance explained
+```{r}
+pred_out<-predictInterval(merMod = lmer.6, newdata = clean_dat,
+                          level = 0.95, n.sims = 1000,
+                          stat = "median",
+                          type="linear.prediction",
+                          include.resid.var = TRUE)
+clean_dat$yhat1=pred_out$fit
+
+#clean_dat$yhat2 = predict(lmer.2, newdata=clean_dat)
+R = cor(clean_dat$h, clean_dat$yhat1, use = "complete.obs")
+R^2 
+```
 
 

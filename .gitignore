@@ -46,6 +46,8 @@ data/calver
 data/*.txt
 data/*.mat
 data/*.csv
+data/*Rdata
+
 
 settings/settings_scmin4_scres4.mat
 settings/settings_scmin8_scres8.mat
@@ -71,3 +73,6 @@ data/individual_data/.DS_Store
 
 analysis/*cache/
 analysis/*files/
+analysis/*Rdata
+
+tables/

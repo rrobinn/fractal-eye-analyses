@@ -44,6 +44,7 @@ library(rmarkdown)
 library(DT)
 library(lubridate)
 library(DiagrammeR)
+library(AICcmodavg)
 source('/Users/sifre002/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
 ```
 
@@ -983,7 +984,8 @@ h5$propFace_segment_groupmeancentered = h5$propFace_seg - h5$AvePropFace_movie
 
 ```
 
-# Final tally of cases before any exlcusionary criteria are applied 
+# Final tally of cases  
+Individuals 
 ```{r}
 # Count of individuals from each cohort
 h5 %>% 
@@ -991,11 +993,31 @@ h5 %>%
   distinct() %>%
   count(cohort2)
 
+h5 %>% 
+  select(PSCID, cohort_bin) %>%
+  distinct() %>%
+  count(cohort_bin)
+```
+
+Visits
+```{r}
 # Count of visits from each cohort
 h5 %>% 
   select(id, cohort2) %>%
   distinct() %>%
   count(cohort2)
+
+# Count of visits from each cohort
+h5 %>% 
+  select(id, cohort_bin) %>%
+  distinct() %>%
+  count(cohort_bin)
+```
+
+```{r}
+
+
+
 
 h5 %>%
   group_by(cohort_bin) %>%

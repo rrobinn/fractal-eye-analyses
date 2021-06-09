@@ -747,6 +747,11 @@ scans = loris_vis2 %>%
 table(scans$cohort2)
 ```
 
+How many scans are there with and without infants < 9 months? 
+```{r echo=TRUE}
+sum(scans$pconn_visit_age<9)
+```
+
 
 ```{r}
 scans_summ = scans %>%

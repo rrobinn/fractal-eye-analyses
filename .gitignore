@@ -38,7 +38,7 @@ out/
 Figs/
 #data/individual_data/.DS_Store
 data/settings/
-data/individual_data/
+#data/individual_data/
 data/settings.mat
 data/Dissertation_ParticList.csv
 data/dev

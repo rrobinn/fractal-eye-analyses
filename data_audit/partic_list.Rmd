@@ -15,7 +15,8 @@ library(DT)
 library(miceadds)
 library(stringr)
 library(lubridate)
-
+select <- dplyr::select
+filter <-dplyr::filter
 wdir = '~/Documents/Github/fractal-eye-analyses/'
 options(max.print="75")
 opts_chunk$set(echo=FALSE,
@@ -155,6 +156,13 @@ dsa = dsa %>%
                          CandID),
          CandID = as.integer(CandID))
 indiv_dat = bind_rows(indiv_dat, dsa)
+
+# 
+# dsa2 = dsa %>%
+#   filter(!PSCID %in% loris_vis$PSCID) %>%
+#   mutate(DOB = as.character(DOB))
+# 
+# temp = bind_rows(loris_vis, dsa2)
 ```
 
 ### List of missing cohort, DOB or sex for anyone in `indiv_dat`.  

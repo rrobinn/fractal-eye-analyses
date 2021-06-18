@@ -1,7 +1,7 @@
 function [success] = runMFDFA_surrogates(path, varargin)
 %% runMFDFA_surrogates
 % runs MFDFA for surrogate time series for one individual.
-
+rng(1234)
 
 %% Default paths
 % For paths to set correctly, must by in "fractal-eye-analyses" folder

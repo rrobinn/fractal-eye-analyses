@@ -14,10 +14,8 @@ This repo contains sample eye-tracking data collected from the same infant, at d
 <img src="https://github.com/rrobinn/fractal-eye-analyses/blob/master/images/sample_et.png" alt="Eye tracking example" width="260" height="150">
 
 ## Processing
-Folder contains Matlab code for processing eye-gaze data. Broadly, this involves extracting the (x,y) coordinates of where the infant is looking, and creating a 1-dimensional time series of 
-the amplitude of the infant's gaze.
-<img src="https://github.com/rrobinn/fractal-eye-analyses/blob/master/images/xy_coord.png" alt="(x,y) coordinates" width="260" height="150">
-<img src="https://github.com/rrobinn/fractal-eye-analyses/blob/master/images/amplitude.png" alt="Amplitude" width="260" height="150">
+For code that processes the data prior to the analyses, see my [process_et_data repo](https://github.com/rrobinn/process-et-data).  
+
 
 ## MFDFA
 Folder contains code adapted from: Espen Ihlen (2020). Multifractal detrended fluctuation analyses (https://www.mathworks.com/matlabcentral/fileexchange/38262-multifractal-detrended-fluctuation-analyses), MATLAB Central File Exchange. Retrieved January 29, 2020.  

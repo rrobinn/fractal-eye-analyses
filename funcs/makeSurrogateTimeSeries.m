@@ -1,5 +1,6 @@
 function [success] = makeSurrogateTimeSeries(path, varargin)
 %path = '/Users/sifre002/Desktop/fractal-data/JE000084_04/v01/EU-AIMS_counter_2/';
+rng(1234)
 n_surrogates = 8;
 success=0;
 %% Default settings

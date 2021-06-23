@@ -45,14 +45,14 @@ library(DT)
 library(lubridate)
 library(DiagrammeR)
 library(AICcmodavg)
-source('/Users/sifre002/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
+source('~/Documents/GitHub/fractal-eye-analyses/funcs/compareNA.R')
 ```
 
 # Read data
 
 ```{r read_data, echo=TRUE, message=FALSE, warning=FALSE}
-# List of ET sessions linked with DOB, Sex, etc. 
-particList = read_csv(file = paste(wdir, 'data_audit/potential_etvis_in_loris.csv', sep=''))
+# List of ET sessions linked with age, Sex, etc. 
+particList = read_csv(file = paste(wdir, 'data/partic_list.csv', sep=''))
 
 # Concatenated output Output from pipeline in fractal-eye-analyses-MFDFA/
 h <- read_csv(file = paste(wdir, 'data/h_out.txt', sep = ''))
@@ -114,8 +114,6 @@ aoi_data = aoi_data %>%
   ungroup() %>%
   filter(n==1) %>%
   select(-n)
-
-
 ```
 
 
@@ -183,7 +181,6 @@ h = h %>%
   mutate(et_age = as.numeric(date-DOB) / 30.436875 )
 
 ```
-
 
 Cases missing from particList. Remove for now 
 ```{r}

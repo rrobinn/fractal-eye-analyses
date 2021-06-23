@@ -36,21 +36,11 @@ out/
 
 # data directories
 Figs/
-#data/individual_data/.DS_Store
-data/settings/
-
-data/settings.mat
-data/Dissertation_ParticList.csv
 data/dev
 data/calver
-data/*.txt
 data/*.mat
-data/*.csv
 data/*Rdata
-
-
-settings/settings_scmin4_scres4.mat
-settings/settings_scmin8_scres8.mat
+iaaft_data/
 
 
 data/misc_queries/*
@@ -59,21 +49,15 @@ data/misc_queries/20201203_Robin_DOBs_Eyetracking.xlsx
 data/misc_queries/cohort-2020-12-07.csv
 data/misc_queries/age-2020-12-03.csv
 
-data_audit/*_files/
-data_audit/*_cache/
-data_audit/slurm_out_preptobii.R
-data_audit/FileAudit
-data_audit/*.csv
-data_audit/*visit_dates*
 *.Rproj*
 .Rproj.user
 data/individual_data/.DS_Store
 *.R
 data/individual_data/.DS_Store
 
-analysis/*cache/
-analysis/*files/
-analysis/*Rdata
+scripts/*cache/
+scripts/*files/
+scripts/*Rdata
 
 tables/
 

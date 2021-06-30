@@ -1,7 +1,7 @@
 function concatenate_H_output(path, varargin)
 
 close all
-%% Override defaults if varargin>0 
+%% Override defaults if varargin>0
 outputFileName = 'h_out.txt'; % Name for output file with concatenated data
 matFileName = 'h_scres8_scmin8.mat'; % Name of .mat file to load and concatenate into one data structure
 if nargin>1
@@ -10,13 +10,13 @@ if nargin>1
             case 'path'
                 path = varargin{v+1};
             case 'matFileName'
-                matFileName = varargin{v+1}; 
+                matFileName = varargin{v+1};
             case 'outputFileName'
                 outputFileName = varargin{v+1};
             otherwise
                 error(['Input ' varargin{v} 'not recognized']);
         end
-    end  
+    end
 end
 
 %%
@@ -42,7 +42,6 @@ for f = 1:size(files,1)
             scmaxDiv = -999;
         end
         
-        % get id
         if length(strsplit(out{1,1}, '_'))==3 % full id w/ session is in out
             id = out{1,1};
         else
@@ -53,10 +52,10 @@ for f = 1:size(files,1)
         % write trial info into separate file
         for s = 1:size(out,1)
             if out{s,8} == 1 % 8th column is flagged w/ 1 if the time series was too short. Replace spectrum widths with -9999
-                 temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
+                temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
                     ',',num2str(out{s,5}),',', num2str(out{s,6}), ',' , num2str(out{s,7}), ...
                     ',',num2str(out{s,8}), ',' , num2str(out{s,9}), ',',num2str(out{s,10}), ...
-                    ',-9999,-9999,-9999,-9999,-9999,-9999,-9999' ...    
+                    ',-9999,-9999,-9999,-9999,-9999,-9999,-9999' ...
                     ',',num2str(scmin), ',', num2str(scmaxDiv), ',',num2str(scres)];
             else
                 temp = [id ',' out{s,2} ',' num2str(out{s,3}), ',' num2str(out{s,4}), ...
@@ -73,8 +72,13 @@ for f = 1:size(files,1)
         
         
     catch ME
-        readErrors = horzcat(readErrors, [files(f).name ':' ME.message]);
-        disp([files(f).name ':' ME.message]);
+        if length(out)==0
+            readErrors = horzcat(readErrors, [files(f).folder ': No DFA data in .mat file to write']);
+            
+        else
+            readErrors = horzcat(readErrors, [files(f).folder ':' ME.message]);
+            disp([files(f).name ':' ME.message]);
+        end
     end
 end
 readErrors=readErrors';

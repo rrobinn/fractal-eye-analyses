@@ -58,7 +58,11 @@ for f = 1:size(files,1)
              fprintf(fid, '%s \n', temp_out);
          end
    catch ME
-        readErrors = horzcat(readErrors, ME.message);
+        if sum(cellfun(@isempty, segmentedData)) == length(segmentedData)
+             readErrors = horzcat(readErrors,  [files(f).folder ': No data in .mat file to write']);
+        else
+            readErrors = horzcat(readErrors, [files(f).folder ':' ME.message]);
+        end
         disp(['ERROR Did not find file for ' files(f).name]);
    end
 end

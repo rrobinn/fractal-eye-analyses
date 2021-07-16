@@ -8,6 +8,16 @@ output:
     self_contained: true
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../")
+
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+```
+
 ```{r message=FALSE, warning = FALSE, echo = FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 
@@ -37,17 +47,12 @@ ctrl <- lmeControl(opt='optim')
 ```
 
 # About
-To-do:  
 
 ```{r echo=TRUE}
-wdir = '~/Documents/Github/fractal-eye-analyses/'
-source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
+source('funcs/compareNA.R')
 
 # Read cleaned data
-clean_dat = read.csv( paste(wdir, 'data/2021-04-01-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
-
-
-
+clean_dat = read.csv( 'data/2021-07-07-h_clean.csv', stringsAsFactors = FALSE )
 ```
 
 ```{r}
@@ -65,7 +70,7 @@ clean_dat = clean_dat %>%
 
 # Get grand mean for average age
 AveAge = clean_dat %>%
-  dplyr::select(id, et_age) %>%
+  select(id, et_age) %>%
   distinct() %>%
   pull(et_age) %>%
   mean()
@@ -77,22 +82,13 @@ model_dat = clean_dat %>%
   filter(Trial!='Attention-Getter') %>%
   # Rename RE groupings for table 
   mutate(Participant = PSCID, Visit=id)
-
-# Make variables for avg face looking grouped by condition
-
-
 ```
 
-```{r}
+```{r include=FALSE}
+# Missing face count for anyone?
 model_dat %>%
   filter(is.na(faceCount)) %>%
-  dplyr::select(Participant, Visit, movie, seg, longestFixDur, h)
-
-model_dat %>%
-  filter(is.na(faceCount)) %>%
-  pull(Visit) %>%
-  unique()
-
+  select(Participant, Visit, movie, seg, longestFixDur, h)
 ```
 
 
@@ -167,36 +163,38 @@ glm.2 <- glmer(faceCount / allCount ~ 1 +
     (1 | Participant),
     family = 'binomial', weights = allCount, data = model_dat)
 
-mynames <- as.character (c("glm.0", "glm.1")) # model numbers as characters
-myaicc  <- ICtab(logLik(glm.0), logLik(glm.1),
-		     type ="AICc",
-		     nobs = nrow(na.omit(model_dat)),
-		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-myaicc 
+myAIC <-aictab(
+  cand.set = list(glm.0, glm.1),
+  modnames = c("Unconditional Means", "Lin. Age"))
 
-summary(glm.1)
-
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
 ```
 
+```{r}
+summary(glm.1)
+```
+
+
 ## Functional form - RE  
-We add an RE for age 
+RE for age 
 ```{r, echo=TRUE, cache=TRUE}
 glm.1b <- glmer(faceCount / allCount ~ 1 + 
                  Age_centeredGrandmean  + 
     (1 + Age_centeredGrandmean| Participant), 
     family = 'binomial', weights = allCount, data = model_dat)
 
-mynames <- as.character (c("glm.0", "glm.1", "glm.1b")) # model numbers as characters
-myaicc  <- ICtab(logLik(glm.0), logLik(glm.1), logLik(glm.1b),
-		     type ="AICc",
-		     nobs = nrow(na.omit(model_dat)),
-		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-myaicc 
+myAIC <-aictab(
+  cand.set = list(glm.0, glm.1, glm.1b),
+  modnames = c("Unconditional Means", "FE Age", "FE + RE age"))
 
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
+
+anova(glm.1b, glm.1)
 anova(glm.1b, glm.0)
-
 ```
 
 How much does face-looking increase with age?
@@ -241,15 +239,21 @@ glm.2b <- glmer(faceCount / allCount ~ 1 +
                 family = 'binomial', weights = allCount, data = model_dat)
 
 
-mynames <- as.character (c("glm.2", "glm.2b")) # model numbers as characters
-myaicc  <- ICtab(logLik(glm.2), logLik(glm.2b),
-		     type ="AICc",
-		     nobs = nrow(na.omit(model_dat)),
-		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-myaicc 
+myAIC <-aictab(
+  cand.set = list(glm.1b, glm.2, glm.2b),
+  modnames = c("FE + RE Age", "All covariates", "Sig. covariates"))
+
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
+
 # removing n.s. covariates (male) does not worsten model fit 
 ```
+
+```{r}
+anova(glm.2b, glm.1b)
+```
+
 
 ## Pix  
 We add FE and RE of Pix 
@@ -265,7 +269,7 @@ glm.3a = glmer(faceCount / allCount ~ 1 +
                  (1 + Age_centeredGrandmean| Participant), 
                family = 'binomial', weights = allCount, data = model_dat)
 
-# FE and RE of Pix 
+# FE and RE of Pix (failed to converge)
 glm.3b <- glmer(faceCount / allCount ~ 1 + 
                            Age_centeredGrandmean + 
                            # Segment level
@@ -278,13 +282,13 @@ glm.3b <- glmer(faceCount / allCount ~ 1 +
 
 
 # Compare 1) model with no Pix, 2) Model with FE of Pix, 3) Model with FE and RE of pix
-mynames <- as.character (c("glm.2b", "glm.3a", "glm.3b")) # model numbers as characters
-myaicc  <- ICtab(logLik(glm.2b), logLik(glm.3a), logLik(glm.3b),
-		     type ="AICc",
-		     nobs = nrow(na.omit(model_dat)),
-		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-myaicc  #glm.3b is the best fitting one 
+myAIC <-aictab(
+  cand.set = list(glm.2b, glm.3a),
+  modnames = c("Sig. covariates", "FE Pix"))
+
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
 
 # Comparing model stats to model without Pix 
 anova(glm.3b, glm.2b )
@@ -302,19 +306,15 @@ glm.4 = glmer(faceCount / allCount ~ 1 +
                 AvgPrecision + 
                 Pix +
                 Pix:Age_centeredGrandmean + 
-                (1 + Age_centeredGrandmean + Pix| Participant), 
+                (1 + Age_centeredGrandmean | Participant), 
               family = 'binomial', weights = allCount, data = model_dat)
-
 summary(glm.4)
 
-# Compare model with interaction, to model without interaction 
-mynames <- as.character (c( "glm.3b", "glm.4")) # model numbers as characters
-myaicc  <- ICtab(logLik(glm.3b), logLik(glm.4),
-		     type ="AICc",
-		     nobs = nrow(na.omit(model_dat)),
-		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-myaicc 
+myAIC <-aictab(
+  cand.set = list(glm.3a, glm.4),
+  modnames = c( "FE Pix", "Age x Pix"))
+
+myAIC
 
 
 
@@ -521,7 +521,7 @@ lmer.4a = lmer(h~1+Age_centeredGrandmean + I(Age_centeredGrandmean^2)+
                
 
 
-# Add pixelated RE at person level (failed to converge)
+# Add pixelated RE at person level 
 lmer.4b =  lmer(h~1+Age_centeredGrandmean + I(Age_centeredGrandmean^2)+
                 # session-level
                 propInterp_session_groupmeancentered + 

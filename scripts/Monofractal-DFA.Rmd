@@ -8,39 +8,23 @@ output:
     self_contained: true
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../")
+
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+```
 
 ```{r message=FALSE, warning = FALSE, echo = FALSE, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
 options(width = 400)
-
-library(readr)
-library(tidyverse)
-
-library(ggplot2)
-library(ggeffects)
-
-# modeling 
-library(AICcmodavg)
-library(bbmle)
-library(merTools)
-library(nlme)
-library(lme4)
-library(sjPlot)
-library(lmerTest)
-library(interactions)
-library(ggstance)
-library(cowplot)
-
-library(moments) 
-library(sm)
-library(knitr)
-library(DT)
-library(lubridate)
-
-lmeControl(maxIter = 200, msMaxIter = 200, niterEM = 50, msMaxEval = 100)
-ctrl <- lmeControl(opt='optim')
-
+# Loads data & libraries
+source('scripts/00_setup_import.R')
 ```
+
+
 
 # About
 To-do:  
@@ -48,15 +32,10 @@ To-do:
 o	Figures of relationship between age and QC metrics 
 
 ```{r echo=TRUE}
-wdir = '~/Documents/Github/fractal-eye-analyses/'
-source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
-
 # Read cleaned data
-clean_dat = read.csv( paste(wdir, 'data/2021-04-01-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
-
+clean_dat = read.csv(file.path('data', '2021-07-07-h_clean.csv'), stringsAsFactors = FALSE)
 # Read cases that were removed
-removed = read.csv( paste(wdir, 'data/2021-04-01-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
-
+removed = read.csv(file.path('data', '2021-07-07-h_removed.csv'), stringsAsFactors = FALSE )
 ```
 
 ```{r clean_surr, cache=TRUE}
@@ -65,15 +44,11 @@ visits = unique(clean_dat$id)
 
 
 ```{r}
-clean_dat = clean_dat %>%
-  mutate(temp=paste(id,movie,seg,date,longestFixDur,propInterp,propMissing))
-```
-
-
-
-```{r}
 # Make variables needed for models 
 clean_dat = clean_dat %>% 
+  # unique identifier for each time series 
+  mutate(temp=paste(id,movie,seg,date,longestFixDur,propInterp,propMissing)) %>%
+  # vars helpful for modeling 
   mutate(female = ifelse(Sex=='Female', 1,0),
          Trial = ifelse(CalVer==0 & Pix==0, 'Social', ''),
          Trial = ifelse(CalVer==1, 'Attention-Getter', Trial),
@@ -147,26 +122,8 @@ ggplot(data=clean_dat, aes(x=age_centered_grandmean)) +
 ```{r face_hists, warning=FALSE, cache=TRUE}
 ggplot(data=clean_dat, aes(x=propFace_seg)) +
   geom_histogram(color='black')
-
 ```
 
-
-
-```{r echo=TRUE}
-#summary(surr$mean_h)
-```
-
-```{r h_vs_surrH}
-# ggplot(data=surr, aes(x=mean_h))+
-#   geom_histogram(color='black')
-```
-
-```{r}
-# ggplot(data=clean_dat, aes(x=h, y=mean_h)) +
-#   geom_point(alpha=0.2) + 
-#   labs(x='H of original data', y = 'Average surrogate H') +
-#   geom_abline(slope=1, color='red')
-```
 
 
 # Modeling H Trajectories
@@ -193,7 +150,7 @@ remat<- data.frame(remat)
 Participant_var = remat %>% filter(grp=='Participant') %>% pull(vcov)
 sess_var = remat %>% filter(grp=='Visit') %>% pull(vcov)
 mov_var = remat %>% filter(grp=='movie') %>% pull(vcov)
-resVisit_var= remat %>% filter(grp=='ResVisitual') %>% pull(vcov)
+resVisit_var= remat %>% filter(grp=='Residual') %>% pull(vcov)
 total_var = Participant_var + sess_var+ mov_var + resVisit_var
 ```
 
@@ -221,30 +178,28 @@ lmer.2=lmer(h ~ 1+ Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
               (1|Participant)+(1|Visit), 
             data=clean_dat,               
             REML=FALSE) #quadratic age
-anova(lmer.0, lmer.1, lmer.2)
 ```
 
+```{r}
+myAIC <-aictab(
+  cand.set = list(lmer.0, lmer.1, lmer.2),
+  modnames = c("Unconditional Means", "Lin. Age", "Quad. Age"))
+
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
+```
+
+
 RE of $Age$
-Quadratic RE of age leads to convergence issue 
+ RE of age leads to convergence issue 
 ```{r echo=TRUE}
 lmer.2b=lmer(h~1+ Age_centeredGrandmean + I(Age_centeredGrandmean^2)+
                (1+Age_centeredGrandmean|Participant)+(1|Visit),
-             data=clean_dat, REML=FALSE) #quadratic age
+              data=clean_dat, REML=FALSE) #quadratic age
 
 ```
 
-
-```{r}
-# mynames <- as.character (c("lmer.2", "lmer.2b"))
-# myaicc  <- ICtab(logLik(lmer.2),
-# 		     logLik(lmer.2b),
-# 		     type ="AICc",
-# 		     nobs = nrow(na.omit(clean_dat)),
-# 		     weights =TRUE,delta =TRUE,sort=TRUE,mnames=mynames,base=TRUE)
-# 
-# myaicc$rweight <- max(myaicc$weight)/myaicc$weight
-# myaicc
-```
 
 How much variance does model with age explain alone?
 
@@ -380,6 +335,15 @@ lmer.4b=lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
                 CalVer + 
                 (1|Participant) + (1|Visit),
                 data=clean_dat, REML=FALSE)
+```
+
+LRT for Pix 
+```{r}
+anova(lmer.3b, lmer.4a)
+```
+
+LRT for Calver
+```{r}
 anova(lmer.3b, lmer.4b)
 ```
 
@@ -419,24 +383,46 @@ lmer.6 = lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
        precision_person_grandmeancentered +
        # Condition
        Pix + CalVer + 
+      Pix:Age_centeredGrandmean + Pix:I(Age_centeredGrandmean^2) + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+```
+
+## Age:Calver + Age:Pix
+```{r}
+lmer.7 = lmer(h ~ 1 + Age_centeredGrandmean + I(Age_centeredGrandmean^2) +
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Pix + CalVer + 
        CalVer:Age_centeredGrandmean + CalVer:I(Age_centeredGrandmean^2) + 
       Pix:Age_centeredGrandmean + Pix:I(Age_centeredGrandmean^2) + 
        (1|Participant) + (1|Visit),
       data=clean_dat, REML=FALSE)
-
-
 ```
 
-```{r}
-summary(lmer.6)
-```
 
 <b>Select Best-fitting model between:</b>  
 - main effects  
 - main effects + Age x Calver  
 - main effects + Age x Calver + Age x Pix
 ```{r}
-anova(lmer.4, lmer.5, lmer.6)
+myAIC <-aictab(
+  cand.set = list(lmer.4, lmer.5, lmer.6, lmer.7),
+  modnames = c("Main Effects & Covar.", "Age:Calver", "Age:Pix", "Age:Calver + Age:Pix"))
+
+kable(data.frame(myAIC)[ , 1:6],
+             col.names = c('Model', 'K', 'AICc', '$\\Delta$AICc', 
+                           'Rel. Lik.', 'Model Prob'))
+```
+
+```{r}
+anova(lmer.7, lmer.4)
 ```
 
 
@@ -444,7 +430,7 @@ anova(lmer.4, lmer.5, lmer.6)
 
 ##  effect of age 
 ```{r plot_finalmod_age, cache=TRUE}
-pred = ggpredict(lmer.6, 
+pred = ggpredict(lmer.7, 
           # terms: names of those terms from model, for which marginal effects should be displayed.
           # [all] includes quadratic too
           terms = 'Age_centeredGrandmean [all]', 
@@ -497,6 +483,29 @@ ggplot(data=pred, aes(x=x, y = predicted)) +
 # 
 # plot_dat = rbind(pred_cal_df, pred_pix_df)
 
+
+```
+
+```{r}
+mono_mods = list(
+     clean_dat = clean_dat,
+     lmer.0 = lmer.0,
+     lmer.1 = lmer.1, 
+     lmer.2 = lmer.2, 
+     lmer.2b = lmer.2b,
+     lmer.3a = lmer.3a, 
+     lmer.3b = lmer.3b,
+     lmer.4 = lmer.4,
+     lmer.4a = lmer.4a,
+     lmer.4b = lmer.4b, 
+     lmer.5 = lmer.5,
+     lmer.6 = lmer.6,
+     lmer.7 = lmer.7,
+     lmer.8 = lmer.8)
+
+# Save output
+save(mono_mods,
+     file = file.path('data', 'monofractal_models.RData'))
 
 ```
 

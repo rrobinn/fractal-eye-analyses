@@ -8,30 +8,39 @@ output:
     self_contained: true
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../")
 
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+source('scripts/00_setup_import.R')
+source('funcs/compareNA.R')
 
-library(readr)
-library(tidyverse)
-library(lubridate)
-
-library(ggplot2)
-library(ggeffects)
-library(effects)
-library(viridis)
-
-# modeling 
-library(AICcmodavg)
-library(bbmle)
-library(merTools)
-library(nlme)
-library(lme4)
-
-#library(moments) 
-library(knitr)
-library(DT)
+# library(readr)
+# library(tidyverse)
+# library(lubridate)
+# 
+# library(ggplot2)
+# library(ggeffects)
+# library(effects)
+# library(viridis)
+# 
+# # modeling 
+# library(AICcmodavg)
+# library(bbmle)
+# library(merTools)
+# library(nlme)
+# library(lme4)
+# 
+# #library(moments) 
+# library(knitr)
+# library(DT)
 #library(stats)
 ```
 
@@ -44,20 +53,15 @@ This document does the analyses for multi-fractal spectrum width.
 
 
 # To do
-- Check why there is no surrogate data for JE000500_03_04,  JE000221_05_07
-```{r echo=FALSE}
-source('~/Documents/GitHub/fractal-eye-analyses/analysis/Rfuncs/compareNA.R')
-```
+- Check why there is no surrogate data for JE000221_05_07
 
 ```{r cache=TRUE}
-wdir = '~/Documents/Github/fractal-eye-analyses/'
-
 # Read cleaned data (includes MF-width of original data)
-h = read.csv( paste(wdir, 'data/2021-04-01-h_clean.csv', sep = ''), stringsAsFactors = FALSE )
-removed = read.csv( paste(wdir, 'data/2021-04-01-h_removed.csv', sep = ''), stringsAsFactors = FALSE )
+h = read.csv( file.path('data', '2021-07-07-h_clean.csv'), stringsAsFactors = FALSE )
+removed = read.csv( file.path('data', '2021-07-07-h_removed.csv'), stringsAsFactors = FALSE )
 
 # Read surrogate data 
-surr = read.csv( paste(wdir, 'data/surrogate_MFDFA.txt', sep = ''), stringsAsFactors = FALSE )
+surr = read.csv( file.path('data', 'surrogate_MFDFA_n50.txt'), stringsAsFactors = FALSE )
 ```
 
 # Prep data
@@ -76,29 +80,24 @@ h = h %>%
          social = ifelse(Trial=='Social', 1, 0)) 
 ```
 
-Calculate spectrum width  
 
+Calculate spectrum width  
 ```{r}
 h = h %>%
-  mutate(orig_width_posonly = pmax(Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5) - 
-           pmin(Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5),
-        orig_width_allqs   = pmax(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5) - 
-                              pmin(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5))
+  mutate(orig_width= pmax(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5) - 
+           pmin(Hq_Neg5, Hq_Neg3, Hq_Neg1, Hq0, Hq_Pos1, Hq_Pos3, Hq_Pos5))
 ```
 
 Distribution of MF spectra widths from original time series 
 ```{r hist_orig_width, cache=TRUE, warning=FALSE, echo = FALSE}
-
 h %>%
-  dplyr::select(orig_width_posonly, orig_width_allqs) %>%
-  pivot_longer(cols = c(orig_width_posonly, orig_width_allqs),
+  dplyr::select(orig_width) %>%
+  pivot_longer(cols = c( orig_width),
                names_to='qs', values_to = 'width') %>%
   ggplot(data=., aes(x=width, fill=qs, color=qs)) +
   geom_histogram(position='identity', alpha = 0.5) +
   scale_x_continuous(limits = c(0, 2.5)) +
   labs(x = 'Spectrum width of original time series')
-
-
 ```
 
 
@@ -108,7 +107,6 @@ visits = unique(h$id)
 surr = surr %>%
   mutate(id = gsub('v', '', id)) %>%
   filter(id %in% visits) %>%
-  filter(surrogate_num<=8) %>%# I did 32 for a handful. remove for now. 
   # Variables to be used for merging 
   mutate(date=mdy(date))  
 
@@ -131,15 +129,10 @@ surr = surr %>%
 ```{r echo = TRUE, cache=TRUE}
 surr = surr %>%
   # Calculate spectrum width for the surrogates -
-  mutate(# Including only positive q's 
-         min_hq_posonly = pmin(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         max_hq_posonly = pmax(`Hq0`, `Hq1`, `Hq3`, `Hq5`),
-         surr_width_posonly = max_hq_posonly - min_hq_posonly,
-         # Including all q's
-         min_hq = pmin(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
+  mutate(min_hq = pmin(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`), # Var names with '.' are the negative q's
          max_hq = pmax(`Hq.5`, `Hq.3`, `Hq.1`, `Hq0`, `Hq1`, `Hq3`, `Hq5`),
          surr_width = max_hq - min_hq) %>%
-  dplyr::select(-c(min_hq_posonly, max_hq_posonly, min_hq, max_hq))
+  select(-c(min_hq, max_hq))
 ```
 
 - Generate summary values (mean width, range, SD)
@@ -156,19 +149,15 @@ surr_summ = surr %>%
             surr_mean_width = mean(surr_width),
             surr_min_width = min(surr_width),
             surr_max_width = max(surr_width),
-            surr_sd_width = sd(surr_width),
-            surr_mean_width_posonly = mean(surr_width_posonly),
-            surr_min_width_posonly = min(surr_width_posonly),
-            surr_max_width_posonly = max(surr_width_posonly),
-            surr_sd_width_posonly = sd(surr_width_posonly)) %>%
+            surr_sd_width = sd(surr_width)) %>%
   ungroup()
 
 # Make wide (each time series is its own row. Populate the surrogate columns with spectrum widths
 surr_wide = surr %>%
-  dplyr::select(temp, surrogate_num, surr_width, surr_width_posonly) %>%
+  dplyr::select(temp, surrogate_num, surr_width) %>%
   pivot_wider(id_cols = temp, 
               names_from=surrogate_num, names_prefix = 'surr', 
-              values_from = c(surr_width, surr_width_posonly))
+              values_from = c(surr_width))
 
 ```
 
@@ -192,18 +181,12 @@ h = left_join(h, surr_wide, by='temp')
 h = left_join(h, surr_summ, by='temp')
 ```
 
-```{r echo=TRUE}
-# Dimensions of h after merge 
-dim(h)
-```
+
 
 Missing spectrum width
 ```{r}
 h %>% filter(is.na(surr_mean_width)) %>% dplyr::select(id) %>% distinct()
 ```
-
-
-
 
 
 # Visualizations of width
@@ -212,103 +195,44 @@ h %>% filter(is.na(surr_mean_width)) %>% dplyr::select(id) %>% distinct()
 # Make long to be compatible with ggplot2
 temp = h %>%
   dplyr::select(temp,
-                surr_mean_width_posonly,
                 surr_mean_width,
-                orig_width_posonly,
-                orig_width_allqs,
+                orig_width,
                 Trial) %>%
-  pivot_longer(cols = c(surr_mean_width_posonly, surr_mean_width,
-                        orig_width_posonly, orig_width_allqs),
+  pivot_longer(cols = c(surr_mean_width,
+                         orig_width),
                names_to='data_source', values_to='width')
 ```
 
 
-```{r echo=FALSE}
-# temp %>% filter(data_source=='surr_mean_width_posonly') %>% dplyr::select(width) %>% summary(width) 
-# temp %>% filter(data_source=='orig_width_posonly') %>% dplyr::select(width) %>% summary(width) 
-# 
-# temp %>% filter(data_source=='surr_mean_width') %>% dplyr::select(width) %>% summary(width) 
-# temp %>% filter(data_source=='orig_width_allqs') %>% dplyr::select(width) %>% summary(width) 
-```
 
 ## Original width vs surrogate width 
 
 - For plotting purposes, restricting x-axis to <= 2.5 (removed `r sum(compareNA(TRUE, temp$width>2.5))` out of `r nrow(temp)` cases).  
-- When we calculated MF spectra width with <b>positive q's only</b>, the surrogates are a bit wider than the original data. 
 ```{r orig_width_surrogate_width_hist, echo=FALSE, warning=FALSE, cache=TRUE}
-temp = temp %>% mutate(posonly = ifelse(grepl('pos',data_source), 1, 0))
 
 temp %>%
-  filter(width <= 2.5,
-         grepl('pos', data_source)) %>%
+  filter(width <= 2.5) %>%
   mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
 ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
   geom_histogram(alpha=0.2, position='identity') + 
   theme_bw() +
   theme(legend.title = element_blank(),legend.position = c(.75, .8), 
         legend.background = element_rect(color='black',linetype='solid')) + 
-  labs(caption= 'Spectrum widths computed with only positive q\'s', x = 'MF spectrum width')
+  labs( x = 'MF spectrum width')
 
-temp %>%
-  filter(width <= 2.5,
-         grepl('pos', data_source)) %>%
-  mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
-ggplot(data=., aes(x=data_source, y=width, color=data_source)) +
-  geom_boxplot() + 
-  theme_bw() +
-  theme(legend.title = element_blank()) + 
-  labs(caption= 'Spectrum widths computed with only positive q\'s', 
-       x = '', y= 'MF spectrum width')
 
 ```
 
 
-```{r origwidth_vs_surrwidth_posonly, echo=FALSE, cache=TRUE}
-ggplot(data = h, aes(x=orig_width_posonly, y =surr_mean_width_posonly, color=Trial )) +
+```{r origwidth_vs_surrwidth, echo=FALSE, cache=TRUE}
+h %>% filter(surr_mean_width <= 4) %>% # remove outlier for plotting purposes
+ggplot(data = ., aes(x=orig_width, y =surr_mean_width, color=Trial )) +
   geom_point(alpha=0.2) + 
   geom_abline(slope=1)+
   facet_wrap(~Trial, nrow=3) + 
-  labs(x= 'Spectrum Width (Original data)', y = 'Surrogate mean width',
-       title = 'Spectrum widths computed with only positive q\'s')
+  labs(x= 'Spectrum Width (Original data)', y = 'Surrogate mean width')
 ```
 
-- When we calculate MF spectra with <b>negative and positive q's</b>, the original time series had a fatter tail than the surrogats.  
-
-```{r, echo=FALSE, warning=FALSE}
-temp %>%
-  filter(width <= 2.5,
-        !grepl('pos', data_source)) %>%
-ggplot(data=., aes(x=width, fill=data_source, color=data_source)) +
-  geom_histogram(alpha=0.2, position='identity')+ 
-  labs(title= 'Spectrum widths computed with positive and negative q\'s')
-```
-
-```{r}
-temp %>%
-  filter(width <= 2.5,
-         !grepl('pos', data_source)) %>%
-  mutate(data_source = ifelse(grepl('surr',data_source), 'Surrogate Mean Width', 'Original Time Series Width')) %>%
-ggplot(data=., aes(x=data_source, y=width, color=data_source)) +
-  geom_boxplot() + 
-  theme_bw() +
-  theme(legend.title = element_blank()) + 
-  labs(caption= 'Spectrum widths computed with all q\'s', 
-       x = '', y= 'MF spectrum width')
-```
-
-
-
-
-```{r origwidth_vs_surrwidth_allqs, echo = FALSE, cache=TRUE}
-h %>% 
-  filter(orig_width_allqs <= 2.5) %>%
-ggplot(data = ., aes(x=orig_width_allqs, y =surr_mean_width, color=Trial )) +
-  geom_point(alpha=0.2) + 
-  geom_abline(slope=1)+
-  facet_wrap(~Trial, nrow=3) + 
-  labs(x= 'Spectrum Width (Original data)', y = 'Surrogate mean width',
-       caption = 'Spectrum widths computed with positive and negative q\'s')
-```
 
 
 
@@ -319,26 +243,19 @@ Ntoe: two-sided is default setting for t.test func
 # Function that returns the t-test and p-value for each row
 my_test <- function(dat) {
   # Pull the dist of surrogate widths 
-  x_all =c(dat$surr_width_surr1, dat$surr_width_surr2, dat$surr_width_surr3, dat$surr_width_surr4,
+  x =c(dat$surr_width_surr1, dat$surr_width_surr2, dat$surr_width_surr3, dat$surr_width_surr4,
               dat$surr_width_surr5, dat$surr_width_surr6, dat$surr_width_surr7, dat$surr_width_surr8)
-  x_posonly = c(dat$surr_width_posonly_surr1, dat$surr_width_posonly_surr2, dat$surr_width_posonly_surr3,
-                dat$surr_width_posonly_surr4, dat$surr_width_posonly_surr5, dat$surr_width_posonly_surr6,
-                dat$surr_width_posonly_surr7, dat$surr_width_posonly_surr8)
-  
+
   # Pull the original data surrogate width 
-  mu_all = dat$orig_width_allqs
-  mu_posonly = dat$orig_width_posonly
-  
+  mu = dat$orig_width_allqs
+
   # Check if there is data 
-  if (sum(!is.na(x_all))<3) {return(list(t=NA, p=NA))}
-  if (sum(!is.na(x_posonly))<3) {return(list(t=NA, p=NA))}
+  if (sum(!is.na(x))<3) {return(list(t=NA, p=NA))}
 
   # Do the t-test 
-  ttest_all = t.test(x_all, mu=mu_all ) # alternative hypothesis: true mean of distribution is outside of  mu/spect_width
-  ttest_posonly = t.test(x_posonly, mu=mu_posonly ) 
+  ttest = t.test(x, mu=mu ) # alternative hypothesis: true mean of distribution is outside of  mu/spect_width
 
-  return(list(t_all = ttest_all$statistic, p_all = ttest_all$p.value,
-              t_pos = ttest_posonly$statistic, p_pos = ttest_posonly$p.value))
+  return(list(t = ttest$statistic, p = ttest$p.value))
 }
 
 
@@ -346,49 +263,43 @@ h = h %>%
   rowwise %>%
   do({
     result = as.data.frame(.)
-    result$t_all = my_test(result)$t_all
-    result$p_all = my_test(result)$p_all
-    result$t_pos = my_test(result)$t_pos
-    result$p_pos = my_test(result)$p_pos
+    result$t = my_test(result)$t
+    result$p = my_test(result)$p
     result
   })
 
-save(h, file = paste(wdir, 'data/h_with_tstats.RData',sep=''))
 
+save(h, file = file.path('data', 'h_with_tstats.RData'))
 ```
 
 ## Remove extreme outliers 
 ```{r, cache=TRUE}
-quant_all = quantile(h$t_all, na.rm=TRUE, c(.01, .99))
-quant_pos = quantile(h$t_pos, na.rm=TRUE, c(.01,.99))
+quant_width = quantile(h$t, na.rm=TRUE, c(.01, .99))
 
 h2 = h %>%
-  mutate(t_all_outlier = ifelse(t_all < quant_all[['1%']] | t_all > quant_all[['99%']], 1, 0),
-         t_pos_outlier = ifelse(t_pos < quant_pos[['1%']] | t_pos > quant_pos[['99%']], 1, 0))
+  mutate(t_outlier = ifelse(t < quant_width[['1%']] | t > quant_width[['99%']], 1, 0))
 ```
 
 Example of data (first 500 rows)
 ```{r, cache=TRUE}
 h2 %>%
-  dplyr::select(PSCID, visit=id, movie, seg, Trial,
-                orig_width_posonly, orig_width_allqs, 
-                surr_min_width_posonly, surr_mean_width,
-                t_all, t_pos) %>%
+  select(PSCID, visit=id, movie, seg, Trial,
+                orig_width,
+                surr_min_width, surr_mean_width,
+                t) %>%
   head(500) %>%
   datatable(filter='top') %>%
-  formatRound(columns = c('orig_width_posonly', 'orig_width_allqs', 'surr_min_width_posonly', 'surr_mean_width', 't_all', 't_pos'), digits=3)
-  
+  formatRound(columns = c('orig_width', 'surr_min_width', 'surr_mean_width', 't'), digits=3)
 ```
 
 
 
 # Visualizations of t-statistics
 ```{r}
-summary(h2$t_all)
-summary(h2 %>% filter(t_all_outlier==0) %>% pull(t_all))
+summary(h2$t)
+summary(h2 %>% filter(t_outlier==0) %>% pull(t))
 
-summary(h2$t_pos)
-summary(h2 %>% filter(t_pos_outlier==0) %>% pull(t_pos))
+
 
 ```
 

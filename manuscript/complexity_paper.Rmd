@@ -1,0 +1,605 @@
+---
+title             : "Complexity title"
+shorttitle        : "Complexity Title"
+
+author:
+  - name: Robin Sifre 
+    affiliation: '1'
+    corresponding: yes
+    email: robinsifre@gmail.com
+    address: Insert address
+  - name: Damian Kelty-Stephen
+    affiliation: '1'
+  - name: Isabella Stallworthy
+    affiliation: '1'
+  - name: Daniel Berry
+    affiliation: '1'
+  - name: Jed Elison
+    affiliation: '1'
+
+affiliation:
+  - id: '1'
+    institution: University of Minnesota Twin Cities, College of Education and Human Development, Institute of Child Development 
+
+
+abstract: |
+ Insert abstract
+
+
+  
+keywords          : "Fractals, Complexity, Infancy, Eye-tracking, attention"
+wordcount         : "X"
+
+bibliography      : ["r-references.bib"]
+
+floatsintext      : yes
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+linenumbers       : no
+mask              : no
+draft             : no
+always_allow_html : true
+
+class             : "man"
+output: papaja::apa6_word
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(here)
+library(lme4)
+library(lmerTest)
+library(cowplot)
+library(TOSTER)
+library(papaja)
+library(interactions)
+r_refs("r-references.bib")
+
+knitr::opts_knit$set(root.dir = "../")
+
+```
+
+```{r analysis-preferences}
+# Seed for random number generation
+set.seed(42)
+knitr::opts_chunk$set(cache.extra = knitr::rand_seed, message = FALSE, warning = FALSE)
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+```
+
+```{r}
+source('scripts/00_setup_import.R') # loads libraries 
+
+
+load('data/h_complete.RData')
+load('data/exclusion_info.RData')
+load('data/monofractal_models.RData')
+```
+
+## Introduction
+Infants live in a visually noisy world, and prioritizing attention to meaningful information is arguably the most important task that they face to efficiently learn about their surroundings. Hierarchical models of attention frame attention as the product of competition [@Amso2015a; @Desimone1995a]. or interactions between bottom-up and top-down orienting. Broadly speaking, these models posit that infants’ looking behavior can be understood as an emergent phenomenon that unfolds across development as lower-level attention systems driven by bottom-up stimulus properties catalyze the development of top-down attention processes. As top-down mechanisms develop, they then tune the bottom-up systems, creating a self-organizing feedback loop.  
+
+From this perspective, early looking behavior is a dynamic phenomenon that emerges through self-organizational processes interacting within and across multiple systems and timescales. To date, most empirical work attempts to decompose the developing visual attention system into its component parts (e.g., bottom-up versus top-down) and study them in isolation. Few studies have focused on the dynamics of the visual attention system as a whole, leaving a gap in our understanding of the dynamic processes through which infants engage with their visual worlds.  
+
+Methods from Complexity science, such as fractal scaling, offer researchers a way to quantify the ‘softly assembled’, nonlinear, interacting properties of the developing visual attention system. Fractals refer to nested patterns of variability that are self-similar across different timescales [@Coey2012a]. This self-similarity refers to the idea that the same mathematically driven pattern can be recursively called at any magnitude to generate a structure comprised of many nested, scale-invariant patterns. Through simple local rules, larger and more complex patterns can emerge.  
+
+These fractal properties reflect a type of interactivity called self-organized criticality (SOC; @Bak1991) which refers to a system in which many local interactions between sub-components result in emergent global properties [@Stephen2012a]. For example, schools of fish [@Bonabeau1995] and ant foraging [@Halley2004] are systems that exhibit SOC as they reflect interactions between individual organisms. Mathematically, fractality is the inversely proportional relationship between power (P(f); or the amplitude of change) and frequency (f; how often changes of that amplitude occur) of variation in a time series [@VanOrden2011a]. This relationship can also be described through power-law scaling, or the equation P=1/f $\alpha$ with $\alpha$=1 reflecting a perfectly linear relationship between power and frequency. Fractal structure is sometimes referred to as pink noise (or 1/f scaling), and is suggestive of a highly-organized system, that is still flexible to changing environments. 
+
+### Local Interactivity of Gaze Patterns
+Our past work demonstrates fractal self-organization in infants’ eye-gaze as early as 3 months of age [@Stallworthy2020]. We found that gaze patterns of even the youngest infants exhibited fractal organization, and that fractality increased with age. Fractal organization was also higher when infants viewed social stimuli, suggesting that in addition to the stable increases in α over developmental time, infants’ gaze patterns are more self-organized when watching movies with richer social content. Importantly, there was also significant within-person changes in fractal organization, such that infants were more self-organized during times when they showed increased spontaneous attention to faces. These findings are consistent with evidence that adults’ eye-gaze data is also fractally organized during visual search tasks, whether searching for the same target repeatedly [@Aks2002a], or searching for a target based on a verbal instruction [@Stephen2009a], and that α was correlated with task performance on a trial-by-trial basis [@Stephen2011a]. 
+
+### Cross-Scale Interactivity of Infant Gaze Patterns
+
+Importantly, fractal structure could reflect the presence of multiple types of interactivity that could reflect different degrees of system complexity [@Ihlen2010a; @Stephen2013a]. In addition to interactions at the local level, there are also interactions across scales (e.g., integrating task constraints and internal states) that also exhibit fractal properties. These two kinds of interactivity offer unique information about the scope of interrelations within a system and potentially higher-order processes in response to a given context. For example, past studies in adults have found that eye-gaze time series show the same levels of α during saccade tasks designed to vary in difficulty, but that there was more evidence of cross-scale interactivity in the simpler task relative to the task that required decision making, suggesting that increasing cognitive load can diminish cross-scale interactivity [@Stan2014a]. Given that hierarchical models of attention emphasize interactions between bottom-up and top-down attentional processes which are known to occur on different time scales (Amso & Scerif, 2015), developmental changes in multifractal spectrum width may offer an index of increased interactivity between these system components. As infants develop and accrue experience, the processes through which they visually explore their worlds likely take on new interactive-dominant dimensions to meet more complex demands. 
+
+One way to determine if a time series exhibits multi-scale interactions is to examine whether power-law scaling changes over time over the course of a time series; if it does, then it is said to be multifractal. The multifractal spectrum width describes the span of the distribution of a system’s a values or how many fractal structures are needed to describe the time series. In a multi-fractal system, α (as described above) describes the average relationship between power and frequency, and the multifractal spectrum width describes the variance in this structure. Adults’ eye-gaze data shows significant variance in α (e.g., a non-zero multifractal spectrum width) during a challenging visual search tasks (Amor, Reis, Campos, Herrmann, & Andrade, 2016; Stephen & Mirman, 2010)). One study that used data from saccade tasks found that the spectrum width of adults’ eye-gaze data was reduced in the task that required decision making relative to the simpler saccade task, suggesting that task constraints, such as increasing cognitive load, can diminish cross-scale interactivity (Stan et al., 2014).
+
+### The Current Study
+The present study builds upon existing findings of eye gaze fractality in infancy and toldderhood (Stallworthy et al., 2020; Wang et al., 2014) to examine fractal structure of looking patterns across the first three years of life. This study replicates findings of local interactivity from Stallworthy et al., 2020 and critically extends this work to be the first study to examine evidence for multi-scale interactivity in infant gaze patterns. For this extension, we hypothesized that infant gaze patterns would exhibit multi-scale interactivity (as evidenced by a non-zero multifractal spectrum width) that would become more pronounced as infants age and while they viewed richer social stimuli. 	
+
+## Methods
+
+### Research Design
+
+#### Participants
+All participants were recruited from the Institute of Child Development’s participant registry at the University of Minnesota as a part of a larger mixed cross-sectional and longitudinal study.  Two primary cohorts were included. The first cohort was part of a larger mixed cross-sectional and longitudinal study of brain and behavioral development. The second cohort was part of a cross-sectional study on behavioral development only. Participant exclusion criteria for Cohort 1 included: (1) history of known genetic syndromes associated with ASD risk; (2) significant medical conditions affecting growth, cognitive development, or significant vision or hearing impairment; (3) birth weight < 2000 g and/or gestational age < 36 weeks; (4) history of significant perinatal adversity, or exposure in-utero to neurotoxins; (5) having been adopted; and (6) family history of a first-degree relative with intellectual disability, autism, psychosis, schizophrenia, or bipolar disorder; (7) contraindication for magnetic resonance imaging. Criteria for Cohort 2 were identical, with the exception of (7). Parents provided written and informed consent for their child’s participation in the study. All protocols are in accordance with relevant guidelines and regulations and were approved by the University of Minnesota’s Institutional Review Board (IRB).	
+
+```{r methods_initial_sample}
+min_age = round(min(h$et_age), 1)
+max_age = round(max(h$et_age), 1)
+mean_age = h %>% select(id, et_age) %>%distinct() %>% pull(et_age) %>% mean() %>% round(1)
+n_fem = h %>% select(PSCID, Sex) %>% distinct() %>% filter(Sex=='Female') %>% nrow()
+
+nvis = h %>%
+  select(PSCID, id) %>%
+  distinct() %>%
+  group_by(PSCID) %>%
+  summarize(n=n())
+```
+
+This analysis included previously published data (Stallworthy et al., 2020), as well as data collected after the date of the last visit included in that manuscript (January 2018). This included `r nrow(h)` time-series of eye-tracking data collected from `r h %>% pull(PSCID) %>% unique() %>% length()` `r min_age`-`r max_age`-month-old infants (`r n_fem` females, mean age= `r mean_age` months) across `r h %>% pull(id) %>% unique() %>% length()` visits to the lab. As part of a planned missingness design, children contributed between `r min(nvis$n)` and `r max(nvis$n)` waves of data across this age span (mean=`r round(mean(nvis$n), 1)` waves) during visits to the lab.
+
+```{r}
+#TODO: Figure of longitudinal sample
+```
+
+
+#### Quality-control exclusion criteria  
+```{r exclusions}
+n_excl = h %>% filter(remove==1) %>% nrow()
+pct_excl =n_excl/nrow(h)*100
+```
+
+
+```{r}
+removed = h %>% filter(remove==1)
+h_clean = h %>% filter(remove==0)
+```
+
+```{r flow, fig.cap = 'Test. ', out.width="25%", out.height="25%"}
+knitr::include_graphics(file.path(getwd(), 'manuscript', 'exclusion_flow.png'))
+```
+
+
+A detailed description of the quality-control exclusion criteria can be found in the supplement. Broadly, time series were excluded if an infant had poor eye-tracker calibration precision, if too much data were linearly interpolated when generating the time series for DFA, if the time series were too short (<800 frames, as determined by analyses described in the online Supplement), and if the time series’ DFA yielded poor linear fit thereby suggesting unstable estimates of $\alpha$.  Ultimately, we excluded `r n_excl` time series for quality-control (`r round(pct_excl,1)`% of the original `r nrow(h)` time series). The final sample included `r h %>% filter(remove==1) %>% nrow()` time series (a XX% increase from the sample we have previously published on). A flow diagram of the exclusionary process is shown in Figure \@ref(fig:flow) .
+
+```{r experiment, fig.cap='Caption here', fig.align='right'}
+knitr::include_graphics(file.path(getwd(), 'manuscript', 'Stallworthy_Fig4.png'))
+```
+### Procedures
+
+Procedures. At each visit, infants were seated in their parent’s lap approximately 65 cm from a 27-inch 1920 × 1080 resolution ASUS monitor that subtended 43.6 degrees of visual angle with an aspect ratio of 16:9. Infants’ eye movements were recorded with non-invasive corneal-reflection binocular eye-tracking equipment (Tobii TX300, recordings sampled at 300 Hz; Tobii Studio; Tobii Technology, Danderyd, Sweden). They watched four 20-second movies of women dancing to lively music while waving toys, as well as pixelated versions of these same videos. These two stimulus conditions (Social and Pixelated; Figure \@ref(fig:experiment)) were used to compare the fractal structure of gaze patterns while viewing social stimuli, relative to stimuli with most of the social information degraded. Movies were interleaved with dynamic audio-visual attention cues used for estimating recording accuracy and precision, and for establishing baseline levels of infants’ gaze organization. There were 4 different Social movies, each with a Pixelated counterpart, for a total of 8 movies interspersed with audio-visual attention cues, as shown in Figure \@ref(fig:experiment). The entire eye-tracking task lasted approximately 5 minutes. 
+
+### Data Cleaning and Processing  
+\n
+*Time Series Generation*. 
+After the eye-tracking data were collected, we created gaze-based time-series using the amplitude of change in infants’ raw gaze position, sampled every 3.33 ms, over time (as shown in Figure 4). As implemented, DFA does not allow for missing data points. As in our previous work, to maximize the number of usable time-series, eye-tracking data from each movie were divided into approximately 6-second segments for analysis. Of the 4 movies, 3 were divided into 3 segments (mean= 7.38/SD=2.15 sec long), and 1 movie was divided into 4 segments (mean=6.47/SD=1.58 sec long) based on events in the movies. All Social movies and their Pixelated counterparts were segmented for analysis, as was each audio-visual attention cue.
+
+Blinks were identified using a noise-based algorithm (Hershman, Henik, & Cohen, 2018). All data missing as a result of blinks (less than 200 ms) were linearly interpolated. The longest contiguous stream of eye-tracking data for each movie segment was used to generate the final time series used for DFA. As in our previous work, we used the amplitude of change in gaze position over time as our time-series in order to account for changes on both the X and Y axes, to avoid excessive computation and difficulties interpreting our outcome for fractal organization along just one axis.
+
+#### Detrended Fluctuation Analysis (DFA)
+
+DFA was performed on the time-series derived from each movie segment, using a MATLAB package created specifically for biomedical time-series (Ihlen, 2012). This analysis estimates the power law exponent that defines the scale-invariant, or fractal, structure of a time-series. First, the time-series (amplitude of X and Y coordinate gaze change over time) is converted to a random-walk-like structure by subtracting the mean value and then taking the integral. Next, the time-series is divided into 4 equal-sized non-overlapping windows, and a polynomial trend (m=2) is fit to each window of data. The local root mean square (RMS) is then computed for the residual variation for each window of data. This process is then repeated for increasingly smaller window sizes, such that the relationship between amplitude of the residual noise and window size can be ascertained. 
+
+DFA identifies the monofractal structure of the time-series as the power law relation between the overall RMS’s computed for multiple window sizes. This power law relation is indexed by α or the slope of the regression line fit to the log(frequency) and log(power) of the variation in the time-series. α denotes how fast the local RMS changes with increasing window sizes, summarizing the long-term memory of the series and quantifies the monofractal structure of a time-series on a continuum from white noise (a ~0.5), through ‘pink noise’ (a ~0.8), to brown noise (a ~1.5) as shown in Figure 5.
+
+#### Multi-fractal Detrended Fluctuation Analysis (MFDFA)
+
+To determine whether a time series exhibits change in the fractal scaling exponent over time, we used the direct determination method of the f(α) spectrum method (Chhabra & Jensen, 1989).  This method estimates α in the same way described in the Detrended Fluctuation Analysis section, but does so at a range of fluctuation sizes (q). The array of α values calculated at varying q’s is the multi-fractal spectrum width. If a time series exhibits the same temporal correlations (α) at all fluctuation sizes, then it is monofractal; however, if α varies significantly as function of q then the time series is multifractal. 
+Because biological time series with 1/f power law scaling (e.g. pink noise) can sometimes yield spurious non-zero multifractal spectrum widths (Ihlen & Vereijken, 2010), surrogate time series were used to statistically validate the observed multifractal spectrum width. 50 surrogate time series for each original eye-tracking time series were generated using the iterative amplitude-adjusted Fourier-transform algorithm (IAAFT; Schreiber & Schmitz, 1996). This method reorders the original values in a way that preserves the average power-law scaling and probability density function, while disrupting the original temporal sequence. 
+
+As in previous work (Eddy & Kelty-Stephen, 2015; Ihlen & Vereijken, 2010), these surrogates were used to test the null hypothesis that the original time series’ MF width did not statistically differ from the linear surrogate data’s MF width. Using this framework, if a time series yields a non-zero spectrum width that does not fall within 95% confidence intervals of the widths generated by its linear surrogates, then this would indicate the presence of non-linear multi-scale interactions. We used a one-sample two-sided t-test comparing the original data’s spectrum width to the sample of linear surrogates’ spectrum widths was used, and coded t-statistics with p<0.01 as significant. 
+
+In addition to statistical significance, the size and sign of the t-statistic contains information regarding the marginal difference between the original series spectrum and the surrogate spectra (see Figure 19 for an illustration). The size and sign of this difference indicates how much the nonlinearity expands or contracts behavioral variability within a task space. Simulation studies have shown that nonlinear interactions can lead to the original spectrum width being significantly narrower than the surrogates’ when the interactions across time counteract each other and restrict variability [@Lee2017b]. Thus, when $width_{ORIGINAL} < width_{SURROGATES}$ (indicated by a positive t-statistic) this indicates the presence of nonlinear interactions that stabilize behaviors. On the other hand, when  $width_{ORIGINAL} > width_{SURROGATES}$  (indicated by a negative t-statistic) this indicates the presence of nonlinear interactions across scales that tend to increase variability in behaviors (Kelty-Stephen, 2018). 
+
+TODO: Check these values 
+The top and bottom 1st percentile of t-statistics were identified as extreme outliers and removed (n=414 time series). Of the 18,650 time series included the analysis, 11,843 (63.5%) had a significant t-statistic (e.g. one can reject the null that the width of the time series is equivalent to the width of its surrogates). Of these significant t-statistics, 5,241 (44.3%) were negative, indicating that the time series’ MF-width was significantly greater than the distribution of its surrogate widths. The remaining 55.7% were positive, indicating that the time series’ MF width was significantly lower than the distribution of its surrogate widths).
+
+### Analytic Plan
+
+# Results  
+## Fractal organization of the infant visual system
+
+```{r}
+clean_dat = mono_mods$clean_dat
+# For interpreting effects 
+age_grand_mean = 16.89726
+# Skew/kurtosis
+skew=skewness(clean_dat$h) %>% round(2)#btw -2 and 2 ideally
+kurtosis=kurtosis(clean_dat$h) %>% round(2) #3 for a normal distribution
+# Proportion that fall into "pink" range
+clean_dat$pink=ifelse(clean_dat$h>0.69 & clean_dat$h<1.1, 1, 0)
+prop_pink = (sum(clean_dat$pink==1)/nrow(clean_dat))*100
+```
+
+Scaling exponent $\alpha$ values were approximately normally distributed (skew = `r skew`, kurtosis = `r kurtosis`), with a mean of `r round(mean(clean_dat$h),2)` (range: `r round(min(clean_dat$h),2)`–`r round(max(clean_dat$h),2)`). `r round(prop_pink, 1)`% of the time-series across all 3 conditions fell within what is thought to be the optimally flexible fractal, pink noise range ($\alpha$ ~ 0.7 to 1.0; Coey et al., 2012a; Ihlen, 2012). This proportion is notably smaller than the proportion found in Stallworthy et al. (2020), and is likely due to increasing the minimum window size (scres) from 4 to 8, as described in the online supplement. 
+
+## Age-related change and effects of stimulus type on gaze complexity in stimulus 
+```{r}
+# Function for standardized coefficients 
+stdCoef.lmer <- function(object) {
+  sdy <- sd(attr(object, "resp")$y) # the y values are now in the 'y' slot 
+  ###                                 of the resp attribute
+  sdx <- apply(attr(object, "pp")$X, 2, sd) # And the X matriz is in the 'X' slot of the pp attr
+  sc <- fixef(object)*sdx/sdy
+  #mimic se.ranef from pacakge "arm"
+  se.fixef <- function(obj) as.data.frame(summary(obj)[10])[,2] # last change - extracting 
+  ##             the standard errors from the summary
+  se <- se.fixef(object)*sdx/sdy
+  return(data.frame(stdcoef=sc, stdse=se))
+}
+# Pull models from data structure
+lmer.0 = mono_mods$lmer.0
+lmer.2b = mono_mods$lmer.2b # Model with quadratic effect of age 
+lmer.3a = mono_mods$lmer.3a # Model with all QC covariates
+lmer.3b = mono_mods$lmer.3b # Model with sig. covariates. 
+lmer.4 = mono_mods$lmer.4 # Calver + Pix
+lmer.4a = mono_mods$lmer.4a # Pix
+lmer.4b = mono_mods$lmer.4b # Calver
+lmer.5 = mono_mods$lmer.5 # Age:Calver
+lmer.6 = mono_mods$lmer.6 #Age:Pix
+lmer.7 = mono_mods$lmer.7 #Age:Calver + Age:Pix
+
+```
+
+
+```{r}
+#TODO: 1) Make separation between estimates and the other stuff, add p-values 
+make_table_df <- function(mods, varnames, colnames, ndigits = NULL) {
+  
+  if (is.null(ndigits)) ndigits = 2
+  
+  # Check that the correct number of Column Names were provided 
+  if (length(colnames)!=length(mods)) {
+    print('Did not provide the correct number of colnames')
+    return()
+  }
+  
+  # Pull the Fixed Effect Estimates from each model
+  coefs = list()
+  count = 1
+  for (m in mods) {
+    # Standardized Betas 
+    stdCoef = stdCoef.lmer(m)
+    
+    # Turn estimate and se into string
+    est = round(stdCoef$stdcoef, ndigits)
+    se = round(stdCoef$stdse, ndigits)
+    se=paste('(', se, ')', sep = '')
+    est_str = paste(est, se)
+    
+    # Save in list
+    coefs[[colnames[count]]] = est_str
+    count = count + 1
+  }
+  
+  # Check that the correct number of variable names were supplied  given the maximum # of variables in each model
+  nvars = lapply(coefs, length) %>% unlist() %>% max()
+  if (length(varnames) != nvars) {
+    print('Did not supply correct number of varnames')
+    return()
+  }
+  
+  # Combine the coefficients into a data frame 
+  mydf = data.frame(mod_name = rep('', nvars))
+  for (mod_name in names(coefs)) {
+    # Pad with blanks 
+    temp_est = c(coefs[[mod_name]], rep(' ', nvars - length(coefs[[mod_name]])))
+    # Append Model name
+    temp_est = data.frame(temp_est)
+    colnames(temp_est) = mod_name
+    
+    mydf = cbind(mydf, temp_est)
+  }
+  mydf =mydf %>% select(-mod_name)
+  
+
+  
+  # Pull the other statistics you need 
+  other = list()
+  count = 1
+  for (m in mods) {
+    # ICC
+    my_icc = icc(m)
+    my_icc=round(my_icc$ICC_adjusted, 2)
+    # n observations
+    nobs = sapply(ranef(m),nrow) 
+    N =nobs(lmer.0) # total N
+    # AIC and LL 
+    out = summary(m)
+    aictab = out$AICtab
+    
+    # Save in list
+    other[[colnames[count]]] = c(as.character(my_icc),
+                                 paste(nobs[['Participant']], '(Participants)'),
+                                 paste(nobs[['Visit']], '(Visits)'),
+                                 N,
+                                 round(aictab[['AIC']], 2),
+                                 round(aictab[['logLik']], 2)
+    )
+    
+    count = count + 1
+    
+  }
+  
+  mydf2 = data.frame(mod_name = rep('', 6))
+  for (mod_name in names(other)) {
+    temp = data.frame(other[[mod_name]])
+    colnames(temp) = mod_name
+    mydf2 <-cbind(mydf2, temp)
+  }
+  mydf2 = mydf2 %>% select(-mod_name)
+  
+  regression_table = rbind(mydf, mydf2)
+  row.names(regression_table) = c(varnames, 'ICC', 'N', '', 'Observations', 'AIC', 'log-Likelihood')
+  
+  return(regression_table)
+}
+
+
+ 
+```
+
+```{r monotable}
+
+test = make_table_df(mods = list(lmer.0, lmer.2b, lmer.3b, lmer.4, lmer.7),
+              varnames = c("Intercept", "Age", "Age^2",
+                           "% Interpolated (Visit-level)",
+                           "Time series length (Visit-level)",
+                           "Calibration Precision (Visit-level)",
+                           "Time series length (Person-level)",
+                           "Calibration Precision (Person-level)",
+                           "Pixelated",
+                           "Attention-Cue",
+                           "Age x Attention-Cue",
+                           "Age^2 x Attention-Cue",
+                           "Age x Pixelated",
+                           "Age^2 x Pixelated"),
+              colnames = c('Model 0', 'Model 1', 'Model 2', 'Model 3', 'Model 4'))
+
+# For dealing with headers 
+# https://rdrr.io/cran/apaStyle/man/apa.table.html
+apa_table(test,
+          format = 'rst',
+          escape = FALSE,
+          # Where to place header
+          placement = 'h',
+          caption = 'Model results...')
+
+```
+
+
+```{r}
+fe = stdCoef.lmer(lmer.2b)
+fe_age_lin = fe[['Age_centeredGrandmean', 'stdcoef']]
+fe_age_quad = fe[['I(Age_centeredGrandmean^2)', 'stdcoef']]
+
+LRT = anova(lmer.0, lmer.2b)
+DLL = LRT['lmer.2b', 'logLik'] - LRT['lmer.0', 'logLik']
+myp = LRT$`Pr(>Chisq)`[[2]]
+```
+
+All model effects reported in this section are standardized coefficients (e.g. $B * SD(\alpha)/SD(x)$, where $x$ is the variable of interest). The baseline linear mixed effects model found $\alpha$ values increased with age ($Β_{Age}$ = `r round(fe_age_lin, 3)`), with growth in $\alpha$ decreasing over time ($Β_{Age^2}$=`r round(fe_age_quad,2)`; $\Delta LL$=`r round(DLL, 1)`, *p*=`r round(myp,3)`).
+```{r}
+fe = stdCoef.lmer(lmer.4)
+fe_calver = round(fe[['CalVer', 'stdcoef']], 2)
+fe_pix = round(fe[['Pix', 'stdcoef']], 2)
+
+LRT = anova(lmer.3b, lmer.4)
+DLL = LRT['lmer.4', 'logLik'] - LRT['lmer.3b', 'logLik'] 
+myp = LRT$`Pr(>Chisq)`[[2]]
+
+```
+After adding a series of quality control covariates and retaining significant effects (Table \@ref(table:monotable), Model 2), we assessed the effects of Stimulus condition on $\alpha$. There were significant fixed effects of stimulus type, such that $\alpha$ was lower when infants watched Pixelated movies and Attention Cues relative to the Social movies ($Β_{Pixelated}$=`r fe_pix`, $Β_{Attention-Cue}$ = `r fe_calver`,  $\Delta LL$=`r round(DLL,1)`, *p*=`r myp`). 
+
+```{r}
+age_condition_caption = 'Raw data with model-estimated effects of Condition x Age. Y-axis limits set to Average \u03b1 +/- 2 SDs.'
+```
+
+
+```{r fig_age_by_stimtype, fig.cap = age_condition_caption, fig.width=8, fig.height=5}
+# Get predicted effects for Age xCondition effects 
+pred_cal = ggpredict(lmer.7, 
+          # terms: names of those terms from model, for which marginal effects should be displayed.
+          # [all] includes quadratic too
+          terms = c('Age_centeredGrandmean [all]','CalVer [all]'), 
+          type='random')
+pred_cal_df = data.frame(age = pred_cal$x, h=pred_cal$predicted, calver=pred_cal$group,
+                         cu = pred_cal$conf.high, cl = pred_cal$conf.low)
+
+pred_pix = ggpredict(lmer.7, 
+          terms = c('Age_centeredGrandmean [all]', 'Pix [all]'), 
+          type='random')
+pred_pix_df = data.frame(age = pred_pix$x, h=pred_pix$predicted, pix=pred_pix$group,
+                         cu=pred_pix$conf.high, cl=pred_pix$conf.low)
+
+# This is the reference group 
+pred_dl = ggpredict(lmer.7, 
+          terms = c('Age_centeredGrandmean [all]'), 
+          type='random')
+pred_dl_df = data.frame(age = pred_dl$x, h=pred_dl$predicted,
+                        cl = pred_dl$conf.low, cu=pred_dl$conf.high)
+
+# Merge the predicted values together
+plot_dat = rbind(pred_cal_df %>% 
+                   filter(calver==1) %>%
+                   dplyr::select(age, h, cu, cl, Trial=calver) %>%
+                   mutate(Trial='CalVer'), 
+                 pred_pix_df %>%
+                   filter(pix==1) %>%
+                   dplyr::select(age, h, cu, cl, Trial=pix) %>%
+                   mutate(Trial='Pixelated'),
+                 pred_dl_df %>%
+                   mutate(Trial='Social'))
+
+# Make factor so legend is in the right order
+plot_dat$Trial = factor(plot_dat$Trial, levels=c('Social', 'Pixelated', 'CalVer'),
+                        labels = c('Social', 'Pixelated', 'Attention-Getter'))
+
+
+ggplot(data=clean_dat, aes(x=Age_centeredGrandmean+mean_age, y = h)) +
+  geom_jitter(alpha=.2) +
+  geom_line(data=plot_dat, size = 1.2, aes(x=age+mean_age, y = h, color=Trial)) +
+  labs(x='Age (months)', y = expression(Raw~alpha),
+       caption=expression('Y-axis limits set to Average \u03b1 +/- 2 SDs')) +
+  scale_y_continuous(limits = c(mean(clean_dat$h)-2*sd(clean_dat$h),
+                                mean(clean_dat$h)+2*sd(clean_dat$h))) +
+  theme_bw()
+
+
+
+
+```
+
+```{r}
+LRT = anova(lmer.4, lmer.7)
+DLL = LRT['lmer.7', 'logLik'] - LRT['lmer.4', 'logLik'] 
+myp = LRT$`Pr(>Chisq)`[[2]]
+```
+
+A significant Condition x Age interaction (Figure \\@ref(fig:fig_age_by_stimtype) indicated that growth in the fractal organization of infants’ eye gaze differed across stimulus type (ΔLL=`r round(DLL)` , p=`r myp`). 
+```{r simpleslopes_monofractal}
+clean_dat = clean_dat %>%
+  mutate(Age_centeredGrandmean2 = Age_centeredGrandmean^2,
+         Social_dummy = ifelse(Trial=='Social', 1, 0),
+         Calver_dummy = ifelse(Trial=='Attention-Getter', 1, 0),
+         Pix_dummy = ifelse(Trial=='Pixelated', 1, 0))
+
+# Re-make model with variable for age2 for sim slopes package 
+lmer.fin = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Pix + CalVer + 
+       CalVer:Age_centeredGrandmean + CalVer:Age_centeredGrandmean2 + 
+      Pix:Age_centeredGrandmean + Pix:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+
+lmer.fin.social_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Social_dummy + 
+       Social_dummy:Age_centeredGrandmean + Social_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+
+lmer.fin.calver_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Calver_dummy + 
+       Calver_dummy:Age_centeredGrandmean + Calver_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+
+lmer.fin.pixelated_contrast = lmer(h ~ 1 + Age_centeredGrandmean + Age_centeredGrandmean2 + 
+       # session-level
+       propInterp_session_groupmeancentered + 
+       longestFix_session_groupmeancentered + 
+       precision_session_groupmeancentered + 
+       # Person-level
+       longestFix_person_grandmeancentered + 
+       precision_person_grandmeancentered +
+       # Condition
+       Pix_dummy + 
+       Pix_dummy:Age_centeredGrandmean + Pix_dummy:Age_centeredGrandmean2 + 
+       (1|Participant) + (1|Visit),
+      data=clean_dat, REML=FALSE)
+# Social simple slopes
+# ## # # # # # # # # # 
+# SS Linear
+ss_SocAge = sim_slopes(model=lmer.fin.social_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Social_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+# Pull estimate for Social condition 
+social_b = ss_SocAge$slopes
+social_pval = social_b[social_b$`Value of Social_dummy`==1, 'p']
+social_b = social_b[social_b$`Value of Social_dummy`==1, 'Est.']
+# Standardize
+social_b = social_b * (sd(clean_dat$Age_centeredGrandmean)/ sd(clean_dat$h))
+
+# Pixelated simple slopes
+# ## # # # # # # # # # 
+ss_PixAge = sim_slopes(model=lmer.fin.pixelated_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Pix_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+# Pull estimate for Pixelated condition 
+pix_b = ss_PixAge$slopes
+pix_pval = pix_b[pix_b$`Value of Pix_dummy`==1, 'p']
+pix_b = pix_b[pix_b$`Value of Pix_dummy`==1, 'Est.']
+# Standardize
+pix_b = pix_b * (sd(clean_dat$Age_centeredGrandmean)/ sd(clean_dat$h))
+
+# Calver simple slopes
+# ## # # # # # # # # # 
+ss_CalverAge = sim_slopes(model=lmer.fin.calver_contrast, 
+                       pred=Age_centeredGrandmean,
+                      modx = Calver_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+
+# Pull estimate for Pixelated condition 
+calver_b = ss_CalverAge$slopes
+calver_pval = calver_b[calver_b$`Value of Calver_dummy`==1, 'p']
+calver_b = calver_b[calver_b$`Value of Calver_dummy`==1, 'Est.']
+# Standardize
+calver_b = calver_b * (sd(clean_dat$Age_centeredGrandmean)/ sd(clean_dat$h))
+```
+Tests of simple slopes suggested that while positive linear growth in $\alpha$ occurred for all conditions (i.e. (i.e., Social b=`r round(social_b, 2)`, p=`r social_pval`; Pixelated b=`r round(pix_b,2)`, p=`r pix_pval`, Attention-cue b=`r round(calver_b,2)`, p=`r calver_pval`)), 
+```{r linear_testing_mono}
+pix_test = car::linearHypothesis(lmer.7, 'Age_centeredGrandmean:Pix=Age_centeredGrandmean')
+pix_test_p =pix_test$`Pr(>Chisq)`[2]
+pix_test = car::linearHypothesis(lmer.7, 'Age_centeredGrandmean:Pix=Age_centeredGrandmean')
+```
+the slope was significantly greater in the Social condition compared to both the Pixelated condition (Chisq=`r pix_test$Chisq[2]`, p=2.2x10-16) and the Attention Cue condition (Chisq=`r pix_test$Chisq[2]`, p=`r pix_test_p`). 
+```{r}
+# Social simple slopes
+# ## # # # # # # # # # 
+ss_SocAge = sim_slopes(model=lmer.fin.social_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Social_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+# Pull estimate for Social condition 
+social_b = ss_SocAge$slopes
+social_pval = social_b[social_b$`Value of Social_dummy`==1, 'p']
+social_b = social_b[social_b$`Value of Social_dummy`==1, 'Est.']
+# Standardize
+social_b = social_b * (sd(clean_dat$Age_centeredGrandmean2)/ sd(clean_dat$h))
+
+# Pixelated simple slopes
+# ## # # # # # # # # # 
+ss_PixAge = sim_slopes(model=lmer.fin.pixelated_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Pix_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+# Pull estimate for Pixelated condition 
+pix_b = ss_PixAge$slopes
+pix_pval = pix_b[pix_b$`Value of Pix_dummy`==1, 'p']
+pix_b = pix_b[pix_b$`Value of Pix_dummy`==1, 'Est.']
+# Standardize
+pix_b = pix_b * (sd(clean_dat$Age_centeredGrandmean2)/ sd(clean_dat$h))
+
+# Calver simple slopes
+# ## # # # # # # # # # 
+ss_CalverAge = sim_slopes(model=lmer.fin.calver_contrast, 
+                       pred=Age_centeredGrandmean2,
+                      modx = Calver_dummy, modx.values = c(0,1), johnson_neyman=FALSE)
+
+# Pull estimate for Pixelated condition 
+calver_b = ss_CalverAge$slopes
+calver_pval = calver_b[calver_b$`Value of Calver_dummy`==1, 'p']
+calver_b = calver_b[calver_b$`Value of Calver_dummy`==1, 'Est.']
+# Standardize
+calver_b = calver_b * (sd(clean_dat$Age_centeredGrandmean2)/ sd(clean_dat$h))
+```
+Additionally, simple slopes revealed the significant decrease in growth over time was limited to the Social condition (i.e. Social b=`r social_b`, p=`r social_pval`; Pixelated b=`r pix_b`, p=`r pix_pval`, Attention Cue b=`r calver_b`, p=`r calver_pval`).  
+
+## Visual complexity and gaze to faces
+```{r}
+# Read models 
+```
+
+```{r}
+# Model tables 
+```
+
+```{r}
+# Make figure 
+```
+

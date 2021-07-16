@@ -7,6 +7,18 @@ output:
     highlight: kate
     self_contained: true
 ---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../")
+
+
+knitr::knit_hooks$set(inline = function(x) {
+  prettyNum(x, big.mark=",")
+})
+```
+
+
 ```{r setup, include=FALSE}
 library(knitr)
 library(rmdformats)
@@ -15,36 +27,22 @@ library(readr)
 library(tidyverse)
 library(DT)
 library(lme4)
-
-## Global options
-options(max.print="75")
-options(scipen = 999)
-opts_chunk$set(echo=FALSE,
-	             cache=TRUE,
-               prompt=FALSE,
-               tidy=TRUE,
-               comment=NA,
-               message=FALSE,
-               warning=FALSE)
-opts_knit$set(width=75)
 ```
 
 ```{r}
 # Read stability analysis data 
-dat <- read_csv("/Users/sifre002/Box/sifre002/7_MatFiles/01_Complexity/stability-experiments/parameter-stability/stability_out.txt")
-# Read calver data
-precisionInfo = read.csv('/Users/sifre002/Documents/Code/fractal-eye-analyses/out/calibration_verification.csv')
-# Clean calver data
-source('/Users/sifre002/Documents/Code/misc/clean_calver.R')
-calver=clean_calver(precisionInfo)
-calver_thresh=calver[[1]]
-AvgPrecision=calver[[2]]
-# Remove sessions w/ bad calver & where h was not calculated
-good_calver_id = AvgPrecision %>%
-  filter(AvgPrecision!=999)%>%
-  select(id) 
+dat <- read_csv(file.path('data', 'parameter-stability-data', 'stability_out.txt'))
+
+# Lits of visits that passed calver
+passed = read_csv(file.path('data', '2021-07-07-h_clean.csv'))
+
+passed = passed %>% 
+  select(id) %>%
+  distinct()
+
+# Only analyze visits that passed QA/QC
 dat2 = dat %>%
-  filter(id %in% good_calver_id$id) %>%
+  filter(id %in% passed$id) %>%
   filter(is.na(h_warning))
 # Variables to help with analyses
 dat2 = dat2 %>%
@@ -64,14 +62,6 @@ dat2 = dat2 %>%
   mutate(longestFixDur_frames=longestFixDur/3.3333,
          scmax=round(longestFixDur_frames/scmaxdiv,0))
 
-
-# Convert parameters to factors for easier plotting
-# dat2 = dat2 %>%
-#   mutate(scres=as.factor(scres),
-#          scmin=as.factor(scmin),
-#          scmaxdiv=as.factor(scmaxdiv))
-
-  
 ```
 
 
